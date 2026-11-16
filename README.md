@@ -15,7 +15,7 @@
 
 </div>
 
-Tango 是 DSH 桌面端的一个插件，让不同 agent 共用同一段对话。你可以从最顺手的 agent 开始一个任务，在中途切换执行者，而无需重开对话或重新说明上下文；也可以将多个 agent 组合成一组，让它们以同一个 agent 的方式协同工作。Codex、DSH、Claude Code，都可以成为执行者。
+Tango 是 DSH 桌面端的一个插件，让不同 agent 共用同一段对话。你可以从最顺手的 agent 开始一个任务，在中途切换执行者，而无需重开对话、重新说明上下文，或重新配置工具；也可以将多个 agent 组合成一组，让它们以同一个 agent 的方式协同工作。Codex、DSH、Claude Code，都可以成为执行者。
 
 **独立执行、中途切换、协同执行，都在同一段对话中完成。**
 
@@ -34,6 +34,16 @@ Tango 是 DSH 桌面端的一个插件，让不同 agent 共用同一段对话�
 有人依赖 Codex 的特定工作流，有人习惯了 Claude Code 的 hooks 与 CLAUDE.md，有人偏爱 DSH 的原生体验和插件生态。每个 agent 也各有长处：有的更适合长时间运行的任务，有的在终端操作上更顺手，有的能直接使用你常用的模型和工具。
 
 Tango 不要求你迁移，也不要求二选一。你可以继续单独使用一个 agent；需要切换或协同执行时，它负责保持对话的连续性。
+
+## 每套 agent 都有自己的配置
+
+你的电脑上通常不止一套 agent 系统。Codex 有它的模型和 MCP 工具，Claude Code 有它的 hooks、CLAUDE.md 和权限设置，DSH 有它的插件和原生会话。它们各自独立，配置并不共享。
+
+这会带来一个很具体的问题：你在 Codex 里配好了一个工具，但此刻正在 Claude Code 里工作；或者某个 MCP server 只在 DSH 里装过。你不想为了用这个工具而中断当前任务，也不想把几套配置重新抄一遍。
+
+比如你在 Codex 里接好了公司的内部 API，但正在 Claude Code 里改代码。切到 Codex 面板，让它用那个工具查接口；查完切回来，Claude Code 仍然知道刚才的上下文。
+
+Tango 不合并配置文件，也不复制凭据。每个 agent 保留自己的环境；需要某个能力时，切到拥有它的 agent，当前对话继续。
 
 ## 一个典型场景
 
@@ -148,6 +158,7 @@ Tango 的扩展方式不是不断往内核里加入更多 agent，而是让任�
 - 不是模型聚合器，也不是 API 网关。
 - 不是新的聊天客户端；界面仍然是 DSH 和你熟悉的终端。
 - 不替代 DSH / Claude Code / Codex 的原生能力。
+- 不要求统一配置，也不复制各 agent 的凭据。
 - 不将会话上传到云端。
 
 ## FAQ
@@ -160,6 +171,9 @@ Tango 的扩展方式不是不断往内核里加入更多 agent，而是让任�
 
 **必须把所有 agent 都接进来吗？**  
 不需要。你可以只使用一个 agent，也可以只让两个 agent 共舞，其余面板保持独立。
+
+**需要把各个 agent 的配置统一吗？**  
+不需要。每个 agent 保留自己的模型、工具、权限和项目指令；Tango 只负责在它们之间交接对话。
 
 **面板只能左右两个吗？**  
 不是。面板可以平铺成任意数量，支持拖动、缩放、分屏和标签页，也可以将任意面板拖出为独立系统窗口。
@@ -191,6 +205,7 @@ Tango 的生态需要更多 adapter、更多界面想法和真实使用场景。
 
 - **Unified** — one shared conversation; switch the executor at any time; only the delta is handed over.
 - **Solo** — independent native sessions, with a local message bus for agent-to-agent communication.
+- **Independent configs** — each agent keeps its own models, tools, hooks and project instructions; switch to the one that has what you need.
 - **Flexible panes** — resize, drag, split, tab, add or remove panes like windows; detach any pane into its own OS window.
 - **Extensible** — add your own agent through the [adapter API](docs/adapter-spec.md).
 
