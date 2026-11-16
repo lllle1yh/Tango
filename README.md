@@ -15,7 +15,7 @@
 
 </div>
 
-Tango 是 DSH 桌面端的 agent 调度台：一个任务，先用最顺手的 agent 开局；中途想换，切过去，不重开、不复述；想让两个一起，就连成一组，当作一个 agent 用。Codex、DSH、Claude Code，谁上都行。
+Tango 是 DSH 桌面端的一个插件，让不同 agent 共用一个对话：一个任务，先用最顺手的 agent 开局；中途想换，切过去，不重开、不复述；想让两个一起，就连成一组，当作一个 agent 用。Codex、DSH、Claude Code，谁上都行。
 
 **单干、换人、一起上，都在同一个对话里。**
 
@@ -153,7 +153,7 @@ Tango 不靠往内核里塞更多 agent 来扩展，而是让**任何人都能�
 ## FAQ
 
 **Tango 是另一个聊天客户端吗？**  
-不是。它是 DSH 桌面端的一个插件，加一层中立的调度器；聊天界面仍然是 DSH 和你熟悉的终端。
+不是。它是 DSH 桌面端的一个插件，负责把对话交给下一个接棒的 agent；聊天界面仍然是 DSH 和你熟悉的终端。
 
 **会取代 DSH / Claude Code / Codex 吗？**  
 不会。每个 agent 仍然按自己的方式运行，Tango 只负责会话、切换和消息。
@@ -187,7 +187,7 @@ Tango 的生态需要更多 adapter、更多界面想法和更多真实使用场
 
 ## English
 
-**Tango** is the agent switchboard for DSH Desktop. Start a task with whichever agent fits, switch mid-task without restarting or re-explaining, or link two agents into one. Codex, DSH, Claude Code — bring any of them.
+**Tango** makes different agents share one conversation on DSH Desktop. Start a task with whichever agent fits, switch mid-task without restarting or re-explaining, or link two agents into one. Codex, DSH, Claude Code — bring any of them.
 
 - **Unified** — one shared conversation; choose who executes each turn; switch anytime, with only the delta handed over.
 - **Solo** — native sessions stay separate, with a local message bus for agent-to-agent messages.
