@@ -7,7 +7,7 @@
 
 让你用 Claude Code、Codex、DSH 或别的 agent 时，感觉像在用同一个 agent。
 
-[![Status](https://img.shields.io/badge/status-design-blue)](#路线图)
+[![Status](https://img.shields.io/badge/status-design-blue)](#状态与路线图)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](#)
 [![DSH](https://img.shields.io/badge/DSH-plugin-6c5ce7)](https://github.com/deepseek-ai/deepseek-harness)
@@ -18,80 +18,55 @@
 > **状态：设计阶段。** 仓库里目前只有设计与协议草案，尚不可安装。  
 > 如果你想让自己的 agent 接入 Tango，欢迎从 [Adapter 提案](CONTRIBUTING.md#提案一个-adapter) 开始。
 
-Tango 是一个 DSH 桌面端插件：把 DSH 和 Claude Code、Codex 等原生 agent 放进同一个面板工作区。面板可以拖动、缩放、分屏、开标签页、增删，数量不限，也可以拖出成独立的系统窗口。
+**TL;DR** — 一个对话，换谁执行都行；不想共享就分开，各自还能互相说话；面板随便摆，也能拖出成独立窗口。
 
-## 一分钟看懂
+## 它是什么
 
-| 你想要 | Tango 给你 |
-| --- | --- |
-| 一直用同一个 agent | **共舞**：一条会话，谁都能接着答 |
-| 保留各自的习惯 | **独舞**：原生会话、工具、权限都不动 |
-| 让几个 agent 协作 | **独舞**：消息总线，互相派活 |
-| 想要自己的布局 | **多面板工作区**：拖动、缩放、分屏、标签页 |
-| 想要多块屏幕 | **任意面板可拖出成独立系统窗口** |
-| 接入别的 agent | **Adapter API**：自己写，或等社区适配 |
+Tango 是 DSH 桌面端的一个插件：把 DSH、Claude Code、Codex 等 agent 放进同一个面板工作区。它只有两种用法：
 
-## 为什么是 Tango
+- **共舞**：它们共用一条对话，下一回合换谁执行都行。
+- **独舞**：它们各自独立，但能互相发消息、派活。
 
-每个人都有自己的习惯。有人离不开 Codex 的某个工作流，有人把 Claude Code 的 hooks 和 CLAUDE.md 用出了肌肉记忆，有人喜欢 DSH 的原生体验和插件生态。每个 agent 也都有自己的长处：有的擅长长任务，有的擅长终端操作，有的接入了你离不开的模型或工具。
+你不用再决定“这轮该用哪个 agent”。你只是在同一个对话里继续，Tango 负责把上下文交给下一个接棒的人。
 
-Tango 不要求迁移，也不要求你换掉习惯。它让不同的 agent 共用一条对话，让你感觉始终在跟同一个 agent 说话：
+## 一个具体例子
 
-- 想合在一起，就**共舞**：一条会话，轮流领舞。
-- 想各干各的，就**独舞**：每个面板一个原生 agent，随时对话。
+你在 DSH 面板里说：“把登录改成 JWT。”
+
+1. DSH 改了 auth 中间件，停在测试失败。
+2. 你点旁边 Claude Code 面板的「接棒」。
+3. Claude Code 不用你复述：它看到 DSH 刚才说了什么、改了哪些文件，直接接着修。
+4. 你切回 DSH，DSH 也看得到 Claude Code 的改动。
+5. 整条对话仍然只有一份记录，不是两份。
+
+这就是“像一个 agent”。
 
 ## 两种模式
 
-### 共舞 / Unified
+| | 共舞 / Unified | 独舞 / Solo |
+| --- | --- | --- |
+| 上下文 | 共用一条对话 | 各自独立 |
+| 谁执行 | 每回合你选，或自动接棒 | 各自跑各自的 |
+| 切换 | 随时切，只补增量 | 不切换 |
+| 适合 | 一件事，换擅长的 agent 接着做 | 多件事并行，或让 agent 互相派活 |
+| 消息 | 不需要额外发消息 | 通过消息总线互发 |
 
-- 参与共舞的面板共用一份唯一会话记录（canonical history）。
-- 每个回合独立选择执行者：DSH、Claude Code、Codex，或后续接入的其他 agent。
-- 切回某个 agent 时，只补交它离开期间的已完成回合和工作记录（改过哪些文件、跑过哪些命令），不重放全量历史。
-- 每个 agent 仍保留自己的原生会话、工具、权限模式和项目指令（CLAUDE.md / AGENTS.md）。
-- 组内任意面板都可以主动发起，由中立调度器仲裁，不是一边指挥一边执行。
+### 共舞怎么工作
 
-### 独舞 / Solo
+- 一份唯一会话记录（canonical history）。
+- 每个回合选执行者：DSH、Claude Code、Codex，或后续接入的其他 agent。
+- 切回时只补交离开期间的已完成回合和工作记录，不重放全量。
+- 每个 agent 仍保留自己的原生会话、工具、权限和项目指令（CLAUDE.md / AGENTS.md）。
 
-- 每个 agent 在自己的面板里独立运行，上下文互不污染。
-- 通过本地消息总线按名字互发消息；对方忙时消息排队。
+### 独舞怎么工作
+
+- 每个 agent 独立会话，上下文互不污染。
+- 按名字互发消息；对方忙时消息排队。
 - 你可以随时切到任意面板接管。
-- 适合“让 Codex 审一下 Claude 的改动”“让 DSH 去查资料，CC 继续写代码”这类协作。
 
 ## 工作区
 
-不是一个固定的左右分屏，而是一个可以自由拼接的平铺工作区。每个面板可以是一个 agent、一个普通终端，或一个只读的 Conductor。
-
-### 一个面板
-
-```text
-┌─ Claude Code ────────────── 共舞 ── [□] [x] ┐
-│  Opus · high effort        running 00:42    │
-├─────────────────────────────────────────────┤
-│                                             │
-│   ... 对话 / 工具调用 / 终端输出 ...        │
-│                                             │
-├─────────────────────────────────────────────┤
-│  > 输入，或点另一块面板接棒                 │
-└─────────────────────────────────────────────┘
-```
-
-- **头部**：agent、模型 / harness、共舞或独舞、运行状态、最大化 / 分屏 / 拖出 / 关闭。
-- **中间**：对话、工具活动或真实终端输出。
-- **底部**：输入框或状态栏。共舞时，非当前执行者的输入框显示「等待接棒」。
-
-### 布局
-
-**两块，最常用：**
-
-```text
-┌──────────────────────────────┬──────────────────────────────┐
-│  DSH                         │  Claude Code                 │
-│                              │                              │
-│                              │                              │
-└──────────────────────────────┴──────────────────────────────┘
-```
-
-**四块，像 Windows 平铺：**
+像 Windows 窗口一样平铺，不是固定左右两栏。
 
 ```text
 ┌──────────────────────────────┬──────────────────────────────┐
@@ -103,74 +78,12 @@ Tango 不要求迁移，也不要求你换掉习惯。它让不同的 agent 共�
 └──────────────────────────────┴──────────────────────────────┘
 ```
 
-**一大三小：**
+- 面板数量不限，可拖动、缩放、分屏、开标签页。
+- 任意面板可以拖出成独立系统窗口，放到第二块屏幕。
+- 几个面板可以编组共舞，其他面板独舞。
+- 布局按工作区保存，下次打开恢复原样。
 
-```text
-┌──────────────────────────────┬──────────────────────────────┐
-│                              │  Claude Code                 │
-│                              ├──────────────────────────────┤
-│  DSH                         │  Codex                       │
-│                              ├──────────────────────────────┤
-│                              │  终端                        │
-└──────────────────────────────┴──────────────────────────────┘
-```
-
-**一个窗格里开标签页：**
-
-```text
-┌─ 终端 ───────────────────────────────────┐
-│ [ Claude ] [ Codex ] [ shell ]        +  │
-├──────────────────────────────────────────┤
-│                                          │
-│  ...                                     │
-│                                          │
-└──────────────────────────────────────────┘
-```
-
-**拖出成独立系统窗口，放到第二块屏幕：**
-
-```text
-┌─ 主窗口 ─────────────────────┐   ┌─ 独立窗口 ──────────────┐
-│  DSH          │  Codex       │   │  Claude Code            │
-│               │              │   │                         │
-└───────────────┴──────────────┘   └─────────────────────────┘
-```
-
-布局会按工作区保存；下次打开还是你上次的样子。
-
-### 交互
-
-- 拖分隔线：调整大小。
-- 拖面板头部：换位置、重新停靠。
-- 双击头部：最大化；再双击还原。
-- 分屏按钮：向右或向下拆分。
-- 面板可以收起、关闭、重新打开。
-- 加面板时选：DSH / Claude Code / Codex / 普通终端。
-- 一个窗格里可以开标签页，多个会话共用一个窗格。
-- 任意面板可以拖出成独立系统窗口，也可以再拖回来。
-- 可以把几个面板连成一组，组内共舞，组外独舞。
-
-### 共舞时面板怎么表现
-
-- 同一组的面板用同一种边框或角标，表示它们共享一条会话。
-- 当前回合由谁执行，头部亮一个「接力棒」图标。
-- 其他面板只读显示这轮内容，并标注 `executed by Claude Code`。
-- 点另一块面板的「接棒」，下一轮就换它执行。
-- 切换时短暂显示「正在补交离开期间的记录」。
-- 可以额外开一个只读的 **Conductor 面板**：看整条 canonical timeline，谁在第几轮执行、交接了什么。
-
-### 独舞时面板怎么表现
-
-- 每个面板完全独立，边框各是各的颜色。
-- 面板之间用「发给谁」按钮或拖拽卡片来传话。
-- 对方忙时，消息显示为排队中的小卡片。
-- 你随时点进任意面板接管。
-
-### 混用
-
-同一个工作区里，可以同时有共舞组和独舞面板。比如 DSH + Claude Code 共舞，旁边 Codex 和终端各自独舞。
-
-更细的交互、状态和持久化定义见 [docs/workspace.md](docs/workspace.md)。
+更细的面板、交互和持久化定义见 [docs/workspace.md](docs/workspace.md)。
 
 ## 支持的 agent
 
@@ -183,47 +96,39 @@ Tango 不要求迁移，也不要求你换掉习惯。它让不同的 agent 共�
 | Kimi Code | 待社区适配 | 计划中 | ACP | Phase 3 |
 | 你的 agent | 欢迎 | 欢迎 | [Adapter API](docs/adapter-spec.md) | 征集中 |
 
+## 它不是什么
+
+- 不是模型聚合器，也不是 API 网关。
+- 不是新的聊天客户端；界面仍然是 DSH 和你熟悉的终端。
+- 不替代 DSH / Claude Code / Codex 的原生能力。
+- 不把会话上传到云端。
+
 ## 架构
 
 ```mermaid
 flowchart LR
-    U[你] --> W[Workspace / Pane Manager]
-    W --> P[面板 × N]
-    P <--> S[Tango Scheduler]
-    S <--> DB[(Canonical Ledger)]
-    S <--> MB[Message Bus]
-    S <--> A1[DSH Adapter]
-    S <--> A2[Claude Code Adapter]
-    S <--> A3[Codex Adapter]
-    S <--> A4[你的 Adapter]
+    U[你] --> W[工作区 / 面板]
+    W --> S[Tango Scheduler]
+    S <--> L[(唯一会话记录)]
+    S <--> B[消息总线]
+    S <--> A[Adapters]
+    A --> D[DSH]
+    A --> C[Claude Code]
+    A --> X[Codex]
+    A --> Y[你的 agent]
 ```
 
 - **Workspace / Pane Manager** — 平铺、拖动、缩放、分屏、标签页、拖出独立窗口、面板编组、布局持久化。
-- **Tango 桌面插件** — DSH `desktop` profile 里的工作区入口、模式开关、面板菜单。
-- **Scheduler / Broker** — 中立调度层：唯一会话账本（canonical ledger）、回合仲裁、单写者、增量交接（handoff）。
+- **Scheduler** — 回合仲裁、增量交接（handoff）、权限与取消。
 - **Adapters** — 每个 agent 一个适配器，Tango 不关心它内部怎么实现。
-- **Message Bus** — 独舞模式的消息通道，MCP 工具 + 本地共享目录。
+- **Message Bus** — 独舞模式的消息通道。
 - **Storage** — 本地 SQLite / JSONL，放在 `~/.dsh/tango/`。
 
-一个关键点：共舞模式下，参与共舞的面板不是纯伪终端（PTY），而是由 adapter 驱动、调度层能读到每一轮的终端视图；独舞模式才使用真 PTY。
-
-## 设计原则
-
-1. **像在用同一个 agent** — 用户感觉是在跟一个 agent 说话，不是在管理一堆进程。
-2. **不强迫迁移** — 原生会话、工具、权限、项目指令都保留。
-3. **单一账本** — 共舞模式只有一份唯一会话记录，避免各记一套。
-4. **谁都能发起** — 任意面板都可以开启回合，由中立调度器仲裁。
-5. **增量交接** — 切回时只补离开期间的增量，不重复注入全量。
-6. **可分离** — 独舞模式不共享上下文，只共享消息通道。
-7. **本地优先** — 会话、消息、账本都在本机，默认不上云。
-8. **Adapter 优先** — 新 agent 通过 adapter 接入，而不是改 Tango 内核。
-9. **布局自由** — 面板数量、排列、停靠、是否独立成窗口，都由用户决定。
+细节见 [adapter 协议](docs/adapter-spec.md) 与 [工作区协议](docs/workspace.md)。
 
 ## 生态
 
 Tango 不靠往内核里塞更多 agent 来扩展，而是让**任何人都能把自己的 agent 接进来**。
-
-### Adapter 优先
 
 一个 adapter 只需要实现四件事：
 
@@ -234,41 +139,15 @@ Tango 不靠往内核里塞更多 agent 来扩展，而是让**任何人都能�
 | `send()` / `stream()` | 发送一轮，流式返回正文与工具活动 |
 | `interrupt()` | 取消当前回合 |
 
-完整的接口、消息格式与一致性测试见 [docs/adapter-spec.md](docs/adapter-spec.md)。
+接入步骤：
 
-### 一个 adapter 长什么样
-
-```json
-{
-  "id": "claude-code",
-  "name": "Claude Code",
-  "modes": ["unified", "solo"],
-  "transport": "stream-json",
-  "entry": "./adapter.mjs"
-}
-```
-
-### 接入一个新 agent
-
-1. 用 [Adapter 提案模板](.github/ISSUE_TEMPLATE/adapter-proposal.md) 开 issue，说明 agent、传输方式、登录方式和平台。
+1. 用 [Adapter 提案模板](.github/ISSUE_TEMPLATE/adapter-proposal.md) 开 issue。
 2. 按 [adapter 协议](docs/adapter-spec.md) 实现最小可用 adapter。
-3. 跑一致性测试（计划中），提交 PR；通过后进入 adapter 列表。
+3. 跑一致性测试（计划中），提交 PR。
 
-### 社区方向
+后续会有 adapter 注册表和 DSH 插件市场的一键安装。
 
-- **Adapter 注册表**：官方维护一份经过验证的 adapter 列表。
-- **插件市场**：Tango 作为 DSH 插件上架，后续提供一键安装。
-- **本地优先**：不上传会话，不做云端托管，adapter 也遵守这条边界。
-- **文档与翻译**：中英文优先，欢迎其他语言。
-
-## 非目标
-
-- 不做模型聚合器或 API 网关。
-- 不替代 DSH / Claude Code / Codex 的原生能力。
-- 不把会话上传到云端。
-- 不强迫用户迁移，也不要求统一工作流。
-
-## 路线图
+## 状态与路线图
 
 - [ ] **Phase 0 — 设计与协议**（当前）
   - canonical message schema、handoff 协议、adapter 接口、工作区交互
@@ -282,17 +161,6 @@ Tango 不靠往内核里塞更多 agent 来扩展，而是让**任何人都能�
 - [ ] **Phase 4 — 生态与分发**
   - adapter 注册表、插件市场、安装器、文档与测试
 
-## 快速开始
-
-**目前尚不可安装。** 规划中的安装方式：
-
-```bash
-# 规划中，尚未可用
-dsh plugin --profile desktop add dsh-tango
-```
-
-想参与设计或提前适配自己的 agent，请先看 [CONTRIBUTING.md](CONTRIBUTING.md)。
-
 ## FAQ
 
 **Tango 是另一个聊天客户端吗？**  
@@ -304,17 +172,14 @@ dsh plugin --profile desktop add dsh-tango
 **需要把会话上传到云端吗？**  
 不需要。默认全部在本机，adapter 也遵守本地优先。
 
+**面板只能左右两个吗？**  
+不是。可以平铺成任意数量，拖动、缩放、分屏、开标签页，也可以把任意面板拖出成独立系统窗口。共舞和独舞可以混用。
+
 **我能接入自己的 agent 吗？**  
 能。只要能启动一个进程并通过 stream/stdout 或 MCP/ACP 通信，就可以写 adapter。
 
-**面板只能左右两个吗？**  
-不是。可以平铺成任意数量，拖动、缩放、分屏、开标签页，也可以把任意面板拖出成独立系统窗口，放到第二块屏幕。共舞和独舞可以混用。
-
-**Windows 能用吗？**  
-计划支持 Windows、macOS、Linux。DSH Desktop 本身支持 Windows。
-
 **为什么叫 Tango？**  
-见下方 [名字](#名字)。
+Tango 是两个人的舞，但舞池可以站很多人。共舞时是一支舞，独舞时各跳各的。
 
 ## 参与贡献
 
@@ -328,21 +193,14 @@ dsh plugin --profile desktop add dsh-tango
 
 详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-## 名字
-
-Tango 是两个人的舞，但舞池可以站很多人。有时你带，有时我带，但始终是同一支舞。
-
-**共舞时是一支舞，独舞时各跳各的。**
-
 ## English
 
-**Tango** makes Claude Code, Codex, DSH and other agents feel like one agent. In **Unified** mode they share a single conversation, and you choose who executes each turn; in **Solo** mode they split into independent peers that can talk to each other. No migration, no re-explaining.
+**Tango** makes Claude Code, Codex, DSH and other agents feel like one agent.
 
-- **Flexible panes** — resize, drag, split, tab, add or remove panes like windows; detach any pane into its own OS window; any number.
-- **Unified** — one canonical conversation, per-turn executor switching, delta handoff.
-- **Solo** — native sessions stay separate; a local message bus lets them collaborate.
+- **Unified** — one shared conversation; choose who executes each turn; switch anytime, with only the delta handed over.
+- **Solo** — native sessions stay separate, with a local message bus for agent-to-agent messages.
+- **Flexible panes** — resize, drag, split, tab, add or remove panes like windows; detach any pane into its own OS window.
 - **Extensible** — bring your own agent through the [adapter API](docs/adapter-spec.md).
-- **Local-first** — sessions, messages and ledgers stay on your machine.
 
 Status: design stage. See [CONTRIBUTING.md](CONTRIBUTING.md) to join the adapter ecosystem.
 
