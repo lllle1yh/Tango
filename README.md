@@ -15,9 +15,17 @@
 
 </div>
 
-Tango 是一个 DSH 桌面插件。它把不同 agent 放进同一个工作区：你可以让它们共用一条对话、随时换谁执行；也可以让它们各自独立、互相发消息。
+Tango 是一个 DSH 桌面插件。平时你用一个 agent 做一个任务，Codex、DSH、Claude Code 都行；做到一半想换，直接切过去；想两个一起上，就把它们连成一组，当作一个 agent 来用。
 
-**不用为了换 agent 而重开对话，也不用复述。想一直用同一个，就一直用；想换，切过去就行。**
+**一个任务可以从一个 agent 开始；想换就换，想一起就一起。**
+
+## 三种常见用法
+
+| 场景 | 怎么用 |
+| --- | --- |
+| 一个任务，一个 agent | 开一个面板，正常用 Codex、DSH 或 Claude Code |
+| 做到一半想换 | 切到另一个面板接棒，不用重开对话，也不用复述 |
+| 想两个一起 | 把面板连成共舞组，它们共用一条对话，像一个 agent |
 
 ## 为什么需要 Tango
 
@@ -25,7 +33,7 @@ Agent 不该逼你选边。
 
 有人离不开 Codex 的某个工作流，有人把 Claude Code 的 hooks 和 CLAUDE.md 用成了肌肉记忆，有人喜欢 DSH 的原生体验和插件生态。每个 agent 也都有自己的长处：有的擅长长任务，有的擅长终端操作，有的接入了你离不开的模型或工具。
 
-Tango 不要求你迁移，也不要求二选一。它让不同的 agent 共用一条对话，或者各自独立、互相协作。
+Tango 不要求你迁移，也不要求二选一。平时你可以继续单用一个 agent；需要换人或一起上时，它负责把对话接住。
 
 ## 一个具体例子
 
@@ -39,9 +47,13 @@ Tango 不要求你迁移，也不要求二选一。它让不同的 agent 共用�
 
 这就是“像一个 agent”。
 
-## 两种用法
+## 两种模式
+
+两种模式不是互斥的：同一个工作区里可以同时有共舞组和独舞面板。
 
 ### 共舞 / Unified
+
+需要两个一起上时，把面板连成一组。
 
 - 所有参与者共用一条对话。
 - 想换执行者的时候随时换：DSH、Claude Code、Codex，或后续接入的其他 agent。
@@ -49,6 +61,8 @@ Tango 不要求你迁移，也不要求二选一。它让不同的 agent 共用�
 - 每个 agent 仍保留自己的原生会话、工具、权限和项目指令（CLAUDE.md / AGENTS.md）。
 
 ### 独舞 / Solo
+
+平时一个任务用一个 agent，就是独舞；也可以同时开多个独立面板。
 
 - 每个 agent 独立会话，上下文互不污染。
 - 按名字互发消息；对方忙时消息排队。
@@ -58,8 +72,8 @@ Tango 不要求你迁移，也不要求二选一。它让不同的 agent 共用�
 | --- | --- | --- |
 | 上下文 | 共用一条对话 | 各自独立 |
 | 谁执行 | 想换就换，随时接棒 | 各自跑各自的 |
-| 切换 | 随时切，只补增量 | 不切换 |
-| 适合 | 一件事，换擅长的 agent 接着做 | 多件事并行，或让 agent 互相派活 |
+| 切换 | 随时切，只补增量 | 切了也不共享上下文 |
+| 适合 | 一个任务，两个一起上，或中途换人 | 平时单干，或多任务并行 |
 | 消息 | 不需要额外发消息 | 通过消息总线互发 |
 
 ## 工作区
@@ -173,7 +187,7 @@ Tango 的生态需要更多 adapter、更多界面想法和更多真实使用场
 
 ## English
 
-**Tango** makes Claude Code, Codex, DSH and other agents feel like one agent.
+**Tango** makes Claude Code, Codex, DSH and other agents feel like one agent. Start with one agent for a task; switch to another mid-task without re-explaining, or link two agents into one shared conversation.
 
 - **Unified** — one shared conversation; choose who executes each turn; switch anytime, with only the delta handed over.
 - **Solo** — native sessions stay separate, with a local message bus for agent-to-agent messages.
