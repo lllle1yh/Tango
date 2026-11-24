@@ -7,10 +7,16 @@
 在一个工作台里运行自己的 Agent，让多个 Agent 沿着同一段对话继续工作。
 
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Project status](https://img.shields.io/badge/status-design-blue)](#project-status)
+[![Target platforms](https://img.shields.io/badge/target%20platforms-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](docs/workspace.md)
+[![External agent adapters](https://img.shields.io/badge/agent-adapters-6c5ce7)](docs/adapter-spec.md)
+[![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen)](CONTRIBUTING.md)
 
 </div>
 
 Tango 面向每天和 Agent 一起写代码、查资料、跑测试的人。打开 Tango，选一个项目目录，就能在工作区里用 Tango Agent 开始任务。你可以让一个 Agent 独立完成，也可以把任务交给另一个 Agent 继续。任务目标、对话和工作记录随任务保存在 Tango，接手时能看到已经做了什么、还有哪些事待处理。
+
+<a name="project-status"></a>
 
 **项目状态**　设计阶段。[工作区规格](docs/workspace.md)和 [Adapter 协议](docs/adapter-spec.md)是实现草案。目前尚无可运行版本。
 
