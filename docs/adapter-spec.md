@@ -1,12 +1,12 @@
 # Tango Adapter 协议
 
-设计草案。Adapter 把外部 Agent 接入 Tango 的任务和回合模型。Tango 自带的 Agent 直接由自身运行时驱动。
+设计草案。Adapter 把已有 Agent 的原生会话接入 Tango 的任务和回合模型。
 
 ## 1. 职责
 
 | 角色 | 职责 |
 | --- | --- |
-| Tango 运行时 | 管理任务时间线、执行者、回合、审批、取消与交接 |
+| Tango | 管理任务时间线、执行者和交接，通过 Adapter 转发受支持的会话操作 |
 | Adapter | 将 Tango 的请求转为外部 Agent 的原生输入，并把原生输出转换为 Tango 事件 |
 | 外部 Agent | 执行任务并管理自己的原生会话、登录、工具和权限 |
 
