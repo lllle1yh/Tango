@@ -2,11 +2,27 @@ import { contextBridge, ipcRenderer } from "electron";
 
 type TerminalDataListener = (terminalId: string, data: string) => void;
 type TerminalExitListener = (terminalId: string, exitCode: number) => void;
+type CodexEventListener = (taskId: string, event: Record<string, unknown>) => void;
 
 contextBridge.exposeInMainWorld("tango", {
   getWorkspace: (): Promise<string | null> => ipcRenderer.invoke("workspace:get"),
   openWorkspace: (): Promise<string | null> => ipcRenderer.invoke("workspace:open"),
   detectAgents: (): Promise<AgentStatus[]> => ipcRenderer.invoke("agents:detect"),
+  listTasks: (): Promise<TaskRecord[]> => ipcRenderer.invoke("tasks:list"),
+  createTask: (title: string, projectPath: string): Promise<TaskRecord> =>
+    ipcRenderer.invoke("tasks:create", title, projectPath),
+  codexStart: (taskId: string, projectPath: string, prompt: string): Promise<void> =>
+    ipcRenderer.invoke("codex:start", taskId, projectPath, prompt),
+  codexSend: (taskId: string, prompt: string): Promise<void> =>
+    ipcRenderer.invoke("codex:send", taskId, prompt),
+  codexInterrupt: (taskId: string): Promise<void> =>
+    ipcRenderer.invoke("codex:interrupt", taskId),
+  onCodexEvent: (listener: CodexEventListener): (() => void) => {
+    const handle = (_event: Electron.IpcRendererEvent, taskId: string, payload: Record<string, unknown>) =>
+      listener(taskId, payload);
+    ipcRenderer.on("codex:event", handle);
+    return () => ipcRenderer.removeListener("codex:event", handle);
+  },
   startTerminal: (projectPath: string, terminalId: string): Promise<void> =>
     ipcRenderer.invoke("terminal:start", projectPath, terminalId),
   writeTerminal: (terminalId: string, data: string): void =>
@@ -36,10 +52,24 @@ export interface AgentStatus {
   version: string | null;
 }
 
+export interface TaskRecord {
+  id: string;
+  title: string;
+  projectPath: string;
+  threadId?: string;
+  messages: Array<{ role: "user" | "assistant"; text: string; agent: string; createdAt: string }>;
+}
+
 export interface TangoApi {
   getWorkspace(): Promise<string | null>;
   openWorkspace(): Promise<string | null>;
   detectAgents(): Promise<AgentStatus[]>;
+  listTasks(): Promise<TaskRecord[]>;
+  createTask(title: string, projectPath: string): Promise<TaskRecord>;
+  codexStart(taskId: string, projectPath: string, prompt: string): Promise<void>;
+  codexSend(taskId: string, prompt: string): Promise<void>;
+  codexInterrupt(taskId: string): Promise<void>;
+  onCodexEvent(listener: (taskId: string, event: Record<string, unknown>) => void): () => void;
   startTerminal(projectPath: string, terminalId: string): Promise<void>;
   writeTerminal(terminalId: string, data: string): void;
   resizeTerminal(terminalId: string, cols: number, rows: number): void;

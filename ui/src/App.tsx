@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import type { AgentStatus } from "../../electron/preload";
+import type { AgentStatus, TaskRecord } from "../../electron/preload";
 
 function FolderIcon() {
   return (
@@ -125,6 +125,11 @@ function App() {
   const [activeAgent, setActiveAgent] = useState<AgentStatus["id"] | null>(null);
   const [tabs, setTabs] = useState<string[]>(["terminal-1"]);
   const [activeTerminal, setActiveTerminal] = useState("terminal-1");
+  const [tasks, setTasks] = useState<TaskRecord[]>([]);
+  const [activeTask, setActiveTask] = useState<string | null>(null);
+  const [prompt, setPrompt] = useState("");
+  const [assistantText, setAssistantText] = useState("");
+  const [running, setRunning] = useState(false);
 
   const refreshAgents = useCallback(async () => {
     setDetecting(true);
@@ -138,11 +143,56 @@ function App() {
   useEffect(() => {
     void window.tango.getWorkspace().then(setProject);
     void refreshAgents();
+    void window.tango.listTasks().then(setTasks);
   }, [refreshAgents]);
+
+  useEffect(() => window.tango.onCodexEvent((taskId, event) => {
+    if (taskId !== activeTask) return;
+    if (event.type === "delta" && typeof event.text === "string") setAssistantText((text) => text + event.text);
+    if (event.type === "turn/completed") {
+      setRunning(false);
+      setAssistantText((text) => {
+        if (text.trim()) {
+          setTasks((current) => current.map((task) => task.id === taskId
+            ? { ...task, messages: [...task.messages, { role: "assistant", agent: "codex", text, createdAt: new Date().toISOString() }] }
+            : task));
+        }
+        return "";
+      });
+    }
+    if (event.type === "process/exit") setRunning(false);
+  }), [activeTask]);
 
   async function openProject() {
     const selected = await window.tango.openWorkspace();
     if (selected) setProject(selected);
+  }
+
+  async function createTask() {
+    if (!project) return;
+    const task = await window.tango.createTask("New task", project);
+    setTasks((current) => [task, ...current]);
+    setActiveTask(task.id);
+    setActiveAgent("codex");
+  }
+
+  async function submitPrompt() {
+    const text = prompt.trim();
+    const task = tasks.find((item) => item.id === activeTask);
+    if (!text || !task) return;
+    setPrompt("");
+    setAssistantText("");
+    setRunning(true);
+    try {
+      if (task.threadId) await window.tango.codexSend(task.id, text);
+      else await window.tango.codexStart(task.id, task.projectPath, text);
+      setTasks((current) => current.map((item) => item.id === task.id
+        ? { ...item, messages: [...item.messages, { role: "user", agent: "codex", text, createdAt: new Date().toISOString() }] }
+        : item));
+    } catch (error) {
+      setRunning(false);
+      setAssistantText(error instanceof Error ? error.message : "Could not start Codex");
+    }
   }
 
   function newTerminal() {
@@ -185,6 +235,15 @@ function App() {
         ) : (
           <p className="sidebar-hint">No project selected.</p>
         )}
+
+        {project && <button className="project-button create-task" onClick={() => void createTask()}>＋ New task</button>}
+        <div className="task-list">
+          {tasks.filter((task) => task.projectPath === project).map((task) => (
+            <button key={task.id} className={"task-link " + (task.id === activeTask ? "selected" : "")} onClick={() => { setActiveTask(task.id); setActiveAgent("codex"); }}>
+              <span>◌</span><span>{task.title}</span>
+            </button>
+          ))}
+        </div>
 
         <div className="sidebar-agents">
           <div className="sidebar-label">INSTALLED AGENTS</div>
@@ -271,7 +330,27 @@ function App() {
               </div>
             )}
 
-            {activeAgent && (
+            {activeAgent && activeTask && activeAgent === "codex" && (
+              <div className="conversation">
+                <div className="conversation-heading">{tasks.find((task) => task.id === activeTask)?.title}</div>
+                <div className="conversation-messages">
+                  {tasks.find((task) => task.id === activeTask)?.messages.map((message, index) => (
+                    <article className={"message " + message.role} key={index}>
+                      <span>{message.agent}</span><p>{message.text}</p>
+                    </article>
+                  ))}
+                  {(assistantText || running) && <article className="message assistant"><span>Codex</span><p>{assistantText || "Working…"}</p></article>}
+                </div>
+                <form className="composer" onSubmit={(event) => { event.preventDefault(); void submitPrompt(); }}>
+                  <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submitPrompt(); }
+                  }} placeholder="Ask Codex to work in this project…" />
+                  {running && <button type="button" className="subtle-button" onClick={() => void window.tango.codexInterrupt(activeTask)}>Stop</button>}
+                  <button type="submit" className="send-button" disabled={!prompt.trim() || running}>Send</button>
+                </form>
+              </div>
+            )}
+            {activeAgent && (!activeTask || activeAgent !== "codex") && (
               <div className="agent-placeholder">
                 <div className="agent-placeholder-icon">
                   <AgentGlyph agentId={activeAgent} />
