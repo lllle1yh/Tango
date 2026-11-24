@@ -69,7 +69,19 @@ function createCodexClient(taskId: string) {
         } else if (message.method === "item/started" || message.method === "item/completed") {
           sendCodexEvent(taskId, { type: message.method, item: message.params?.item });
         } else if (message.method === "turn/completed") {
-          sendCodexEvent(taskId, { type: "turn/completed", turn: message.params?.turn });
+          const turn = message.params?.turn;
+          const answer = Array.isArray(turn?.items)
+            ? turn.items.filter((item: any) => item.type === "agentMessage").map((item: any) => item.text ?? "").join("")
+            : "";
+          if (answer) {
+            void readTasks().then(async (tasks) => {
+              const task = tasks.find((item) => item.id === taskId);
+              if (!task) return;
+              task.messages.push({ role: "assistant", text: answer, agent: "codex", createdAt: new Date().toISOString() });
+              await saveTasks(tasks);
+            });
+          }
+          sendCodexEvent(taskId, { type: "turn/completed", turn });
           turnId = undefined;
         } else if (message.method === "serverRequest/resolved") {
           sendCodexEvent(taskId, { type: message.method, params: message.params });
@@ -237,6 +249,7 @@ function registerIpc() {
     const result = await client.start(task.projectPath, prompt);
     task.threadId = result.threadId;
     await saveTasks(tasks);
+    return result.threadId;
   });
   ipcMain.handle("codex:send", async (event: IpcMainInvokeEvent, taskId: string, prompt: string) => {
     assertTrustedSender(event);

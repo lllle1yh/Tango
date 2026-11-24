@@ -11,7 +11,7 @@ contextBridge.exposeInMainWorld("tango", {
   listTasks: (): Promise<TaskRecord[]> => ipcRenderer.invoke("tasks:list"),
   createTask: (title: string, projectPath: string): Promise<TaskRecord> =>
     ipcRenderer.invoke("tasks:create", title, projectPath),
-  codexStart: (taskId: string, projectPath: string, prompt: string): Promise<void> =>
+  codexStart: (taskId: string, projectPath: string, prompt: string): Promise<string> =>
     ipcRenderer.invoke("codex:start", taskId, projectPath, prompt),
   codexSend: (taskId: string, prompt: string): Promise<void> =>
     ipcRenderer.invoke("codex:send", taskId, prompt),
@@ -66,7 +66,7 @@ export interface TangoApi {
   detectAgents(): Promise<AgentStatus[]>;
   listTasks(): Promise<TaskRecord[]>;
   createTask(title: string, projectPath: string): Promise<TaskRecord>;
-  codexStart(taskId: string, projectPath: string, prompt: string): Promise<void>;
+  codexStart(taskId: string, projectPath: string, prompt: string): Promise<string>;
   codexSend(taskId: string, prompt: string): Promise<void>;
   codexInterrupt(taskId: string): Promise<void>;
   onCodexEvent(listener: (taskId: string, event: Record<string, unknown>) => void): () => void;
