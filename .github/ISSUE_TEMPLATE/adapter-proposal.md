@@ -1,6 +1,6 @@
 ---
 name: Adapter proposal
-about: Propose a new agent adapter for Tango
+about: Propose an external agent integration for the Tango workspace
 title: "[Adapter] "
 labels: adapter, proposal
 assignees: ''
@@ -22,8 +22,8 @@ assignees: ''
 
 ## Modes
 
-- [ ] Unified (shared canonical conversation)
-- [ ] Solo (independent peer + messaging)
+- [ ] Unified (shared task timeline and handoff)
+- [ ] Solo (independent task session)
 
 ## Platforms
 
@@ -33,7 +33,7 @@ assignees: ''
 
 ## Motivation
 
-Why should Tango support this agent? What does it do better than the ones already listed?
+What workflow would this integration enable in Tango?
 
 ## Implementation
 

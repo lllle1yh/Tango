@@ -1,29 +1,23 @@
-# Tango Adapter Spec
+# Tango Adapter 协议
 
-**Status: Draft v0.1** — 这是协议草案，欢迎在 issue 里讨论后再实现。
+设计草案。Adapter 把外部 Agent 接入 Tango 的任务和回合模型。Tango 自带的 Agent 直接由自身运行时驱动。
 
-## 1. 目的
-
-定义 Tango Scheduler 与一个 agent CLI 之间的最小契约。任何 agent，只要能用进程和流式输出（或 MCP / ACP）通信，都可以通过 adapter 接入。
-
-## 2. 角色
+## 1. 职责
 
 | 角色 | 职责 |
 | --- | --- |
-| Scheduler | canonical ledger、回合仲裁、handoff、权限、取消 |
-| Adapter | 把 Tango 的回合翻译成 agent 的原生输入，把原生输出翻译回 Tango 事件 |
-| Agent | 原生 CLI 进程，保留自己的 session、工具和权限模型 |
+| Tango 运行时 | 管理任务时间线、执行者、回合、审批、取消与交接 |
+| Adapter | 将 Tango 的请求转为外部 Agent 的原生输入，并把原生输出转换为 Tango 事件 |
+| 外部 Agent | 执行任务并管理自己的原生会话、登录、工具和权限 |
 
-Scheduler 不关心 agent 内部怎么实现；Adapter 不拥有 canonical history。
+## 2. Manifest
 
-## 3. Manifest
-
-每个 adapter 在包根目录提供 `tango.adapter.json`：
+每个 Adapter 在包根目录提供 `tango.adapter.json`。以下为示例，实际能力以该 Adapter 的实现为准。
 
 ```json
 {
-  "id": "claude-code",
-  "name": "Claude Code",
+  "id": "example-agent",
+  "name": "Example Agent",
   "version": "0.1.0",
   "modes": ["unified", "solo"],
   "transport": "stream-json",
@@ -38,93 +32,62 @@ Scheduler 不关心 agent 内部怎么实现；Adapter 不拥有 canonical histo
 }
 ```
 
-## 4. 接口
+声明支持的模式应与恢复和权限能力一致。Tango 根据声明展示可用操作。
+
+## 3. 接口
 
 ```ts
 interface TangoAdapter {
   detect(): Promise<AgentInfo>
   start(options: StartOptions): Promise<SessionHandle>
-  resume(sessionId: string, options: StartOptions): Promise<SessionHandle>
+  resume?(sessionId: string, options: StartOptions): Promise<SessionHandle>
   send(handle: SessionHandle, turn: Turn): AsyncIterable<AgentEvent>
   interrupt(handle: SessionHandle): Promise<void>
   dispose(handle: SessionHandle): Promise<void>
 }
 ```
 
-`AgentEvent` 至少包含：
+`send` 通过异步迭代返回事件。基础事件包括 `text_delta`、`turn_end` 和 `error`。能力允许时可传递 `reasoning`、`tool_start`、`tool_end`、`usage` 和 `permission_request`。能够在 Tango 内审批的 Adapter 还需定义如何将批准或拒绝结果传回原生会话。
 
-- `text_delta`
-- `reasoning`
-- `tool_start` / `tool_end`
-- `usage`
-- `permission_request`
-- `turn_end`
-- `error`
+## 4. 任务时间线
 
-## 5. Canonical message
+Tango 保存任务记录，并维护任务、Agent 与原生会话标识的映射。对话条目按回合追加，使用稳定 ID 和来源标记。示例条目如下。
 
 ```json
 {
   "id": "msg_01J...",
+  "taskId": "task_01J...",
   "turn": 12,
-  "harness": "claude-code",
+  "agentId": "reviewer",
   "role": "assistant",
-  "content": [{ "type": "text", "text": "..." }],
+  "content": [{ "type": "text", "text": "已跑完导出测试。" }],
   "toolCalls": [],
   "createdAt": "2026-11-15T00:00:00Z"
 }
 ```
 
-规则：
+## 5. 共舞 / Unified
 
-- 只追加，不原地修改。
-- `id` 稳定；`turn` 与 `harness` 必须标注，避免切换后被误认成自己的历史。
-- 不把 adapter 私有状态写进 canonical message。
+- 一个任务同时只允许一个执行回合，Tango 负责记录回合归属。
+- 交接资料包含目标、已完成回合、工作记录、待办和当前请求。来自其他 Agent 的内容应标明来源。
+- 共舞 Adapter 支持原生会话恢复。Tango 记录每个会话已接收的进度，恢复时只补交离开期间新增的已完成记录。
+- 恢复失败或无法确认会话连续性时，Tango 保留任务记录，允许用户重试或建立新的原生会话。
 
-## 6. 共舞 / Unified 契约
+## 6. 独舞 / Solo
 
-- Scheduler 是 canonical history 的唯一所有者。
-- Adapter 必须支持 `resume`；切回时只接收「离开期间」的增量。
-- Handoff 内容：离开后已完成的 canonical messages + work ledger + 当前请求。
-- 必须做身份隔离：明确告诉 agent 哪些历史来自别的 harness。
-- 不允许把完整历史重复注入已有原生 session。
-- 证明失败、恢复失败、配置变化时 fail closed，并 rollover 到新原生 session。
+- 每个任务绑定自己的原生会话，Tango 保存工作台中可见的对话和回合状态。
+- 独舞的会话恢复能力按 Adapter 声明启用。跨任务消息的计划与交互见[工作区规格](workspace.md)。
 
-## 7. 独舞 / Solo 契约
+## 7. 权限与数据
 
-- 原生 session 完全独立，Tango 不写入它的上下文。
-- 消息总线至少提供：`send(to, text)`、`read()`、`wait()`。
-- 对方忙时消息排队；人可以在任意终端接管。
-- 消息不进入 canonical history，除非用户显式要求。
+- 使用外部 Agent 自身的登录与权限。Tango 展示工作区范围和 Adapter 能力，提示需要到原生端完成的审批。
+- Adapter 声明额外的托管目录和需要访问的数据。会话数据、日志与交接按[安全文档](../SECURITY.md)处理。
 
-## 8. 安全
+## 8. 一致性测试（计划）
 
-- bridge 只监听 `127.0.0.1`，每个 route 使用随机 bearer token。
-- 日志不输出 API key、token、原始 stderr。
-- work ledger 对常见凭据形态先脱敏。
-- 默认不联网、不上传会话。
-- adapter 不得静默改写用户的全局配置；需要托管目录时显式声明。
-
-## 9. 一致性测试（计划中）
-
-- `detect` 能找到 CLI 与登录状态
-- `start` / `send` / `stream` 正常
-- `resume` 连续性与增量 handoff
-- `interrupt` 能终止整个进程树
-- 权限请求能冒泡到 Tango
-- 崩溃 / 重启后的恢复
-- 各平台 fixture（Windows / macOS / Linux）
-
-## 10. 可参考的实现
-
-这些项目是参考，不是依赖：
-
-- `dsh-harness-ally`：Claude Code / Codex / Kimi 的 adapter、原生 session 停泊、增量 handoff、身份隔离
-- `dsh-oh-my-claude`：Claude Code 的 stream-json 驱动
-- `earshot`：peer 消息总线
-- `multiagents`：broker / driver 分层
-- `dsh-as-mcp`：DSH 会话控制接口
-
-## 11. 讨论
-
-协议草案阶段，接口名和字段都可能调整。提案请开 issue，附上你的 agent 的传输方式和恢复能力。
+- CLI 或服务发现、版本和登录状态
+- 启动、发送、流式事件、取消与资源清理
+- 原生权限与审批事件
+- 声明会话恢复时，验证崩溃或重启后的恢复
+- 声明共舞时，验证增量交接、来源标记和恢复失败行为
+- 声明支持的平台上分别验证
