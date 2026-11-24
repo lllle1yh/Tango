@@ -12,6 +12,7 @@ let mainWindow: BrowserWindow | null = null;
 const terminals = new Map<string, IPty>();
 const codexProcesses = new Map<string, ReturnType<typeof createCodexClient>>();
 const claudeProcesses = new Map<string, ReturnType<typeof createClaudeClient>>();
+const dshProcesses = new Map<string, ReturnType<typeof createDshClient>>();
 
 type TaskRecord = {
   id: string;
@@ -19,6 +20,7 @@ type TaskRecord = {
   projectPath: string;
   threadId?: string;
   claudeSessionId?: string;
+  dshSessionId?: string;
   messages: Array<{ role: "user" | "assistant"; text: string; agent: string; createdAt: string }>;
 };
 
@@ -211,6 +213,91 @@ function sendClaudeEvent(taskId: string, payload: Record<string, unknown>) {
   if (!mainWindow?.isDestroyed()) mainWindow?.webContents.send("claude:event", taskId, payload);
 }
 
+function createDshClient(taskId: string, projectPath: string) {
+  const child = require("node:child_process").spawn("cmd.exe", ["/d", "/s", "/c", "dsh --profile acp"], {
+    cwd: projectPath, stdio: ["pipe", "pipe", "pipe"], windowsHide: true,
+  }) as import("node:child_process").ChildProcessWithoutNullStreams;
+  let nextId = 1;
+  let buffer = "";
+  let sessionId = "";
+  let answer = "";
+  const pending = new Map<number, { resolve(value: any): void; reject(error: Error): void }>();
+
+  child.stdout.on("data", (chunk: Buffer) => {
+    buffer += chunk.toString();
+    const lines = buffer.split(/\r?\n/);
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line) continue;
+      let message: any;
+      try { message = JSON.parse(line); } catch { continue; }
+      if (typeof message.id === "number" && pending.has(message.id)) {
+        const waiter = pending.get(message.id)!;
+        pending.delete(message.id);
+        if (message.error) waiter.reject(new Error(message.error.message ?? "DSH request failed"));
+        else waiter.resolve(message.result);
+      } else if (typeof message.method === "string") {
+        if (message.method === "session/update") {
+          const update = message.params?.update;
+          const text = update?.content?.text ?? update?.text;
+          if (typeof text === "string") {
+            answer += text;
+            sendDshEvent(taskId, { type: "delta", text });
+          }
+          sendDshEvent(taskId, { type: "session/update", update });
+        } else {
+          sendDshEvent(taskId, { type: message.method, params: message.params });
+        }
+      }
+    }
+  });
+  child.stderr.on("data", () => {});
+  child.on("exit", (code) => {
+    dshProcesses.delete(taskId);
+    for (const waiter of pending.values()) waiter.reject(new Error("DSH ACP exited with code " + code));
+    pending.clear();
+    sendDshEvent(taskId, { type: "process/exit", code });
+  });
+
+  function request(method: string, params: unknown) {
+    const id = nextId++;
+    return new Promise<any>((resolve, reject) => {
+      pending.set(id, { resolve, reject });
+      child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n", (error) => {
+        if (error) { pending.delete(id); reject(error); }
+      });
+    });
+  }
+
+  async function initialize() {
+    await request("initialize", {
+      protocolVersion: 1,
+      clientInfo: { name: "tango", version: app.getVersion() },
+      clientCapabilities: {},
+    });
+    child.stdin.write(JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }) + "\n");
+  }
+
+  async function run(prompt: string, savedSessionId?: string) {
+    answer = "";
+    if (!sessionId) {
+      const params = { cwd: projectPath };
+      const session = savedSessionId
+        ? await request("session/resume", { ...params, mcpServers: [], sessionId: savedSessionId })
+        : await request("session/new", { ...params, mcpServers: [] });
+      sessionId = session.sessionId ?? savedSessionId ?? "";
+    }
+    await request("session/prompt", { sessionId, prompt: [{ type: "text", text: prompt }] });
+    return { sessionId, answer };
+  }
+
+  return { initialize, run, get sessionId() { return sessionId; }, dispose() { child.kill(); } };
+}
+
+function sendDshEvent(taskId: string, payload: Record<string, unknown>) {
+  if (!mainWindow?.isDestroyed()) mainWindow?.webContents.send("dsh:event", taskId, payload);
+}
+
 const agents = [
   { id: "codex", name: "Codex", command: "codex", args: ["--version"] },
   { id: "claude", name: "Claude Code", command: "claude", args: ["--version"] },
@@ -341,6 +428,30 @@ function registerIpc() {
     task.messages.push({ role: "assistant", text: answer, agent: "claude", createdAt: new Date().toISOString() });
     await saveTasks(tasks);
     return { sessionId: client.sessionId, answer };
+  });
+  ipcMain.handle("dsh:run", async (event: IpcMainInvokeEvent, taskId: string, projectPath: string, prompt: string) => {
+    assertTrustedSender(event);
+    const tasks = await readTasks();
+    const task = tasks.find((item) => item.id === taskId);
+    if (!task || task.projectPath !== await realpath(projectPath)) throw new Error("Task does not belong to this project");
+    let client = dshProcesses.get(taskId);
+    if (!client) {
+      client = createDshClient(taskId, task.projectPath);
+      dshProcesses.set(taskId, client);
+      try {
+        await client.initialize();
+      } catch (error) {
+        client.dispose();
+        throw error;
+      }
+    }
+    task.messages.push({ role: "user", text: prompt, agent: "dsh", createdAt: new Date().toISOString() });
+    await saveTasks(tasks);
+    const result = await client.run(prompt, task.dshSessionId);
+    task.dshSessionId = result.sessionId;
+    task.messages.push({ role: "assistant", text: result.answer, agent: "dsh", createdAt: new Date().toISOString() });
+    await saveTasks(tasks);
+    return result;
   });
   ipcMain.handle("terminal:start", async (event: IpcMainInvokeEvent, requestedPath: string, terminalId: string) => {
     assertTrustedSender(event);
@@ -494,6 +605,8 @@ app.on("window-all-closed", () => {
   codexProcesses.clear();
   for (const client of claudeProcesses.values()) client.dispose();
   claudeProcesses.clear();
+  for (const client of dshProcesses.values()) client.dispose();
+  dshProcesses.clear();
   for (const terminal of terminals.values()) terminal.kill();
   terminals.clear();
   if (process.platform !== "darwin") app.quit();

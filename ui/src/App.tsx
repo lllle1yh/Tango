@@ -131,6 +131,7 @@ function App() {
   const [assistantText, setAssistantText] = useState("");
   const [running, setRunning] = useState(false);
   const [claudeMode, setClaudeMode] = useState(false);
+  const [dshMode, setDshMode] = useState(false);
 
   const refreshAgents = useCallback(async () => {
     setDetecting(true);
@@ -169,6 +170,14 @@ function App() {
     if (event.type === "delta" && typeof event.text === "string") setAssistantText((text) => text + event.text);
     if (event.type === "turn/completed") setRunning(false);
   }), [activeTask]);
+  useEffect(() => window.tango.onDshEvent((taskId, event) => {
+    if (taskId !== activeTask) return;
+    if (event.type === "delta" && typeof event.text === "string") setAssistantText((text) => text + event.text);
+    if (event.type === "session/update") {
+      const update = event.update as { sessionUpdate?: string } | undefined;
+      if (update?.sessionUpdate === "agent_message_chunk") setRunning(true);
+    }
+  }), [activeTask]);
 
   async function openProject() {
     const selected = await window.tango.openWorkspace();
@@ -191,7 +200,13 @@ function App() {
     setAssistantText("");
     setRunning(true);
     try {
-      if (claudeMode) {
+      if (dshMode) {
+        const result = await window.tango.runDsh(task.id, task.projectPath, text);
+        setRunning(false);
+        setTasks((current) => current.map((item) => item.id === task.id
+          ? { ...item, dshSessionId: result.sessionId, messages: [...item.messages, { role: "user", agent: "dsh", text, createdAt: new Date().toISOString() }, { role: "assistant", agent: "dsh", text: result.answer, createdAt: new Date().toISOString() }] }
+          : item));
+      } else if (claudeMode) {
         const result = await window.tango.runClaude(task.id, task.projectPath, text);
         setTasks((current) => current.map((item) => item.id === task.id
           ? { ...item, claudeSessionId: result.sessionId, messages: [...item.messages, { role: "user", agent: "claude", text, createdAt: new Date().toISOString() }, { role: "assistant", agent: "claude", text: result.answer, createdAt: new Date().toISOString() }] }
@@ -201,7 +216,7 @@ function App() {
         const threadId = await window.tango.codexStart(task.id, task.projectPath, text);
         setTasks((current) => current.map((item) => item.id === task.id ? { ...item, threadId } : item));
       }
-      if (!claudeMode) {
+      if (!claudeMode && !dshMode) {
       setTasks((current) => current.map((item) => item.id === task.id
         ? { ...item, messages: [...item.messages, { role: "user", agent: "codex", text, createdAt: new Date().toISOString() }] }
         : item));
@@ -269,7 +284,7 @@ function App() {
               key={agent.id}
               className={"sidebar-agent " + (activeAgent === agent.id ? "selected" : "") + (!agent.available ? " unavailable" : "")}
               disabled={!agent.available}
-              onClick={() => { setActiveAgent(agent.id); setClaudeMode(agent.id === "claude"); }}
+              onClick={() => { setActiveAgent(agent.id); setClaudeMode(agent.id === "claude"); setDshMode(agent.id === "dsh"); }}
               title={agent.available ? agent.version ?? agent.name : "Not installed"}
             >
               <AgentGlyph agentId={agent.id} />
@@ -347,7 +362,7 @@ function App() {
               </div>
             )}
 
-            {activeAgent && activeTask && activeAgent === "codex" && (
+            {activeAgent && activeTask && ["codex", "claude", "dsh"].includes(activeAgent) && (
               <div className="conversation">
                 <div className="conversation-heading">{tasks.find((task) => task.id === activeTask)?.title}</div>
                 <div className="conversation-messages">
@@ -356,12 +371,12 @@ function App() {
                   <span>{message.agent}</span><p>{message.text}</p>
                     </article>
                   ))}
-                  {(assistantText || running) && <article className="message assistant"><span>Codex</span><p>{assistantText || "Working…"}</p></article>}
+                  {(assistantText || running) && <article className="message assistant"><span>{activeAgent}</span><p>{assistantText || "Working…"}</p></article>}
                 </div>
                 <form className="composer" onSubmit={(event) => { event.preventDefault(); void submitPrompt(); }}>
                   <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => {
                     if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submitPrompt(); }
-                  }} placeholder="Ask Codex to work in this project…" />
+                  }} placeholder={"Ask " + activeAgent + " to work in this project…"} />
                   {running && <button type="button" className="subtle-button" onClick={() => void window.tango.codexInterrupt(activeTask)}>Stop</button>}
                   <button type="submit" className="send-button" disabled={!prompt.trim() || running}>Send</button>
                 </form>

@@ -32,6 +32,14 @@ contextBridge.exposeInMainWorld("tango", {
     ipcRenderer.on("claude:event", handle);
     return () => ipcRenderer.removeListener("claude:event", handle);
   },
+  runDsh: (taskId: string, projectPath: string, prompt: string): Promise<{ sessionId: string; answer: string }> =>
+    ipcRenderer.invoke("dsh:run", taskId, projectPath, prompt),
+  onDshEvent: (listener: AgentEventListener): (() => void) => {
+    const handle = (_event: Electron.IpcRendererEvent, taskId: string, payload: Record<string, unknown>) =>
+      listener(taskId, payload);
+    ipcRenderer.on("dsh:event", handle);
+    return () => ipcRenderer.removeListener("dsh:event", handle);
+  },
   startTerminal: (projectPath: string, terminalId: string): Promise<void> =>
     ipcRenderer.invoke("terminal:start", projectPath, terminalId),
   writeTerminal: (terminalId: string, data: string): void =>
@@ -81,6 +89,8 @@ export interface TangoApi {
   onCodexEvent(listener: (taskId: string, event: Record<string, unknown>) => void): () => void;
   runClaude(taskId: string, projectPath: string, prompt: string): Promise<{ sessionId: string; answer: string }>;
   onClaudeEvent(listener: (taskId: string, event: Record<string, unknown>) => void): () => void;
+  runDsh(taskId: string, projectPath: string, prompt: string): Promise<{ sessionId: string; answer: string }>;
+  onDshEvent(listener: (taskId: string, event: Record<string, unknown>) => void): () => void;
   startTerminal(projectPath: string, terminalId: string): Promise<void>;
   writeTerminal(terminalId: string, data: string): void;
   resizeTerminal(terminalId: string, cols: number, rows: number): void;
