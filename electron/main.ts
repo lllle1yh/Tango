@@ -166,12 +166,60 @@ function createWindow() {
 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
+  if (process.argv.includes("--pty-smoke")) {
+    runPtySmoke().then(() => {
+      console.log("Electron ConPTY smoke test passed");
+      app.quit();
+    }).catch((error: unknown) => {
+      console.error(error);
+      app.exit(1);
+    });
+    return;
+  }
   registerIpc();
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+
+async function runPtySmoke() {
+  const shell = path.join(process.env.SystemRoot || "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+  const terminal = spawn(shell, ["-NoLogo", "-NoProfile", "-Command", "$value = Read-Host 'SMOKE'; Write-Output ('TANGO_ECHO:' + $value)"], {
+    name: "xterm-256color",
+    cols: 80,
+    rows: 24,
+    cwd: process.cwd(),
+    env: { ...process.env, TERM: "xterm-256color" } as Record<string, string>,
+    useConpty: true,
+    conptyInheritCursor: true,
+  });
+  let output = "";
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      terminal.kill();
+      reject(new Error("PTY timed out. Output: " + output));
+    }, 8000);
+    const inputTimeout = setTimeout(() => terminal.write("TANGO_INPUT_OK\r"), 1800);
+    terminal.onData((data) => {
+      output += data;
+      if (data.includes("\u001b[6n")) terminal.write("\u001b[1;1R");
+      if (output.includes("SMOKE:") && !output.includes("TANGO_INPUT_OK")) terminal.write("TANGO_INPUT_OK\r");
+      if (output.includes("TANGO_ECHO:TANGO_INPUT_OK")) {
+        clearTimeout(inputTimeout);
+        clearTimeout(timeout);
+        terminal.kill();
+        resolve();
+      }
+    });
+    terminal.onExit(({ exitCode }) => {
+      if (!output.includes("TANGO_ECHO:TANGO_INPUT_OK")) {
+        clearTimeout(timeout);
+        reject(new Error("PTY exited with code " + exitCode + ". Output: " + output));
+      }
+    });
+  });
+}
 
 app.on("window-all-closed", () => {
   for (const terminal of terminals.values()) terminal.kill();

@@ -8,7 +8,7 @@
     "dev": "concurrently -k \"vite --host 127.0.0.1 --config ui/vite.config.mts\" \"tsc -p tsconfig.node.json --watch\" \"wait-on tcp:5173 dist-electron/electron/main.js && electron .\"",
     "build": "tsc -b && vite build --config ui/vite.config.mts",
     "typecheck": "tsc -b --pretty",
-    "terminal:smoke": "node scripts/pty-smoke.cjs"
+    "terminal:smoke": "npm run build && electron . --pty-smoke"
   },
   "dependencies": {
     "@homebridge/node-pty-prebuilt-multiarch": "^0.15.0",
