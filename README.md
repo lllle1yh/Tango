@@ -18,7 +18,7 @@ Tango 面向每天和 Agent 一起写代码、查资料、跑测试的人。打�
 
 <a name="project-status"></a>
 
-**项目状态**　设计阶段。[工作区规格](docs/workspace.md)和 [Adapter 协议](docs/adapter-spec.md)是实现草案。目前尚无可运行版本。
+**项目状态**　原型开发中。当前工作台支持选择项目目录和检测本机 Agent CLI，原生 Agent 会话 Adapter 尚未接通。
 
 ## Tango 如何接入 Agent
 
@@ -55,11 +55,27 @@ Tango 面向每天和 Agent 一起写代码、查资料、跑测试的人。打�
 
 外部 Agent 的接入按各自的协议和能力逐项验证。欢迎提案、实现 Adapter 或参与工作台和会话编排开发。 [Adapter 提案模板](.github/ISSUE_TEMPLATE/adapter-proposal.md) · [Adapter 协议](docs/adapter-spec.md) · [贡献指南](CONTRIBUTING.md)
 
+## 本地开发
+
+需要安装 Node.js 24 或更新版本。
+
+```sh
+npm install
+npm run dev
+```
+
+`npm run dev` 启动 Tango 桌面窗口。当前原型可打开项目文件夹，记住上次选择的目录，并检测 Codex、Claude Code、DSH 和 Pi CLI 是否安装。检测结果只表示 CLI 可用，不代表 Tango 已连接或恢复 Agent 会话。
+
+```sh
+npm run typecheck
+npm run build
+```
+
 ## English
 
 Tango is a standalone, local-first workspace for existing agents such as Codex, Claude Code, and DSH. Adapters connect Tango to each agent's native session. Tango manages tasks, conversation history, and handoffs. Each agent runs the work with its own model, tools, and permissions. Use one agent in Solo mode, or hand off a task between agents in Unified mode while keeping a single conversation and activity record.
 
-Tango is currently in the design stage. [Workspace spec](docs/workspace.md) · [Adapter spec](docs/adapter-spec.md)
+Tango is in early prototype development. [Workspace spec](docs/workspace.md) · [Adapter spec](docs/adapter-spec.md)
 
 ## License
 
