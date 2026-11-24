@@ -130,6 +130,7 @@ function App() {
   const [prompt, setPrompt] = useState("");
   const [assistantText, setAssistantText] = useState("");
   const [running, setRunning] = useState(false);
+  const [claudeMode, setClaudeMode] = useState(false);
 
   const refreshAgents = useCallback(async () => {
     setDetecting(true);
@@ -163,6 +164,12 @@ function App() {
     if (event.type === "process/exit") setRunning(false);
   }), [activeTask]);
 
+  useEffect(() => window.tango.onClaudeEvent((taskId, event) => {
+    if (taskId !== activeTask) return;
+    if (event.type === "delta" && typeof event.text === "string") setAssistantText((text) => text + event.text);
+    if (event.type === "turn/completed") setRunning(false);
+  }), [activeTask]);
+
   async function openProject() {
     const selected = await window.tango.openWorkspace();
     if (selected) setProject(selected);
@@ -184,11 +191,21 @@ function App() {
     setAssistantText("");
     setRunning(true);
     try {
-      if (task.threadId) await window.tango.codexSend(task.id, text);
-      else await window.tango.codexStart(task.id, task.projectPath, text);
+      if (claudeMode) {
+        const result = await window.tango.runClaude(task.id, task.projectPath, text);
+        setTasks((current) => current.map((item) => item.id === task.id
+          ? { ...item, claudeSessionId: result.sessionId, messages: [...item.messages, { role: "user", agent: "claude", text, createdAt: new Date().toISOString() }, { role: "assistant", agent: "claude", text: result.answer, createdAt: new Date().toISOString() }] }
+          : item));
+      } else if (task.threadId) await window.tango.codexSend(task.id, text);
+      else {
+        const threadId = await window.tango.codexStart(task.id, task.projectPath, text);
+        setTasks((current) => current.map((item) => item.id === task.id ? { ...item, threadId } : item));
+      }
+      if (!claudeMode) {
       setTasks((current) => current.map((item) => item.id === task.id
         ? { ...item, messages: [...item.messages, { role: "user", agent: "codex", text, createdAt: new Date().toISOString() }] }
         : item));
+      }
     } catch (error) {
       setRunning(false);
       setAssistantText(error instanceof Error ? error.message : "Could not start Codex");
@@ -252,7 +269,7 @@ function App() {
               key={agent.id}
               className={"sidebar-agent " + (activeAgent === agent.id ? "selected" : "") + (!agent.available ? " unavailable" : "")}
               disabled={!agent.available}
-              onClick={() => setActiveAgent(agent.id)}
+              onClick={() => { setActiveAgent(agent.id); setClaudeMode(agent.id === "claude"); }}
               title={agent.available ? agent.version ?? agent.name : "Not installed"}
             >
               <AgentGlyph agentId={agent.id} />
@@ -312,10 +329,10 @@ function App() {
               ))}
               <button className="new-terminal" onClick={newTerminal} aria-label="New terminal" title="New terminal">＋</button>
               {activeAgent && (
-                <div className="active-agent-tab">
+              <div className="active-agent-tab">
                   <AgentGlyph agentId={activeAgent} />
                   <span>{agents.find((agent) => agent.id === activeAgent)?.name}</span>
-                  <span className="connection-label">CLI installed · session not connected</span>
+                {activeAgent === "codex" && <span className="connection-label">Codex App Server</span>}
                 </div>
               )}
             </div>
@@ -336,7 +353,7 @@ function App() {
                 <div className="conversation-messages">
                   {tasks.find((task) => task.id === activeTask)?.messages.map((message, index) => (
                     <article className={"message " + message.role} key={index}>
-                      <span>{message.agent}</span><p>{message.text}</p>
+                  <span>{message.agent}</span><p>{message.text}</p>
                     </article>
                   ))}
                   {(assistantText || running) && <article className="message assistant"><span>Codex</span><p>{assistantText || "Working…"}</p></article>}

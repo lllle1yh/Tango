@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer } from "electron";
 type TerminalDataListener = (terminalId: string, data: string) => void;
 type TerminalExitListener = (terminalId: string, exitCode: number) => void;
 type CodexEventListener = (taskId: string, event: Record<string, unknown>) => void;
+type AgentEventListener = (taskId: string, event: Record<string, unknown>) => void;
 
 contextBridge.exposeInMainWorld("tango", {
   getWorkspace: (): Promise<string | null> => ipcRenderer.invoke("workspace:get"),
@@ -22,6 +23,14 @@ contextBridge.exposeInMainWorld("tango", {
       listener(taskId, payload);
     ipcRenderer.on("codex:event", handle);
     return () => ipcRenderer.removeListener("codex:event", handle);
+  },
+  runClaude: (taskId: string, projectPath: string, prompt: string): Promise<{ sessionId: string; answer: string }> =>
+    ipcRenderer.invoke("claude:run", taskId, projectPath, prompt),
+  onClaudeEvent: (listener: AgentEventListener): (() => void) => {
+    const handle = (_event: Electron.IpcRendererEvent, taskId: string, payload: Record<string, unknown>) =>
+      listener(taskId, payload);
+    ipcRenderer.on("claude:event", handle);
+    return () => ipcRenderer.removeListener("claude:event", handle);
   },
   startTerminal: (projectPath: string, terminalId: string): Promise<void> =>
     ipcRenderer.invoke("terminal:start", projectPath, terminalId),
@@ -70,6 +79,8 @@ export interface TangoApi {
   codexSend(taskId: string, prompt: string): Promise<void>;
   codexInterrupt(taskId: string): Promise<void>;
   onCodexEvent(listener: (taskId: string, event: Record<string, unknown>) => void): () => void;
+  runClaude(taskId: string, projectPath: string, prompt: string): Promise<{ sessionId: string; answer: string }>;
+  onClaudeEvent(listener: (taskId: string, event: Record<string, unknown>) => void): () => void;
   startTerminal(projectPath: string, terminalId: string): Promise<void>;
   writeTerminal(terminalId: string, data: string): void;
   resizeTerminal(terminalId: string, cols: number, rows: number): void;

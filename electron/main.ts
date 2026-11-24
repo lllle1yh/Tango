@@ -11,12 +11,14 @@ const workspaceFile = () => path.join(app.getPath("userData"), "workspace.json")
 let mainWindow: BrowserWindow | null = null;
 const terminals = new Map<string, IPty>();
 const codexProcesses = new Map<string, ReturnType<typeof createCodexClient>>();
+const claudeProcesses = new Map<string, ReturnType<typeof createClaudeClient>>();
 
 type TaskRecord = {
   id: string;
   title: string;
   projectPath: string;
   threadId?: string;
+  claudeSessionId?: string;
   messages: Array<{ role: "user" | "assistant"; text: string; agent: string; createdAt: string }>;
 };
 
@@ -152,6 +154,63 @@ function sendCodexEvent(taskId: string, payload: Record<string, unknown>) {
   if (!mainWindow?.isDestroyed()) mainWindow?.webContents.send("codex:event", taskId, payload);
 }
 
+function createClaudeClient(taskId: string, projectPath: string, resumeId?: string) {
+  const args = ["-p", "--verbose", "--input-format", "stream-json", "--output-format", "stream-json", "--include-partial-messages"];
+  if (resumeId) args.push("--resume", resumeId);
+  const child = require("node:child_process").spawn(
+    process.platform === "win32" ? "cmd.exe" : "claude",
+    process.platform === "win32" ? ["/d", "/s", "/c", "claude " + args.join(" ")] : args,
+    { cwd: projectPath, stdio: ["pipe", "pipe", "pipe"], windowsHide: true },
+  ) as import("node:child_process").ChildProcessWithoutNullStreams;
+  let buffer = "";
+  const resultWaiters: Array<{ resolve(text: string): void; reject(error: Error): void }> = [];
+  let sessionId = resumeId ?? "";
+  child.stdout.on("data", (chunk: Buffer) => {
+    buffer += chunk.toString();
+    const lines = buffer.split(/\r?\n/);
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line) continue;
+      let event: any;
+      try { event = JSON.parse(line); } catch { continue; }
+      if (event.session_id) sessionId = event.session_id;
+      if (event.type === "stream_event") {
+        const delta = event.event?.delta?.text;
+        if (typeof delta === "string") sendClaudeEvent(taskId, { type: "delta", text: delta });
+      }
+      if (event.type === "result") {
+        if (event.is_error) resultWaiters.shift()?.reject(new Error(event.result ?? "Claude Code turn failed"));
+        else resultWaiters.shift()?.resolve(String(event.result ?? ""));
+        sendClaudeEvent(taskId, { type: "turn/completed", sessionId, text: event.result ?? "" });
+      }
+      if (event.type === "system" && event.subtype === "init") {
+        sessionId = event.session_id ?? sessionId;
+        sendClaudeEvent(taskId, { type: "session/ready", sessionId });
+      }
+    }
+  });
+  child.stderr.on("data", (data: Buffer) => sendClaudeEvent(taskId, { type: "stderr", text: data.toString().slice(-1000) }));
+  child.on("exit", (code) => {
+    claudeProcesses.delete(taskId);
+    sendClaudeEvent(taskId, { type: "process/exit", code });
+    for (const waiter of resultWaiters.splice(0)) waiter.reject(new Error("Claude Code process exited"));
+  });
+  return {
+    run(prompt: string) {
+      return new Promise<string>((resolve, reject) => {
+        resultWaiters.push({ resolve, reject });
+        child.stdin.write(JSON.stringify({ type: "user", message: { role: "user", content: prompt } }) + "\n");
+      });
+    },
+    get sessionId() { return sessionId; },
+    dispose() { child.kill(); },
+  };
+}
+
+function sendClaudeEvent(taskId: string, payload: Record<string, unknown>) {
+  if (!mainWindow?.isDestroyed()) mainWindow?.webContents.send("claude:event", taskId, payload);
+}
+
 const agents = [
   { id: "codex", name: "Codex", command: "codex", args: ["--version"] },
   { id: "claude", name: "Claude Code", command: "claude", args: ["--version"] },
@@ -264,6 +323,24 @@ function registerIpc() {
   ipcMain.handle("codex:interrupt", async (event: IpcMainInvokeEvent, taskId: string) => {
     assertTrustedSender(event);
     await codexProcesses.get(taskId)?.interrupt();
+  });
+  ipcMain.handle("claude:run", async (event: IpcMainInvokeEvent, taskId: string, projectPath: string, prompt: string) => {
+    assertTrustedSender(event);
+    const tasks = await readTasks();
+    const task = tasks.find((item) => item.id === taskId);
+    if (!task || task.projectPath !== await realpath(projectPath)) throw new Error("Task does not belong to this project");
+    let client = claudeProcesses.get(taskId);
+    if (!client) {
+      client = createClaudeClient(taskId, task.projectPath, task.claudeSessionId);
+      claudeProcesses.set(taskId, client);
+    }
+    task.messages.push({ role: "user", text: prompt, agent: "claude", createdAt: new Date().toISOString() });
+    await saveTasks(tasks);
+    const answer = await client.run(prompt);
+    task.claudeSessionId = client.sessionId;
+    task.messages.push({ role: "assistant", text: answer, agent: "claude", createdAt: new Date().toISOString() });
+    await saveTasks(tasks);
+    return { sessionId: client.sessionId, answer };
   });
   ipcMain.handle("terminal:start", async (event: IpcMainInvokeEvent, requestedPath: string, terminalId: string) => {
     assertTrustedSender(event);
@@ -415,6 +492,8 @@ async function runPtySmoke() {
 app.on("window-all-closed", () => {
   for (const client of codexProcesses.values()) client.dispose();
   codexProcesses.clear();
+  for (const client of claudeProcesses.values()) client.dispose();
+  claudeProcesses.clear();
   for (const terminal of terminals.values()) terminal.kill();
   terminals.clear();
   if (process.platform !== "darwin") app.quit();
