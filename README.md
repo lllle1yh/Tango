@@ -1,6 +1,6 @@
 <div align="center">
 
-# Tango
+<h1><img src="assets/tango-banner.png" width="960" alt="Tango · Local agent workspace"></h1>
 
 **独立的本地 Agent 工作台**
 
