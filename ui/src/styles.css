@@ -390,6 +390,9 @@ button { color: inherit; font: inherit; }
 /* The main column is a flex stack: topbar + workbench, never taller than the window. */
 .app-body > .main-area { display: flex; flex-direction: column; overflow: hidden; }
 .app-body > .main-area > .workbench { flex: 1 1 0%; height: auto; min-height: 0; }
+/* 可选的上下分屏：终端叠在对话下方，占四成高度。 */
+.workbench.split-terminal .terminal-panel.split { min-height: 180px; flex: 0 0 38%; border-top: 1px solid var(--line); }
+.workbench.split-terminal .conversation { flex: 1 1 60%; }
 .app-body > .main-area > .empty-workspace { flex: 1 1 0%; min-height: 0; }
 
 /* Slash command menu */

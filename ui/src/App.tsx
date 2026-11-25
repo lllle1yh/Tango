@@ -648,6 +648,8 @@ function App() {
   const [handoffOpen, setHandoffOpen] = useState(false);
   // 打开任务就进「这个任务的页面」；侧栏只属于任务列表页，终端单独成页（对齐 T3 的 thread 视图）。
   const [view, setView] = useState<"home" | "terminal">("home");
+  // 需要边看终端边对话时按 Ctrl+Shift+J 把终端叠在下方；默认仍然是一页一内容。
+  const [splitTerminal, setSplitTerminal] = useState(false);
   // Deleting a task asks in Tango's own dialog: a native confirm() blocks the window and
   // cannot be styled or reached from the keyboard like the rest of the app.
   const [deleteTarget, setDeleteTarget] = useState<TaskRecord | null>(null);
@@ -736,6 +738,7 @@ function App() {
       if (event.key.toLowerCase() === "b") { event.preventDefault(); updateSettings({ sidebarCollapsed: !settings?.sidebarCollapsed }); }
       if (event.key === "1" && !event.shiftKey) { event.preventDefault(); openTerminal(); return; }
       if (event.key === "2" && !event.shiftKey) { event.preventDefault(); setView("home"); return; }
+      if (event.key.toLowerCase() === "j" && event.shiftKey) { event.preventDefault(); setSplitTerminal((split) => !split); setView("home"); return; }
       if (event.key.toLowerCase() === "e" && event.shiftKey && activeTask) {
         event.preventDefault();
         void archiveTaskAction(activeTask, true);
@@ -2234,7 +2237,7 @@ function App() {
             )}
           </section>
         ) : (
-          <section className="workbench">
+          <section className={"workbench" + (view === "home" && splitTerminal ? " split-terminal" : "")}>
             <div className="panel-tabs">
               <button
                 className={"panel-tab " + (view === "home" ? "active" : "")}
@@ -2261,7 +2264,7 @@ function App() {
               )}
             </div>
 
-            <div className="terminal-panel" hidden={view !== "terminal" || activeAgent !== null}>
+            <div className={"terminal-panel" + (view === "home" && splitTerminal ? " split" : "")} hidden={!(view === "terminal" || splitTerminal) || activeAgent !== null}>
               <div className="terminal-canvas">
                 {layoutRoot ? (
                   <PaneTree
