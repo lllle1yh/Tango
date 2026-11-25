@@ -8,6 +8,7 @@ import { CommandPalette, type PaletteItem } from "./CommandPalette";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Check, Copy, GripVertical, PanelLeft, Pin, Search, TerminalSquare, FileText, Globe, Wrench, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import "./layout.css";
 import "./agent-icons.css";
@@ -812,6 +813,25 @@ function App() {
 
   const activeMessages = tasks.find((task) => task.id === activeTask)?.messages ?? [];
 
+  type ChatRow =
+    | { kind: "message"; id: string; message: TaskRecord["messages"][number] }
+    | { kind: "stream"; id: string }
+    | { kind: "tools"; id: string };
+
+  const chatRows: ChatRow[] = [
+    ...activeMessages.map((message, index): ChatRow => ({ kind: "message", id: "m-" + index, message })),
+    ...(assistantText || running ? [{ kind: "stream", id: "stream" } as ChatRow] : []),
+    ...((toolActivity[activeTask ?? ""]?.length ?? 0) > 0 ? [{ kind: "tools", id: "tools" } as ChatRow] : []),
+  ];
+
+  const chatVirtualizer = useVirtualizer({
+    count: chatRows.length,
+    getScrollElement: () => messagesRef.current,
+    estimateSize: () => 120,
+    overscan: 8,
+  });
+  const virtualRows = chatVirtualizer.getVirtualItems();
+
   const paletteItems: PaletteItem[] = [
     { id: "a-new", group: "Actions", label: "New task", hint: "Ctrl N", run: () => void createTask() },
     { id: "a-settings", group: "Actions", label: "Settings", hint: "Ctrl ,", run: () => setSettingsOpen(true) },
@@ -1151,51 +1171,65 @@ function App() {
                   </div>
                 )}
                 <div className="conversation-messages" ref={messagesRef}>
-                  {activeMessages.map((message, index) => {
-                    const rowId = "m-" + index;
-                    return (
-                      <article className={"message " + message.role} key={rowId}>
-                        <span>{message.agent}</span>
-                        <Markdown text={message.text} />
-                        <button
-                          className="message-copy"
-                          aria-label="Copy message"
-                          title="Copy message"
-                          onClick={() => {
-                            void navigator.clipboard.writeText(message.text).then(() => {
-                              setCopiedIndex(rowId);
-                              window.setTimeout(() => setCopiedIndex((current) => (current === rowId ? null : current)), 1200);
-                            });
-                          }}
-                        >
-                          {copiedIndex === rowId ? <Check size={13} /> : <Copy size={13} />}
-                        </button>
-                      </article>
-                    );
-                  })}
-                  {(assistantText || running) && (
-                    <article className="message assistant">
-                      <span>{activeAgent}</span>
-                      {assistantText ? <Markdown text={assistantText} /> : <p>Working…</p>}
-                    </article>
-                  )}
-                  {(toolActivity[activeTask ?? ""]?.length ?? 0) > 0 && (
-                    <div className="tool-activity" aria-label="Tool activity">
-                      {toolActivity[activeTask ?? ""].map((tool) => {
-                        const name = tool.name.toLowerCase();
-                        const ToolIcon = /(bash|shell|command|exec|terminal)/.test(name) ? TerminalSquare
-                          : /(file|patch|write|edit|read)/.test(name) ? FileText
-                          : /(search|grep|web|fetch)/.test(name) ? Globe
-                          : Wrench;
+                  {chatVirtualizer.getTotalSize() > 0 && (
+                    <div className="chat-virtual" style={{ height: chatVirtualizer.getTotalSize() }}>
+                      {virtualRows.map((virtualRow) => {
+                        const row = chatRows[virtualRow.index];
                         return (
-                          <div key={tool.id} className={"tool-row " + tool.status}>
-                            <ToolIcon size={12} className="tool-icon" />
-                            <span className="tool-name">{tool.name}</span>
-                            <span className="tool-status">
-                              {tool.status === "running" ? <Loader2 size={11} className="spin" />
-                                : tool.status === "error" ? <AlertCircle size={11} />
-                                : <CheckCircle2 size={11} />}
-                            </span>
+                          <div
+                            key={row.id}
+                            data-index={virtualRow.index}
+                            ref={chatVirtualizer.measureElement}
+                            className="chat-row"
+                            style={{ transform: `translateY(${virtualRow.start}px)` }}
+                          >
+                            {row.kind === "message" && (
+                              <article className={"message " + row.message.role}>
+                                <span>{row.message.agent}</span>
+                                <Markdown text={row.message.text} />
+                                <button
+                                  className="message-copy"
+                                  aria-label="Copy message"
+                                  title="Copy message"
+                                  onClick={() => {
+                                    void navigator.clipboard.writeText(row.message.text).then(() => {
+                                      setCopiedIndex(row.id);
+                                      window.setTimeout(() => setCopiedIndex((current) => (current === row.id ? null : current)), 1200);
+                                    });
+                                  }}
+                                >
+                                  {copiedIndex === row.id ? <Check size={13} /> : <Copy size={13} />}
+                                </button>
+                              </article>
+                            )}
+                            {row.kind === "stream" && (
+                              <article className="message assistant">
+                                <span>{activeAgent}</span>
+                                {assistantText ? <Markdown text={assistantText} /> : <p>Working…</p>}
+                              </article>
+                            )}
+                            {row.kind === "tools" && (
+                              <div className="tool-activity" aria-label="Tool activity">
+                                {toolActivity[activeTask ?? ""].map((tool) => {
+                                  const name = tool.name.toLowerCase();
+                                  const ToolIcon = /(bash|shell|command|exec|terminal)/.test(name) ? TerminalSquare
+                                    : /(file|patch|write|edit|read)/.test(name) ? FileText
+                                    : /(search|grep|web|fetch)/.test(name) ? Globe
+                                    : Wrench;
+                                  return (
+                                    <div key={tool.id} className={"tool-row " + tool.status}>
+                                      <ToolIcon size={12} className="tool-icon" />
+                                      <span className="tool-name">{tool.name}</span>
+                                      <span className="tool-status">
+                                        {tool.status === "running" ? <Loader2 size={11} className="spin" />
+                                          : tool.status === "error" ? <AlertCircle size={11} />
+                                          : <CheckCircle2 size={11} />}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
