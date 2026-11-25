@@ -1910,7 +1910,10 @@ function App() {
               </div>
               <div className="settings-row">
                 <span>Shell</span>
-                <span className="settings-status">PowerShell · {paneIdList.length} open</span>
+                <span className="settings-status">
+                  {({ powershell: "PowerShell", gitbash: "Git Bash", cmd: "Command Prompt" } as Record<string, string>)[settings?.terminalShell ?? "powershell"] ?? "PowerShell"}
+                  {" · "}{paneIdList.length} open
+                </span>
               </div>
               <div className="settings-row">
                 <span>Data folder</span>
