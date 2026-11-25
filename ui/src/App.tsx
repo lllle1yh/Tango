@@ -1609,6 +1609,19 @@ function App() {
                           : "Choose an agent to begin"}
                       </p>
                       <p className="conversation-empty-hint">Describe the work below. Type / for commands; Hand off switches agent mid-task.</p>
+                      {[
+                        ["Fix a failing test", "Find why the checkout test fails and fix it."],
+                        ["Explain code", "Walk me through how this project handles authentication."],
+                        ["Review changes", "Review my uncommitted changes for bugs and risky patterns."],
+                      ].map(([label, prompt]) => (
+                        <button key={label} type="button" className="empty-suggestion" onClick={() => {
+                          setPrompt(prompt);
+                          composerRef.current?.focus();
+                        }}>
+                          <span>{label}</span>
+                          <span className="empty-suggestion-text">{prompt}</span>
+                        </button>
+                      ))}
                     </div>
                   )}
                   {chatVirtualizer.getTotalSize() > 0 && (
