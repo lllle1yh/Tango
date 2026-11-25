@@ -254,6 +254,13 @@ button { color: inherit; font: inherit; }
 .task-more svg { display: block; }
 .task-rename { height: 28px; min-width: 0; flex: 1; margin: 2px 4px; padding: 0 6px; border: 1px solid var(--primary); border-radius: 5px; outline: none; background: var(--bg); color: var(--fg); font: inherit; font-size: 13px; }
 .archived-block { margin-top: 10px; }
+.running-block { display: flex; flex-direction: column; gap: 2px; margin: 2px 8px 6px; padding: 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
+.running-block-label { padding: 0 4px 2px; color: var(--fg-subtle); font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.running-row { display: flex; align-items: center; gap: 7px; height: 28px; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: var(--fg); cursor: pointer; font-size: 12.5px; text-align: left; }
+.running-row:hover { background: var(--surface-3); }
+.running-row.selected { background: var(--surface); }
+.running-row-title { overflow: hidden; flex: 1; text-overflow: ellipsis; white-space: nowrap; }
+.running-row-agent { flex: none; color: var(--fg-subtle); font-size: 10.5px; }
 .archived-toggle { display: flex; width: 100%; height: 28px; align-items: center; gap: 6px; padding: 0 8px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--fg-subtle); cursor: pointer; font-size: 12px; }
 .archived-toggle:hover { background: var(--surface-2); }
 .archived-toggle span { margin-left: auto; font-size: 11px; }

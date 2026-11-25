@@ -736,6 +736,8 @@ function App() {
     .filter((task) => !taskQuery.trim() || task.title.toLowerCase().includes(taskQuery.trim().toLowerCase()))
     .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)));
   const archivedTasks = tasks.filter((task) => task.projectPath === project && task.archived);
+  // Running tasks float to the top so a busy agent stays visible while you read another task.
+  const runningTasks = projectTasks.filter((task) => task.running && !taskQuery.trim());
 
   function formatClock(value: string) {
     const date = new Date(value);
@@ -1159,6 +1161,24 @@ function App() {
           </label>
         )}
         {projectTasks.length === 0 && <p className="sidebar-hint">{taskQuery ? "No matching tasks." : "No tasks yet."}</p>}
+        {runningTasks.length > 0 && (
+          <div className="running-block">
+            <span className="running-block-label">Working now</span>
+            {runningTasks.map((task) => (
+              <button
+                key={task.id}
+                className={"running-row " + (task.id === activeTask ? "selected" : "")}
+                onClick={() => openTask(task.id)}
+              >
+                <Loader2 size={12} className="spin" />
+                <span className="running-row-title">{task.title}</span>
+                <span className="running-row-agent">
+                  {agents.find((agent) => agent.id === task.running?.agent)?.name ?? task.running?.agent}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={projectTasks.map((task) => task.id)} strategy={verticalListSortingStrategy}>
             <div className="task-list">
