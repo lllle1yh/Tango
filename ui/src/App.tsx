@@ -497,6 +497,10 @@ function App() {
   const [toolsExpanded, setToolsExpanded] = useState(false);
   // Finished turns keep their tool list folded into the reply; this remembers which ones were opened.
   const [expandedTools, setExpandedTools] = useState<Record<string, boolean>>({});
+  // Filtering the conversation instead of scrolling it; empty query shows everything again.
+  const [chatSearchOpen, setChatSearchOpen] = useState(false);
+  const [chatQuery, setChatQuery] = useState("");
+  const chatSearchRef = useRef<HTMLInputElement>(null);
   // A turn that finishes in a task you are not looking at leaves a dot there.
   const [unreadTasks, setUnreadTasks] = useState<Record<string, boolean>>({});
   // Streamed text per task, so a turn keeps writing while another task is open.
@@ -524,7 +528,11 @@ function App() {
     const onKeyDown = (event: KeyboardEvent) => {
       // Plain typing in a field keeps its own shortcuts; keys below intentionally skip that.
       // Escape closes popups from anywhere, and Ctrl+K works from the task search too.
-      if (inField(event.target) && event.key !== "Escape" && !((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k")) return;
+      // Find-in-conversation is worth reaching from the composer too; the composer's own
+      // keys (arrows, Enter, /) stay untouched.
+      const findInConversation = (event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "f";
+      if (inField(event.target) && event.key !== "Escape" && !findInConversation
+        && !((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k")) return;
       // Esc interrupts the turn this task is running, unless a dialog or menu is open to close first.
       if (event.key === "Escape" && running && !stopping && runningTaskRef.current === activeTask
         && !settingsOpen && !shortcutsOpen && !handoffOpen && !paletteOpen && !taskMenu && !openMenu) {
@@ -548,6 +556,13 @@ function App() {
       }
       if (!(event.ctrlKey || event.metaKey)) return;
       // Ctrl+F searches tasks unless the caret is in the composer.
+      // Ctrl+Shift+F filters this conversation; Ctrl+F stays on the task list.
+      if (event.key.toLowerCase() === "f" && event.shiftKey && activeTask) {
+        event.preventDefault();
+        setChatSearchOpen(true);
+        window.requestAnimationFrame(() => chatSearchRef.current?.focus());
+        return;
+      }
       if (event.key.toLowerCase() === "f" && !inComposer(event.target)) {
         event.preventDefault();
         taskSearchRef.current?.focus();
@@ -1359,9 +1374,13 @@ function App() {
     | { kind: "tools"; id: string; tools: ToolItem[]; live: boolean };
 
   // Every reply sits with the tools it ran; the live turn keeps a provisional row until it ends.
+  const chatNeedle = chatQuery.trim().toLowerCase();
+  const filteredMessages = chatSearchOpen && chatNeedle
+    ? activeMessages.filter((message) => message.text.toLowerCase().includes(chatNeedle))
+    : activeMessages;
   const chatRows: ChatRow[] = [];
-  activeMessages.forEach((message, index) => {
-    chatRows.push({ kind: "message", id: "m-" + index, message });
+  filteredMessages.forEach((message, index) => {
+    chatRows.push({ kind: "message", id: "m-" + message.createdAt + "-" + index, message });
     if (message.role === "assistant" && (message.tools?.length ?? 0) > 0) {
       chatRows.push({ kind: "tools", id: "t-" + message.createdAt, tools: message.tools as ToolItem[], live: false });
     }
@@ -1787,6 +1806,15 @@ function App() {
                   )}
                   <button
                     className="icon-button"
+                    aria-label={chatSearchOpen ? "Close conversation search" : "Find in conversation"}
+                    title={chatSearchOpen ? "Close search" : "Find in conversation (Ctrl Shift F)"}
+                    disabled={tasks.find((task) => task.id === activeTask)?.messages.length === 0}
+                    onClick={() => { setChatSearchOpen((open) => !open); setChatQuery(""); }}
+                  >
+                    <Search size={14} />
+                  </button>
+                  <button
+                    className="icon-button"
                     aria-label="Copy conversation"
                     title="Copy the transcript as Markdown"
                     disabled={tasks.find((task) => task.id === activeTask)?.messages.length === 0}
@@ -1832,6 +1860,38 @@ function App() {
                     </button>
                   </div>
                 )}
+                {chatSearchOpen && (
+                  <div className="chat-search" role="search">
+                    <Search size={13} />
+                    <input
+                      ref={chatSearchRef}
+                      value={chatQuery}
+                      autoFocus
+                      placeholder="Find in this conversation"
+                      aria-label="Find in this conversation"
+                      onChange={(event) => setChatQuery(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          setChatSearchOpen(false);
+                          setChatQuery("");
+                          composerRef.current?.focus();
+                        }
+                      }}
+                    />
+                    <span className="chat-search-count">
+                      {chatNeedle ? `${filteredMessages.length} of ${activeMessages.length}` : `${activeMessages.length} messages`}
+                    </span>
+                    <button
+                      className="icon-button"
+                      aria-label="Close search"
+                      title="Close search"
+                      onClick={() => { setChatSearchOpen(false); setChatQuery(""); }}
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+                )}
                 <div
                   className="conversation-messages"
                   ref={messagesRef}
@@ -1841,7 +1901,14 @@ function App() {
                     setAtBottom(distance < 140);
                   }}
                 >
-                  {chatRows.length === 0 && (
+                  {chatRows.length === 0 && chatSearchOpen && chatNeedle && (
+                    <div className="conversation-empty">
+                      <p className="conversation-empty-title">No messages match “{chatQuery.trim()}”.</p>
+                      <p className="conversation-empty-hint">Try fewer words, or clear the search to see the whole conversation.</p>
+                      <button className="subtle-button" onClick={() => setChatQuery("")}>Clear search</button>
+                    </div>
+                  )}
+                  {chatRows.length === 0 && !(chatSearchOpen && chatNeedle) && (
                     <div className="conversation-empty">
                       <AgentGlyph agentId={headerAgent ?? settings?.defaultAgent ?? "codex"} />
                       <p className="conversation-empty-title">
@@ -2080,6 +2147,7 @@ function App() {
                 ["New task", "Ctrl N"],
                 ["Rename task", "F2"],
                 ["Search tasks", "Ctrl F"],
+                ["Find in conversation", "Ctrl Shift F"],
                 ["Archive task", "Ctrl Shift E"],
                 ["Settings", "Ctrl ,"],
                 ["Command palette", "Ctrl K"],
