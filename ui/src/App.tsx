@@ -479,7 +479,7 @@ function toolSummary(tools: Array<{ status: string }>) {
 
 // One line for the tools of a turn, folded or open; live and finished turns look the same.
 function ToolActivity({ tools, expanded, onToggle }: {
-  tools: Array<{ id: string; name: string; status: string }>;
+  tools: Array<{ id: string; name: string; status: string; detail?: string }>;
   expanded: boolean;
   onToggle(): void;
 }) {
@@ -505,6 +505,7 @@ function ToolActivity({ tools, expanded, onToggle }: {
           <div key={tool.id} className={"tool-row " + tool.status}>
             <ToolIcon size={12} className="tool-icon" />
             <span className="tool-name">{tool.name}</span>
+            {tool.detail && <span className="tool-detail" title={tool.detail}>{tool.detail}</span>}
             <span className="tool-status">
               {tool.status === "running" ? <Loader2 size={11} className="spin" />
                 : tool.status === "error" ? <AlertCircle size={11} />

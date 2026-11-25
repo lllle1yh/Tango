@@ -554,3 +554,6 @@ button { color: inherit; font: inherit; }
 
 /* The matched part of a task name while searching. */
 .task-match { border-radius: 2px; background: color-mix(in srgb, var(--accent) 24%, transparent); color: var(--fg); }
+
+/* A tool's own detail (path, command) reads as quiet context beside its name. */
+.tool-detail { min-width: 0; overflow: hidden; flex: 1; color: var(--fg-subtle); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
