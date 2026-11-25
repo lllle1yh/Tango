@@ -387,7 +387,10 @@ function SortableTaskRow({
             onContextMenu(task.id, event.clientX, event.clientY);
           }}
         >
-          <span className="task-title" title={task.title}>{task.pinned && <Pin size={11} className="task-pin" />}{task.title}</span>
+          <span
+            className="task-title"
+            title={`${task.title} · ${task.messages.length} ${task.messages.length === 1 ? "message" : "messages"}`}
+          >{task.pinned && <Pin size={11} className="task-pin" />}{task.title}</span>
           {unread && <span className="task-unread" title="Finished while you were elsewhere" aria-label="Unread reply" />}
         </button>
       )}
