@@ -822,8 +822,9 @@ function App() {
               }],
             }
           : task));
-        if (!isOpen) setUnreadTasks((current) => ({ ...current, [taskId]: true }));
       }
+      // Whether the reply had text or not, a turn that ended elsewhere is worth the dot.
+      if (!isOpen) setUnreadTasks((current) => ({ ...current, [taskId]: true }));
       endTurn(taskId);
     }
     if (event.type === "tool") recordTool(taskId, event as { id?: string; name?: string; status?: string });
