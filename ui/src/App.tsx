@@ -329,6 +329,7 @@ function SortableTaskRow({
   task,
   selected,
   unread,
+  runningHere,
   renamingId,
   renamingTitle,
   setRenamingTitle,
@@ -345,6 +346,7 @@ function SortableTaskRow({
   task: TaskRecord;
   selected: boolean;
   unread: boolean;
+  runningHere: boolean;
   renamingId: string | null;
   renamingTitle: string;
   setRenamingTitle(value: string): void;
@@ -390,7 +392,7 @@ function SortableTaskRow({
           <span
             className="task-title"
             title={`${task.title} · ${task.messages.length} ${task.messages.length === 1 ? "message" : "messages"}`}
-          >{task.pinned && <Pin size={11} className="task-pin" />}{task.title}</span>
+          >{runningHere && <Loader2 size={11} className="spin task-running-mark" />}{task.pinned && <Pin size={11} className="task-pin" />}{task.title}</span>
           {unread && <span className="task-unread" title="Finished while you were elsewhere" aria-label="Unread reply" />}
         </button>
       )}
@@ -1904,6 +1906,7 @@ function App() {
                   task={task}
                   selected={task.id === activeTask}
                   unread={Boolean(unreadTasks[task.id])}
+                  runningHere={Boolean(runningTurnsRef.current[task.id])}
                   renamingId={renamingId}
                   renamingTitle={renamingTitle}
                   setRenamingTitle={setRenamingTitle}
