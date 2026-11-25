@@ -981,6 +981,9 @@ function App() {
   // They come from every task in the project, not the search results: a busy agent must not
   // disappear just because the task list is filtered.
   const runningTasks = tasks.filter((task) => task.projectPath === project && !task.archived && task.running);
+  // The composer's Stop follows this task's own state, not whichever turn was started last:
+  // a background turn in another task must not disable sending here.
+  const isActiveTaskRunning = running && runningTaskRef.current === activeTask;
 
   // The elapsed-time labels only need a tick while something is actually running.
   useEffect(() => {
@@ -1915,8 +1918,8 @@ function App() {
                   <button
                     className="subtle-button handoff-button"
                     onClick={() => setHandoffOpen((open) => !open)}
-                    disabled={running}
-                    title={running ? "Stop the current turn first" : "Continue this task with another agent"}
+                    disabled={isActiveTaskRunning}
+                    title={isActiveTaskRunning ? "Stop the current turn first" : "Continue this task with another agent"}
                   >
                     Hand off
                   </button>
@@ -2172,12 +2175,17 @@ function App() {
                     }
                     if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submitPrompt(); }
                   }} placeholder={"Ask " + (agents.find((agent) => agent.id === activeAgent)?.name ?? "an agent") + " to work in this project…  (/ for commands)"} />
-                  {running && (
-                    <button type="button" className="subtle-button" onClick={() => void stopTurn(runningTaskRef.current ?? activeTask)} disabled={stopping}>
+                  {isActiveTaskRunning && (
+                    <button
+                      type="button"
+                      className="subtle-button"
+                      onClick={() => void stopTurn(activeTask)}
+                      disabled={stopping}
+                    >
                       {stopping ? "Stopping…" : "Stop"}
                     </button>
                   )}
-                  <button type="submit" className="send-button" disabled={!prompt.trim() || running}>Send</button>
+                  <button type="submit" className="send-button" disabled={!prompt.trim() || isActiveTaskRunning}>Send</button>
                 </form>
               </div>
             )}
