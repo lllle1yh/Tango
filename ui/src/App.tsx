@@ -888,6 +888,13 @@ function App() {
     root.style.setProperty("--coral", settings.accent);
   }, [settings]);
 
+  // 其他页面里改的设置（设置面板之外）也要在回到任务页时生效。
+  useEffect(() => {
+    const pull = () => { if (document.visibilityState === "visible") void window.tango.getSettings().then(setSettings); };
+    window.addEventListener("focus", pull);
+    return () => window.removeEventListener("focus", pull);
+  }, []);
+
   const updateSettings = (patch: Partial<AppSettings>) => {
     setSettings((current) => (current ? { ...current, ...patch } : current));
     void window.tango.saveSettings(patch).then(setSettings);
@@ -1749,7 +1756,12 @@ function App() {
     ? activeMessages.filter((message) => message.text.toLowerCase().includes(chatNeedle))
     : activeMessages;
   const chatRows: ChatRow[] = [];
+  // 工具显示档位与 T3 一致：全部、只显示失败的、Zen（工具与中间说明都不显示）。
+  const toolDisplay = settings?.toolDisplay ?? "all";
+  const showTurnText = (message: TaskRecord["messages"][number]) => toolDisplay !== "zen"
+    || message.role === "user" || filteredMessages.indexOf(message) === filteredMessages.length - 1;
   filteredMessages.forEach((message, index) => {
+    if (!showTurnText(message)) return;
     // Gaps only make sense between neighbours in the unfiltered list.
     if (!chatNeedle && index > 0) {
       const gap = turnGap(filteredMessages[index - 1], message);
@@ -1766,13 +1778,17 @@ function App() {
       }
     }
     chatRows.push({ kind: "message", id: "m-" + message.createdAt + "-" + index, index, message });
-    if (message.role === "assistant" && (message.tools?.length ?? 0) > 0) {
-      chatRows.push({ kind: "tools", id: "t-" + message.createdAt + "-" + index, tools: message.tools as ToolItem[], live: false });
+    const tools = (message.tools ?? []).filter((tool) => toolDisplay === "failed" ? tool.status !== "done" : true);
+    // 搜索时工具始终出现（T3 的 Find 也这样），方便核对命中上下文。
+    if (message.role === "assistant" && tools.length > 0 && (toolDisplay !== "zen" || chatNeedle)) {
+      chatRows.push({ kind: "tools", id: "t-" + message.createdAt + "-" + index, tools: tools as ToolItem[], live: false });
     }
   });
-  if (assistantText || (running && !liveTaskRef.current?.streams)) chatRows.push({ kind: "stream", id: "stream" });
+  if (toolDisplay === "zen" && activeTask && runningTurnsRef.current[activeTask]) {
+    chatRows.push({ kind: "divider", id: "thinking", title: "Thinking", detail: "Zen: tools and in-between notes stay hidden until the turn ends." });
+  } else if (assistantText || (running && !liveTaskRef.current?.streams)) chatRows.push({ kind: "stream", id: "stream" });
   const liveTools = toolActivity[activeTask ?? ""] ?? [];
-  if (liveTools.length > 0) chatRows.push({ kind: "tools", id: "tools-live", tools: liveTools, live: true });
+  if (liveTools.length > 0 && toolDisplay !== "zen") chatRows.push({ kind: "tools", id: "tools-live", tools: liveTools, live: true });
 
   const chatVirtualizer = useVirtualizer({
     count: chatRows.length,
@@ -2892,6 +2908,14 @@ function App() {
                 <div className="segmented">
                   <button className={settings?.chatWidth === "comfortable" ? "active" : ""} onClick={() => updateSettings({ chatWidth: "comfortable" })}>Comfortable</button>
                   <button className={settings?.chatWidth === "wide" ? "active" : ""} onClick={() => updateSettings({ chatWidth: "wide" })}>Wide</button>
+                </div>
+              </div>
+              <div className="settings-row">
+                <span>Tool calls in chat</span>
+                <div className="segmented">
+                  <button className={settings?.toolDisplay !== "failed" && settings?.toolDisplay !== "zen" ? "active" : ""} onClick={() => updateSettings({ toolDisplay: "all" })}>All</button>
+                  <button className={settings?.toolDisplay === "failed" ? "active" : ""} onClick={() => updateSettings({ toolDisplay: "failed" })}>Only failures</button>
+                  <button className={settings?.toolDisplay === "zen" ? "active" : ""} onClick={() => updateSettings({ toolDisplay: "zen" })}>Zen</button>
                 </div>
               </div>
               <div className="settings-row">

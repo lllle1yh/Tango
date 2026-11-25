@@ -8,6 +8,8 @@ export type AppSettings = {
   theme: "light" | "dark";
   accent: string;
   chatWidth: "comfortable" | "wide";
+  // 工具调用怎么显示：全部 / 只显示失败的 / Zen（不显示，只在运行时说 Thinking）
+  toolDisplay: "all" | "failed" | "zen";
   defaultAgent: "codex" | "claude" | "dsh" | "pi";
   terminalShell: "powershell" | "gitbash" | "cmd";
   codexApprovalPolicy: "on-request" | "on-failure" | "never";

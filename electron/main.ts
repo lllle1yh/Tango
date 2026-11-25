@@ -58,6 +58,7 @@ type AppSettings = {
   theme: "light" | "dark";
   accent: string;
   chatWidth: "comfortable" | "wide";
+  toolDisplay: "all" | "failed" | "zen";
   defaultAgent: "codex" | "claude" | "dsh" | "pi";
   terminalShell: "powershell" | "gitbash" | "cmd";
   codexApprovalPolicy: "on-request" | "on-failure" | "never";
@@ -70,6 +71,7 @@ const defaultSettings: AppSettings = {
   theme: "light",
   accent: "#4a57d9",
   chatWidth: "comfortable",
+  toolDisplay: "all",
   defaultAgent: "codex",
   terminalShell: "powershell",
   codexApprovalPolicy: "on-request",
@@ -101,6 +103,9 @@ function sanitizeSettings(input: Partial<AppSettings>): AppSettings {
     theme: merged.theme === "dark" ? "dark" : "light",
     accent: /^#[0-9a-fA-F]{6}$/.test(merged.accent) ? merged.accent : defaultSettings.accent,
     chatWidth: merged.chatWidth === "wide" ? "wide" : "comfortable",
+    toolDisplay: (["all", "failed", "zen"] as const).includes(merged.toolDisplay as never)
+      ? merged.toolDisplay
+      : defaultSettings.toolDisplay,
     defaultAgent: (["codex", "claude", "dsh", "pi"] as const).includes(merged.defaultAgent as never)
       ? merged.defaultAgent
       : defaultSettings.defaultAgent,
