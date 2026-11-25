@@ -12,6 +12,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { Check, Copy, GripVertical, PanelLeft, Pin, Search, Square, TerminalSquare, FileText, Globe, Wrench, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import "./layout.css";
 import "./agent-icons.css";
+import { formatElapsed } from "./time";
 
 // Windows paths use backslashes, other platforms slashes; the label is only the last part.
 function projectLabel(projectPath: string) {
@@ -1083,16 +1084,6 @@ function App() {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "";
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  }
-
-  // A running turn shows how long it has been going, so a slow turn is visible at a glance.
-  function formatElapsed(startedAt: string | undefined, now: number) {
-    const started = startedAt ? new Date(startedAt).getTime() : NaN;
-    if (Number.isNaN(started)) return "";
-    const seconds = Math.max(0, Math.floor((now - started) / 1000));
-    const minutes = Math.floor(seconds / 60);
-    if (minutes > 0) return `${minutes}m ${String(seconds % 60).padStart(2, "0")}s`;
-    return seconds > 0 ? `${seconds}s` : "just started";
   }
 
   // Streamed text lives in state for the screen and in a ref for handlers that finish a turn;
