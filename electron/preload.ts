@@ -45,6 +45,7 @@ contextBridge.exposeInMainWorld("tango", {
     return () => handles.forEach((remove) => remove());
   },
   saveSettings: (next: Partial<AppSettings>): Promise<AppSettings> => ipcRenderer.invoke("settings:save", next),
+  revealDataFolder: (): Promise<void> => ipcRenderer.invoke("settings:reveal"),
   listTasks: (): Promise<TaskRecord[]> => ipcRenderer.invoke("tasks:list"),
   createTask: (title: string, projectPath: string): Promise<TaskRecord> =>
     ipcRenderer.invoke("tasks:create", title, projectPath),
@@ -159,6 +160,7 @@ export interface TangoApi {
   runAppAction(action: string): Promise<void>;
   onAppCommand(listener: (command: "open-settings" | "new-task" | "open-project" | "show-shortcuts") => void): () => void;
   saveSettings(next: Partial<AppSettings>): Promise<AppSettings>;
+  revealDataFolder(): Promise<void>;
   listTasks(): Promise<TaskRecord[]>;
   createTask(title: string, projectPath: string): Promise<TaskRecord>;
   pinTask(taskId: string, pinned: boolean): Promise<TaskRecord>;

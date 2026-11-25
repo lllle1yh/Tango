@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import type { WorkspaceLayout, LayoutNode } from "./preload";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -780,6 +780,11 @@ function registerIpc() {
   ipcMain.handle("settings:get", async (event: IpcMainInvokeEvent) => {
     assertTrustedSender(event);
     return readSettings();
+  });
+  ipcMain.handle("settings:reveal", async (event: IpcMainInvokeEvent) => {
+    assertTrustedSender(event);
+    const error = await shell.openPath(app.getPath("userData"));
+    if (error) throw new Error(error);
   });
   ipcMain.handle("settings:save", async (event: IpcMainInvokeEvent, next: Partial<AppSettings>) => {
     assertTrustedSender(event);

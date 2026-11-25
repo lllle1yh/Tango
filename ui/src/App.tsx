@@ -1328,6 +1328,13 @@ function App() {
             <section className="settings-group">
               <h3>Layout</h3>
               <div className="settings-row">
+                <span>Sidebar</span>
+                <div className="segmented">
+                  <button className={!settings?.sidebarCollapsed ? "active" : ""} onClick={() => updateSettings({ sidebarCollapsed: false })}>Shown</button>
+                  <button className={settings?.sidebarCollapsed ? "active" : ""} onClick={() => updateSettings({ sidebarCollapsed: true })}>Hidden</button>
+                </div>
+              </div>
+              <div className="settings-row">
                 <span>Chat width</span>
                 <div className="segmented">
                   <button className={settings?.chatWidth === "comfortable" ? "active" : ""} onClick={() => updateSettings({ chatWidth: "comfortable" })}>Comfortable</button>
@@ -1398,6 +1405,10 @@ function App() {
               <div className="settings-row">
                 <span>Shell</span>
                 <span className="settings-status">PowerShell · {paneIdList.length} open</span>
+              </div>
+              <div className="settings-row">
+                <span>Data folder</span>
+                <button className="subtle-button" onClick={() => void window.tango.revealDataFolder()}>Open</button>
               </div>
             </section>
 
