@@ -793,6 +793,10 @@ function App() {
     if (scrollTaskRef.current !== activeTask) {
       scrollTaskRef.current = activeTask;
       element.scrollTop = element.scrollHeight;
+      // Tall rows are still unmeasured on this pass; one more frame lands on the real end.
+      window.requestAnimationFrame(() => {
+        if (scrollTaskRef.current === activeTask && messagesRef.current) messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
+      });
       return;
     }
     const distance = element.scrollHeight - element.scrollTop - element.clientHeight;
