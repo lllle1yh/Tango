@@ -367,6 +367,17 @@ function SortableTaskRow({
   );
 }
 
+// Electron wraps IPC failures as "Error invoking remote method 'x:y': Error: <reason>".
+// The reason is what the agent's own process said; the wrapper is noise.
+function errorText(error: unknown, fallback: string) {
+  if (!(error instanceof Error) || !error.message) return fallback;
+  let text = error.message;
+  for (let i = 0; i < 3 && text.startsWith("Error invoking remote method"); i++) {
+    text = text.replace(/^Error invoking remote method '[^']*':\s*(Error:\s*)?/, "");
+  }
+  return text.trim() || fallback;
+}
+
 function App() {
   const [project, setProject] = useState<string | null>(null);
   const [agents, setAgents] = useState<AgentStatus[]>([]);
@@ -1012,7 +1023,7 @@ function App() {
         appendTurn("", { threadId });
       }
     } catch (error) {
-      setAssistantText(error instanceof Error ? error.message : "Could not start the agent");
+      setAssistantText(errorText(error, "Could not start the agent"));
       endTurn(task.id);
     } finally {
       if (waitsForTurnEnd) endTurn(task.id);
