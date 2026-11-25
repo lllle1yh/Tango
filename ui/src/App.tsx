@@ -2041,6 +2041,7 @@ function App() {
               </div>
               <div className="settings-row">
                 <span>Data folder</span>
+                <span className="settings-status">tasks.json, settings, and layouts kept in one folder</span>
                 <button className="subtle-button" onClick={() => void window.tango.revealDataFolder()}>Open</button>
               </div>
             </section>
@@ -2057,6 +2058,14 @@ function App() {
             <section className="settings-group">
               <h3>Plugins</h3>
               <p className="settings-hint">Not supported yet. Tango loads its built-in adapters only.</p>
+            </section>
+
+            <section className="settings-group">
+              <h3>Keyboard</h3>
+              <div className="settings-row">
+                <span>Shortcut reference</span>
+                <button className="subtle-button" onClick={() => { setSettingsOpen(false); setShortcutsOpen(true); }}>Show shortcuts</button>
+              </div>
             </section>
           </div>
         </div>
