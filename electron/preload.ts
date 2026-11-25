@@ -19,6 +19,8 @@ export type AppSettings = {
 export type WorkspaceLayout = {
   root: LayoutNode;
   activePaneId: string;
+  // Names the user gave shells, keyed by pane id; optional so older layouts still load.
+  labels?: Record<string, string>;
 };
 export type LayoutNode = { type: "pane"; id: string } | {
   type: "split";

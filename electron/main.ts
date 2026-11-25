@@ -1128,6 +1128,12 @@ function registerIpc() {
       !paneIds.includes(layout.activePaneId)) {
       throw new Error("Invalid terminal layout");
     }
+    if (layout.labels !== undefined) {
+      if (typeof layout.labels !== "object" || layout.labels === null) throw new Error("Invalid shell names");
+      for (const [id, name] of Object.entries(layout.labels)) {
+        if (!paneIds.includes(id) || typeof name !== "string" || name.length > 40) throw new Error("Invalid shell name");
+      }
+    }
     // 布局是增强项；保存失败不应该让每个布局变更都在 UI 里报错。
     try {
       await writeJsonAtomic(layoutFile(), layout);

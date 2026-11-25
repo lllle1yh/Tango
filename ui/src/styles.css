@@ -541,3 +541,6 @@ button { color: inherit; font: inherit; }
 
 /* A permission request in a task you are not reading still needs to be visible. */
 .running-row-needs { flex: none; padding: 1px 5px; border-radius: 4px; background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); font-size: 10px; font-weight: 600; letter-spacing: .01em; }
+
+/* Renaming a shell keeps the same footprint as its label. */
+.pane-title-input { min-width: 0; max-width: 160px; height: 20px; padding: 0 5px; border: 1px solid var(--line-strong); border-radius: 4px; outline: none; background: var(--surface-2); color: var(--fg); font: inherit; font-size: 11.5px; }

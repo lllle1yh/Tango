@@ -196,21 +196,49 @@ function PaneTree({
   onSplit,
   onClose,
   onResize,
+  onRename,
+  fallbackLabel,
 }: {
   node: LayoutNode;
   projectPath: string;
   activePaneId: string | null;
   labels: Record<string, string>;
+  fallbackLabel(id: string): string;
   onActivate(id: string): void;
   onSplit(id: string | null, direction: "horizontal" | "vertical"): void;
   onClose(id: string): void;
   onResize(id: string, ratio: number): void;
+  onRename(id: string, name: string): void;
 }) {
+  // Double-clicking a shell's name turns it into an input; Enter or blur keeps the name.
+  const [editing, setEditing] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
   if (node.type === "pane") {
     return (
       <section className={"layout-pane " + (activePaneId === node.id ? "focused" : "")} onMouseDown={() => onActivate(node.id)}>
         <header className="layout-pane-header">
-          <span className="pane-title"><i />{labels[node.id] ?? "Shell"}</span>
+          {editing === node.id ? (
+            <input
+              className="pane-title-input"
+              autoFocus
+              value={draft}
+              aria-label="Shell name"
+              onChange={(event) => setDraft(event.target.value)}
+              onBlur={() => { onRename(node.id, draft); setEditing(null); }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") { onRename(node.id, draft); setEditing(null); }
+                if (event.key === "Escape") setEditing(null);
+              }}
+            />
+          ) : (
+            <span
+              className="pane-title"
+              title="Double-click to rename this shell"
+              onDoubleClick={() => { setDraft(labels[node.id] ?? fallbackLabel(node.id)); setEditing(node.id); }}
+            >
+              <i />{labels[node.id] ?? fallbackLabel(node.id)}
+            </span>
+          )}
           <div className="pane-actions">
             <button onClick={() => onSplit(node.id, "horizontal")} title="Split this shell left or right" aria-label="Split this shell left or right"><Columns2 size={14} /></button>
             <button onClick={() => onSplit(node.id, "vertical")} title="Split this shell above or below" aria-label="Split this shell above or below"><Rows2 size={14} /></button>
@@ -228,7 +256,7 @@ function PaneTree({
     <div className={"split-tree " + node.direction} style={node.direction === "horizontal"
       ? { gridTemplateColumns: gridTemplate }
       : { gridTemplateRows: gridTemplate }}>
-      <PaneTree node={node.first} projectPath={projectPath} activePaneId={activePaneId} labels={labels} onActivate={onActivate} onSplit={onSplit} onClose={onClose} onResize={onResize} />
+      <PaneTree node={node.first} projectPath={projectPath} activePaneId={activePaneId} labels={labels} fallbackLabel={fallbackLabel} onActivate={onActivate} onSplit={onSplit} onClose={onClose} onResize={onResize} onRename={onRename} />
       <div
         className="splitter"
         role="separator"
@@ -252,7 +280,7 @@ function PaneTree({
           window.addEventListener("pointerup", end, { once: true });
         }}
       />
-      <PaneTree node={node.second} projectPath={projectPath} activePaneId={activePaneId} labels={labels} onActivate={onActivate} onSplit={onSplit} onClose={onClose} onResize={onResize} />
+      <PaneTree node={node.second} projectPath={projectPath} activePaneId={activePaneId} labels={labels} fallbackLabel={fallbackLabel} onActivate={onActivate} onSplit={onSplit} onClose={onClose} onResize={onResize} onRename={onRename} />
     </div>
   );
 }
@@ -484,6 +512,8 @@ function App() {
   const [layoutRoot, setLayoutRoot] = useState<LayoutNode | null>({ type: "pane", id: "terminal-1" });
   const [activeTerminal, setActiveTerminal] = useState<string | null>("terminal-1");
   const [layoutLoaded, setLayoutLoaded] = useState(false);
+  // Names people give their shells, keyed by pane id; saved with the layout.
+  const [paneLabels, setPaneLabels] = useState<Record<string, string>>({});
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [activeTask, setActiveTask] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -780,6 +810,7 @@ function App() {
       if (layout?.root) {
         setLayoutRoot(layout.root);
         setActiveTerminal(layout.activePaneId);
+        setPaneLabels(layout.labels ?? {});
       }
       setLayoutLoaded(true);
     });
@@ -787,8 +818,8 @@ function App() {
 
   useEffect(() => {
     if (!layoutLoaded || !layoutRoot || !activeTerminal) return;
-    void window.tango.saveLayout({ root: layoutRoot, activePaneId: activeTerminal });
-  }, [layoutRoot, activeTerminal, layoutLoaded]);
+    void window.tango.saveLayout({ root: layoutRoot, activePaneId: activeTerminal, labels: paneLabels });
+  }, [layoutRoot, activeTerminal, paneLabels, layoutLoaded]);
 
   // 切换任务时清掉上一个任务的流式状态，避免把它的输出显示在另一个任务里。
   useEffect(() => {
@@ -1434,6 +1465,16 @@ function App() {
     setActiveAgent(null);
   }
 
+  function renamePane(id: string, name: string) {
+    const trimmed = name.trim().slice(0, 40);
+    setPaneLabels((current) => {
+      const next = { ...current };
+      if (trimmed) next[id] = trimmed;
+      else delete next[id];
+      return next;
+    });
+  }
+
   function closePane(id: string) {
     if (!layoutRoot) return;
     const remaining = paneIds(layoutRoot).filter((paneId) => paneId !== id);
@@ -1649,8 +1690,6 @@ function App() {
   }
 
   const projectName = project ? projectLabel(project) : undefined;
-  const paneIdList = layoutRoot ? paneIds(layoutRoot) : [];
-  const terminalLabels = Object.fromEntries(paneIdList.map((id, index) => [id, "Shell " + (index + 1)]));
   return (
     <div className={"app-shell" + (settings?.sidebarCollapsed ? " sidebar-collapsed" : "")}>
       <header className="titlebar">
@@ -1957,7 +1996,9 @@ function App() {
                 {layoutRoot ? (
                   <PaneTree
                     node={layoutRoot}
-                    labels={terminalLabels}
+                    labels={paneLabels}
+                    fallbackLabel={(id) => "Shell " + ((layoutRoot ? paneIds(layoutRoot) : []).indexOf(id) + 1)}
+                    onRename={renamePane}
                     projectPath={project}
                     activePaneId={activeTerminal}
                     onActivate={setActiveTerminal}
@@ -2502,7 +2543,7 @@ function App() {
                 <span>Shell</span>
                 <span className="settings-status">
                   {({ powershell: "PowerShell", gitbash: "Git Bash", cmd: "Command Prompt" } as Record<string, string>)[settings?.terminalShell ?? "powershell"] ?? "PowerShell"}
-                  {" · "}{paneIdList.length} open
+                  {" · "}{(layoutRoot ? paneIds(layoutRoot) : []).length} open
                 </span>
               </div>
               <div className="settings-row">
