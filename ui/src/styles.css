@@ -564,3 +564,9 @@ button { color: inherit; font: inherit; }
 .handoff-prompt-summary .subtle-button, .handoff-collapse { flex: none; height: 24px; padding: 0 8px; font-size: 11.5px; }
 .handoff-collapse { margin-top: 8px; }
 .message.handoff .message-role { color: var(--accent); }
+
+/* The no-project screen offers the folders you already used, not only the picker. */
+.empty-recent { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin-top: 6px; color: var(--fg-subtle); font-size: 12px; }
+.empty-recent-item { display: flex; height: 30px; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-3); color: var(--fg); cursor: pointer; font-size: 12.5px; }
+.empty-recent-item:hover { border-color: var(--line-strong); background: var(--surface-2); }
+.empty-recent-item svg { width: 14px; height: 14px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; color: var(--fg-muted); }

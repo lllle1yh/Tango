@@ -2065,6 +2065,16 @@ function App() {
             <button className="primary-button" onClick={() => void openProject()}>
               <FolderIcon />Open project folder
             </button>
+            {recentProjects.length > 0 && (
+              <div className="empty-recent">
+                <span>Or continue in</span>
+                {recentProjects.slice(0, 4).map((projectPath) => (
+                  <button key={projectPath} className="empty-recent-item" title={projectPath} onClick={() => void switchProject(projectPath)}>
+                    <FolderIcon />{projectLabel(projectPath)}
+                  </button>
+                ))}
+              </div>
+            )}
           </section>
         ) : (
           <section className="workbench">
