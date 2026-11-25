@@ -1072,6 +1072,24 @@ function App() {
 
   // A handoff is a labelled selection of the recent turns, not an agent-written
   // summary: the target sees who said what and continues from there.
+  function handoffContext(task: TaskRecord, target: AgentStatus["id"]) {
+    const source = agents.find((agent) => agent.id === activeAgent)?.name ?? activeAgent ?? "another agent";
+    const recent = task.messages.slice(-8)
+      .map((message) => {
+        const who = message.role === "user"
+          ? "User"
+          : agents.find((agent) => agent.id === message.agent)?.name ?? message.agent;
+        return `[${who}] ${message.text}`;
+      })
+      .join("\n\n");
+    return [
+      `Handoff from ${source}.`,
+      `Task: ${task.title}`,
+      recent ? `Recent turns:\n\n${recent}` : "No earlier turns.",
+      `Continue this task from here as ${agents.find((agent) => agent.id === target)?.name ?? target}. Keep the same goal and report what you changed and what is still pending.`,
+    ].join("\n\n");
+  }
+
   async function handoffTo(target: AgentStatus["id"]) {
     setHandoffOpen(false);
     const task = tasks.find((item) => item.id === activeTask);
@@ -1080,18 +1098,8 @@ function App() {
       setAssistantText("Stop the current turn before handing the task off.");
       return;
     }
-    const source = activeAgent ?? "another agent";
-    const recent = task.messages.slice(-8)
-      .map((message) => `[${message.agent}] ${message.text}`)
-      .join("\n\n");
-    const context = [
-      `Handoff from ${source}.`,
-      `Task: ${task.title}`,
-      recent ? `Recent turns:\n\n${recent}` : "No earlier turns.",
-      "Continue this task from here. Keep the same goal and report what you changed and what is still pending.",
-    ].join("\n\n");
     setActiveAgent(target);
-    await startTurn(target, task, context);
+    await startTurn(target, task, handoffContext(task, target));
   }
 
   async function stopTurn(taskId = activeTask) {
@@ -1567,9 +1575,8 @@ function App() {
                       {agents.find((agent) => agent.id === headerAgent)?.name ?? headerAgent}
                     </span>
                   )}
-                  <span className="heading-fill" />
                   <button
-                    className="icon-button heading-action"
+                    className="icon-button"
                     aria-label="Copy conversation"
                     title="Copy the transcript as Markdown"
                     disabled={tasks.find((task) => task.id === activeTask)?.messages.length === 0}
