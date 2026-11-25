@@ -143,7 +143,7 @@ function TerminalView({ projectPath, terminalId }: { projectPath: string; termin
     terminal.focus();
 
     void window.tango.startTerminal(projectPath, terminalId).catch((reason: unknown) => {
-      setError(reason instanceof Error ? reason.message : "Could not start terminal");
+      setError(errorText(reason, "Could not start terminal"));
     });
 
     return () => {
@@ -773,7 +773,7 @@ function App() {
         await window.tango.dshRespondPermission(current.taskId, Number(current.requestId), optionId);
       }
     } catch (error) {
-      setAssistantText(error instanceof Error ? error.message : "Could not answer the permission request");
+      setAssistantText(errorText(error, "Could not answer the permission request"));
     }
   }
 
@@ -783,7 +783,7 @@ function App() {
       const selected = await window.tango.openWorkspace();
       if (selected) setProject(selected);
     } catch (error) {
-      setWorkspaceError(error instanceof Error ? error.message : "Could not open the folder picker");
+      setWorkspaceError(errorText(error, "Could not open the folder picker"));
     }
   }
 
@@ -1071,7 +1071,7 @@ function App() {
       else if (agent === "claude") await window.tango.claudeInterrupt(taskId);
       else await window.tango.codexInterrupt(taskId);
     } catch (error) {
-      setAssistantText(error instanceof Error ? error.message : "Could not stop the agent");
+      setAssistantText(errorText(error, "Could not stop the agent"));
       setStopping(false);
     }
   }
