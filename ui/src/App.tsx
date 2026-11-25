@@ -1410,7 +1410,13 @@ function App() {
         const who = message.role === "user"
           ? "User"
           : agents.find((agent) => agent.id === message.agent)?.name ?? message.agent;
-        return `[${who}] ${message.text}`;
+        // Tools belong to the turn, so the target can see what was already tried.
+        const tools = message.role === "assistant" && message.tools?.length
+          ? "\n(tools: " + message.tools.map((tool) => tool.name + (tool.status === "error" ? " failed" : "")).join(", ") + ")"
+          : "";
+        // One very long answer would crowd out the rest of the handoff.
+        const text = message.text.length > 1500 ? message.text.slice(0, 1500) + "\n… (truncated)" : message.text;
+        return `[${who}] ${text}${tools}`;
       })
       .join("\n\n");
     return [
