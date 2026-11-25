@@ -1942,7 +1942,16 @@ function App() {
             />
           </label>
         )}
-        {projectTasks.length === 0 && <p className="sidebar-hint">{taskQuery ? "No matching tasks." : "No tasks yet."}</p>}
+        {projectTasks.length === 0 && (taskQuery ? (
+          <p className="sidebar-hint">No matching tasks.</p>
+        ) : (
+          // An empty folder should offer the next step, not just say it is empty.
+          <div className="sidebar-empty">
+            <p>No tasks yet.</p>
+            <button className="sidebar-empty-button" onClick={() => void createTask()}>New task</button>
+            <span className="sidebar-hint">Ctrl N</span>
+          </div>
+        ))}
         {runningTasks.length > 0 && (
           <div className="running-block">
             <button
