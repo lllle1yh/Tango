@@ -645,12 +645,15 @@ function createPiClient(taskId: string, projectPath: string, sessionFile?: strin
             ? (message.options ?? []).map((option: unknown, index: number) => ({ optionId: String(index), label: String(option) }))
             : method === "confirm"
               ? [{ optionId: "yes", label: "Allow" }, { optionId: "no", label: "Decline" }]
-              : [{ optionId: "cancel", label: "Dismiss" }];
+              : [];
           sendPiEvent(taskId, {
             type: "permission/request",
             requestId: message.id,
             title: String(message.title ?? message.message ?? "Pi is asking for input."),
             detail: typeof message.message === "string" ? message.message : undefined,
+            input: method === "input" || method === "editor"
+              ? { placeholder: message.placeholder ?? "", prefill: message.prefill ?? "" }
+              : undefined,
             options,
           });
         } else {
@@ -708,15 +711,16 @@ function createPiClient(taskId: string, projectPath: string, sessionFile?: strin
     aborted = true;
     await command("abort");
   }
-  function respondUi(requestId: string, optionId: string | null) {
+  function respondUi(requestId: string, optionId: string | null, text?: string) {
     const request = pendingUi.get(requestId);
     if (!request) return false;
     pendingUi.delete(requestId);
     let payload: Record<string, unknown>;
-    if (!optionId) payload = { cancelled: true };
-    else if (request.method === "select") payload = { value: request.options?.[Number(optionId)] ?? optionId };
+    const typed = typeof text === "string" ? text : null;
+    if (!optionId && typed === null) payload = { cancelled: true };
+    else if (request.method === "select") payload = { value: request.options?.[Number(optionId)] ?? optionId ?? "" };
     else if (request.method === "confirm") payload = { confirmed: optionId === "yes" };
-    else payload = { cancelled: true };
+    else payload = { value: typed ?? optionId ?? "" };
     child.stdin.write(JSON.stringify({ type: "extension_ui_response", id: requestId, ...payload }) + String.fromCharCode(10));
     return true;
   }
@@ -1255,15 +1259,24 @@ function registerIpc() {
     return result;
   });
   ipcMain.handle("pi:interrupt", async (event: IpcMainInvokeEvent, taskId: string) => {
-  ipcMain.handle("pi:ui-response", async (event: IpcMainInvokeEvent, taskId: string, requestId: string, optionId: string | null) => {
+    assertTrustedSender(event);
+    await piProcesses.get(taskId)?.interrupt();
+  });
+  // `optionId` is the chosen option for select/confirm; for input/editor it is the typed text
+  // itself so the user can answer without a separate API.
+  ipcMain.handle("pi:ui-response", async (
+    event: IpcMainInvokeEvent,
+    taskId: string,
+    requestId: string,
+    optionId: string | null,
+    text?: string,
+  ) => {
     assertTrustedSender(event);
     if (typeof requestId !== "string") throw new Error("Invalid UI request");
     if (optionId !== null && typeof optionId !== "string") throw new Error("Invalid option");
-    const handled = piProcesses.get(taskId)?.respondUi(requestId, optionId) ?? false;
-    if (!handled) throw new Error("PI UI request is no longer pending");
-  });
-    assertTrustedSender(event);
-    await piProcesses.get(taskId)?.interrupt();
+    if (text !== undefined && typeof text !== "string") throw new Error("Invalid text");
+    const handled = piProcesses.get(taskId)?.respondUi(requestId, optionId, text) ?? false;
+    if (!handled) throw new Error("Pi UI request is no longer pending");
   });
   ipcMain.handle("terminal:start", async (event: IpcMainInvokeEvent, requestedPath: string, terminalId: string) => {
     assertTrustedSender(event);

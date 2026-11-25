@@ -527,7 +527,9 @@ function App() {
     title: string;
     detail?: string;
     options: Array<{ optionId: string; name: string; kind?: string }>;
+    input?: { placeholder: string; prefill: string };
   } | null>(null);
+  const [permissionText, setPermissionText] = useState("");
 
   const refreshAgents = useCallback(async () => {
     setDetecting(true);
@@ -657,7 +659,16 @@ function App() {
         title: String(event.title ?? "Pi is asking for input."),
         detail: typeof event.detail === "string" ? event.detail : undefined,
         options,
+        input: event.input && typeof event.input === "object"
+          ? {
+              placeholder: String((event.input as { placeholder?: string }).placeholder ?? ""),
+              prefill: String((event.input as { prefill?: string }).prefill ?? ""),
+            }
+          : undefined,
       });
+      setPermissionText(typeof (event.input as { prefill?: string } | undefined)?.prefill === "string"
+        ? String((event.input as { prefill?: string }).prefill)
+        : "");
     }
     if (event.type === "agent_end" || event.type === "process/exit" || event.type === "process/error") {
       setRunning(false);
@@ -665,15 +676,16 @@ function App() {
     }
   }), [activeTask]);
 
-  async function answerPermission(optionId: string | null) {
+  async function answerPermission(optionId: string | null, text?: string) {
     if (!permission) return;
     const current = permission;
     setPermission(null);
+    setPermissionText("");
     try {
       if (current.agent === "codex") {
         await window.tango.codexRespondPermission(current.taskId, Number(current.requestId), optionId);
       } else if (current.agent === "pi") {
-        await window.tango.piRespondUi(current.taskId, String(current.requestId), optionId);
+        await window.tango.piRespondUi(current.taskId, String(current.requestId), optionId, text);
       } else {
         await window.tango.dshRespondPermission(current.taskId, Number(current.requestId), optionId);
       }
@@ -1353,6 +1365,23 @@ function App() {
                   <div className="permission-request" role="alertdialog" aria-label="Agent permission request">
                     <p className="permission-title">{permission.title}</p>
                     {permission.detail && <pre className="permission-detail">{permission.detail}</pre>}
+                    {permission.input && (
+                      <form
+                        className="permission-input"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          void answerPermission(null, permissionText);
+                        }}
+                      >
+                        <input
+                          autoFocus
+                          value={permissionText}
+                          placeholder={permission.input.placeholder || "Type your answer…"}
+                          onChange={(event) => setPermissionText(event.target.value)}
+                        />
+                        <button type="submit" className="permission-option allow_once">Send</button>
+                      </form>
+                    )}
                     <div className="permission-actions">
                       {permission.options.map((option) => (
                         <button
