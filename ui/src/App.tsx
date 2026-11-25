@@ -476,6 +476,8 @@ function App() {
   const promptHistoryRef = useRef<{ index: number; draft: string } | null>(null);
   // Which task owns the turn that is running, so "Stop" interrupts that task and not whichever is open.
   const runningTaskRef = useRef<string | null>(null);
+  // True while the user's Stop is waiting for the agent, so a turn that ends says it was stopped.
+  const stoppedByUserRef = useRef(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renamingTitle, setRenamingTitle] = useState("");
   const [taskMenu, setTaskMenu] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -731,12 +733,14 @@ function App() {
       const text = assistantTextRef.current;
       const tools = finishTools(taskId);
       resetStreamText();
-      if (text.trim()) {
+      const answer = text.trim() ? text : noAnswerText("codex", tools);
+      stoppedByUserRef.current = false;
+      if (answer) {
         setTasks((current) => current.map((task) => task.id === taskId
           ? {
               ...task,
               messages: [...task.messages, {
-                role: "assistant", agent: "codex", text, createdAt: new Date().toISOString(),
+                role: "assistant", agent: "codex", text: answer, createdAt: new Date().toISOString(),
                 ...(tools ? { tools } : {}),
               }],
             }
@@ -912,6 +916,16 @@ function App() {
   function resetStreamText(value = "") {
     assistantTextRef.current = value;
     setAssistantText(value);
+  }
+
+  // A turn can end without any streamed text when the agent fails or stops. The transcript
+  // should still say so, and the turn's own tool list is the reason it has.
+  function noAnswerText(agent: AgentStatus["id"], tools: Array<{ name: string; status: string }> | undefined): string | null {
+    const name = agents.find((item) => item.id === agent)?.name ?? agent;
+    if (tools?.length) {
+      return `No reply was written. ${name} ran ${toolSummary(tools)} before stopping; check the tool list below.`;
+    }
+    return stoppedByUserRef.current ? `${name} was stopped before it answered.` : `${name} ended without a reply.`;
   }
 
   // A finished turn folds its tools into the reply, so they stay visible after the task is
@@ -1121,13 +1135,14 @@ function App() {
     // reported answer is only appended when the transcript does not already end with it.
     const appendTurn = (answer: string, patch: Partial<TaskRecord>) => {
       const tools = finishTools(task.id);
+      const spoken = answer.trim() ? answer : noAnswerText(agent, tools);
       setTasks((current) => current.map((item) => {
         if (item.id !== task.id) return item;
         const messages = [...item.messages];
         const last = messages[messages.length - 1];
         const alreadyShown = Boolean(answer) && last?.role === "assistant" && last.text.trim() === answer.trim();
-        if (answer && !alreadyShown) {
-          messages.push({ role: "assistant", agent, text: answer, createdAt: new Date().toISOString(), ...(tools ? { tools } : {}) });
+        if (spoken && !alreadyShown) {
+          messages.push({ role: "assistant", agent, text: spoken, createdAt: new Date().toISOString(), ...(tools ? { tools } : {}) });
         } else if (alreadyShown && tools) {
           messages[messages.length - 1] = { ...last, tools };
         }
@@ -1203,6 +1218,7 @@ function App() {
   async function stopTurn(taskId = activeTask) {
     if (!taskId || stopping) return;
     setStopping(true);
+    stoppedByUserRef.current = true;
     try {
       const agent = runningAgent ?? activeAgent;
       if (agent === "pi") await window.tango.piInterrupt(taskId);
@@ -1210,6 +1226,7 @@ function App() {
       else if (agent === "claude") await window.tango.claudeInterrupt(taskId);
       else await window.tango.codexInterrupt(taskId);
     } catch (error) {
+      stoppedByUserRef.current = false;
       setAssistantText(errorText(error, "Could not stop the agent"));
       setStopping(false);
     }
