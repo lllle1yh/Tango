@@ -496,6 +496,14 @@ function toolSummary(tools: Array<{ status: string }>) {
   return parts.join(" · ");
 }
 
+// A folded turn should still say what it ran: "Ran bash, apply_patch +2".
+function toolNamesSummary(tools: Array<{ name: string }>) {
+  const names = [...new Set(tools.map((tool) => tool.name).filter(Boolean))];
+  if (names.length === 0) return "";
+  const shown = names.slice(0, 2).join(", ");
+  return names.length > 2 ? `Ran ${shown} +${names.length - 2}` : `Ran ${shown}`;
+}
+
 // One line for the tools of a turn, folded or open; live and finished turns look the same.
 function ToolActivity({ tools, expanded, onToggle }: {
   tools: Array<{ id: string; name: string; status: string; detail?: string }>;
@@ -512,6 +520,7 @@ function ToolActivity({ tools, expanded, onToggle }: {
       >
         {tools.some((tool) => tool.status === "running") ? <Loader2 size={12} className="spin" /> : <Wrench size={12} />}
         <span className="tool-summary-label">{toolSummary(tools)}</span>
+        {!expanded && toolNamesSummary(tools) && <span className="tool-summary-names">{toolNamesSummary(tools)}</span>}
         {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
       </button>
       {expanded && tools.map((tool) => {
