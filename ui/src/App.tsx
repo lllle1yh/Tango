@@ -646,6 +646,9 @@ function App() {
   const [expandedHandoff, setExpandedHandoff] = useState<Record<string, boolean>>({});
   const [copiedConversation, setCopiedConversation] = useState(false);
   const [handoffOpen, setHandoffOpen] = useState(false);
+  // Deleting a task asks in Tango's own dialog: a native confirm() blocks the window and
+  // cannot be styled or reached from the keyboard like the rest of the app.
+  const [deleteTarget, setDeleteTarget] = useState<TaskRecord | null>(null);
 
   useEffect(() => {
     void window.tango.getSettings().then(setSettings);
@@ -723,16 +726,17 @@ function App() {
 
   // Esc closes whichever dialog or menu is open.
   useEffect(() => {
-    if (!settingsOpen && !shortcutsOpen && !handoffOpen) return;
+    if (!settingsOpen && !shortcutsOpen && !handoffOpen && !deleteTarget) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       setSettingsOpen(false);
       setShortcutsOpen(false);
       setHandoffOpen(false);
+      setDeleteTarget(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [settingsOpen, shortcutsOpen, handoffOpen]);
+  }, [settingsOpen, shortcutsOpen, handoffOpen, deleteTarget]);
 
   // Clicking elsewhere closes the handoff menu.
   useEffect(() => {
@@ -1371,7 +1375,14 @@ function App() {
       setAssistantText("Stop the current turn before deleting this task.");
       return;
     }
-    if (!window.confirm(`Delete "${target.title}"? This cannot be undone.`)) return;
+    setDeleteTarget(target);
+  }
+
+  async function confirmDeleteTask() {
+    const target = deleteTarget;
+    setDeleteTarget(null);
+    if (!target) return;
+    const taskId = target.id;
     try {
       await window.tango.deleteTask(taskId);
     } catch (error) {
@@ -2696,6 +2707,19 @@ function App() {
                 </div>
               ))}
             </section>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="settings-backdrop" onClick={() => setDeleteTarget(null)}>
+          <div className="confirm-panel" role="alertdialog" aria-modal="true" aria-label="Delete task" onClick={(event) => event.stopPropagation()}>
+            <h2>Delete “{deleteTarget.title}”?</h2>
+            <p>The transcript is removed from this workspace. This cannot be undone.</p>
+            <div className="confirm-actions">
+              <button className="subtle-button" autoFocus onClick={() => setDeleteTarget(null)}>Cancel</button>
+              <button className="confirm-danger" onClick={() => void confirmDeleteTask()}>Delete</button>
+            </div>
           </div>
         </div>
       )}

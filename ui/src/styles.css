@@ -258,6 +258,14 @@ button { color: inherit; font: inherit; }
 :root[data-theme="dark"] .composer { box-shadow: none; }
 :root[data-theme="dark"] .composer textarea { color: var(--fg); }
 :root[data-theme="dark"] .settings-panel { box-shadow: 0 24px 60px #00000080; }
+/* Deleting a task asks in-app, so the answer is reachable by keyboard and looks like Tango. */
+.confirm-panel { width: min(420px, calc(100vw - 60px)); padding: 20px 22px 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); box-shadow: 0 24px 60px #00000026; }
+.confirm-panel h2 { margin: 0 0 8px; font-size: 15px; font-weight: 600; }
+.confirm-panel p { margin: 0; color: var(--fg-muted); font-size: 13px; line-height: 1.55; }
+.confirm-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.confirm-danger { height: 30px; padding: 0 14px; border: 1px solid #dc2626; border-radius: var(--radius-sm); background: #dc2626; color: #ffffff; cursor: pointer; font: inherit; font-size: 13px; }
+.confirm-danger:hover { background: #b91c1c; border-color: #b91c1c; }
+:root[data-theme="dark"] .confirm-panel { box-shadow: 0 24px 60px #00000080; }
 :root[data-theme="dark"] .segmented { background: #ffffff08; }
 :root[data-theme="dark"] .segmented button.active { background: #1f1f22; }
 :root[data-theme="dark"] .swatch.active { border-color: var(--fg); }
