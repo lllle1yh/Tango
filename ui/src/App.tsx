@@ -619,14 +619,14 @@ function App() {
 
   function recordTool(taskId: string, tool: { id?: string; name?: string; status?: string }) {
     const id = String(tool.id ?? tool.name ?? "tool");
-    const name = String(tool.name ?? "tool");
+    const name = tool.name ? String(tool.name) : undefined;
     const status = tool.status === "running" ? "running" : tool.status === "error" ? "error" : "done";
     setToolActivity((current) => {
       const list = current[taskId] ?? [];
       const index = list.findIndex((item) => item.id === id);
       const next = index >= 0
-        ? list.map((item, i) => (i === index ? { ...item, status } : item))
-        : [...list, { id, name, status }].slice(-12);
+        ? list.map((item, i) => (i === index ? { ...item, name: name ?? item.name, status } : item))
+        : [...list, { id, name: name ?? "tool", status }].slice(-12);
       return { ...current, [taskId]: next };
     });
   }

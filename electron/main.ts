@@ -270,6 +270,7 @@ function createClaudeClient(taskId: string, projectPath: string, resumeId?: stri
   const resultWaiters: Array<{ resolve(text: string): void; reject(error: Error): void }> = [];
   let sessionId = resumeId ?? "";
   let cancelled = false;
+  let lastClaudeTool: { id: string; name: string } | null = null;
   child.stdout.on("data", (chunk: Buffer) => {
     buffer += chunk.toString();
     const lines = buffer.split(/\r?\n/);
@@ -284,10 +285,12 @@ function createClaudeClient(taskId: string, projectPath: string, resumeId?: stri
         if (typeof delta === "string") sendClaudeEvent(taskId, { type: "delta", text: delta });
         const block = event.event?.content_block;
         if (event.event?.type === "content_block_start" && block?.type === "tool_use") {
+          lastClaudeTool = { id: block.id, name: block.name };
           sendClaudeEvent(taskId, { type: "tool", id: block.id, name: block.name, status: "running" });
         }
-        if (event.event?.type === "content_block_stop") {
-          sendClaudeEvent(taskId, { type: "tool/stop" });
+        if (event.event?.type === "content_block_stop" && lastClaudeTool) {
+          sendClaudeEvent(taskId, { type: "tool", id: lastClaudeTool.id, name: lastClaudeTool.name, status: "done" });
+          lastClaudeTool = null;
         }
       }
       if (event.type === "result") {
