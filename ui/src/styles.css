@@ -486,6 +486,8 @@ button { color: inherit; font: inherit; }
 .task-pin { flex: none; color: var(--fg-subtle); }
 /* A finished turn in another task leaves a small dot here until the task is opened. */
 .task-unread { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+/* A ring, not a dot: an unsent draft is a prompt waiting, not a reply to read. */
+.task-draft { flex: none; width: 6px; height: 6px; border-radius: 50%; border: 1.5px solid var(--fg-subtle); }
 
 /* Tool rows: icon + status */
 .tool-icon { flex: none; color: var(--fg-subtle); }
