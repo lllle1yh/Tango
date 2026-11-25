@@ -60,6 +60,8 @@ button { color: inherit; font: inherit; }
 /* Recently used folders sit under the project row, one click away from switching. */
 .recent-projects { display: flex; flex-direction: column; gap: 1px; margin: 0; padding: 0; list-style: none; }
 .recent-project { display: flex; width: 100%; min-height: 28px; align-items: center; gap: 7px; padding: 0 8px 0 10px; overflow: hidden; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--fg-muted); cursor: pointer; font-size: 12.5px; text-align: left; }
+.recent-project > span:not(.recent-count) { overflow: hidden; flex: 1; text-overflow: ellipsis; white-space: nowrap; }
+.recent-count { flex: none; color: var(--fg-subtle); font-size: 11px; font-variant-numeric: tabular-nums; }
 .recent-project:hover { background: var(--surface-2); color: var(--fg); }
 .recent-project svg { width: 14px; height: 14px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; opacity: .7; }
 .recent-project span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -1951,6 +1951,10 @@ function App() {
                   <button className="recent-project" title={projectPath} onClick={() => void switchProject(projectPath)}>
                     <FolderIcon />
                     <span>{projectLabel(projectPath)}</span>
+                    {(() => {
+                      const count = tasks.filter((task) => samePath(task.projectPath, projectPath) && !task.archived).length;
+                      return count > 0 ? <span className="recent-count">{count}</span> : null;
+                    })()}
                   </button>
                 </li>
               ))}
