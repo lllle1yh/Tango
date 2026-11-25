@@ -1224,6 +1224,12 @@ function App() {
 
   async function archiveTaskAction(taskId: string, archived: boolean) {
     setTaskMenu(null);
+    // Hiding a busy task would leave its agent running with nowhere to answer.
+    const task = tasks.find((item) => item.id === taskId);
+    if (archived && (task?.running || runningTurnsRef.current[taskId])) {
+      setAssistantText("Stop the current turn before archiving this task.");
+      return;
+    }
     const updated = await window.tango.archiveTask(taskId, archived);
     setTasks((current) => current.map((task) => (task.id === taskId ? { ...task, archived: updated.archived } : task)));
     if (archived && activeTask === taskId) {
