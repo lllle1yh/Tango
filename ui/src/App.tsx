@@ -369,6 +369,17 @@ function SortableTaskRow({
 
 // Electron wraps IPC failures as "Error invoking remote method 'x:y': Error: <reason>".
 // The reason is what the agent's own process said; the wrapper is noise.
+// "3 tools" reads better than a wall of rows; the label keeps what is still running visible.
+function toolSummary(tools: Array<{ status: string }>) {
+  if (tools.length === 0) return "Tools";
+  const running = tools.filter((tool) => tool.status === "running").length;
+  const failed = tools.filter((tool) => tool.status === "error").length;
+  const parts = [`${tools.length} ${tools.length === 1 ? "tool" : "tools"}`];
+  if (running) parts.push(`${running} running`);
+  if (failed) parts.push(`${failed} failed`);
+  return parts.join(" · ");
+}
+
 function errorText(error: unknown, fallback: string) {
   if (!(error instanceof Error) || !error.message) return fallback;
   let text = error.message;
@@ -427,6 +438,7 @@ function App() {
   const taskSearchRef = useRef<HTMLInputElement>(null);
   const [piCommands, setPiCommands] = useState<Array<{ name: string; description?: string }>>([]);
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
+  const [toolsExpanded, setToolsExpanded] = useState(false);
   const [copiedConversation, setCopiedConversation] = useState(false);
   const [handoffOpen, setHandoffOpen] = useState(false);
 
@@ -587,6 +599,11 @@ function App() {
     const distance = element.scrollHeight - element.scrollTop - element.clientHeight;
     if (distance < 140 || running) element.scrollTop = element.scrollHeight;
   }, [tasks, assistantText, toolActivity, running, activeTask]);
+
+  // Each turn starts with its tool list folded, and switching tasks folds it back.
+  useEffect(() => {
+    setToolsExpanded(false);
+  }, [activeTask, toolActivity[activeTask ?? ""]?.[0]?.id]);
 
   useEffect(() => window.tango.onAppCommand((command) => {
     if (command === "open-settings") setSettingsOpen(true);
@@ -1701,8 +1718,21 @@ function App() {
                               </article>
                             )}
                             {row.kind === "tools" && (
-                              <div className="tool-activity" aria-label="Tool activity">
-                                {toolActivity[activeTask ?? ""].map((tool) => {
+                              // Collapsed by default: a turn that used many tools stays one quiet line.
+                              <div className="tool-activity" aria-label="Tool activity" data-expanded={toolsExpanded}>
+                                <button
+                                  type="button"
+                                  className="tool-summary"
+                                  aria-expanded={toolsExpanded}
+                                  onClick={() => setToolsExpanded((open) => !open)}
+                                >
+                                  {toolActivity[activeTask ?? ""].some((tool) => tool.status === "running")
+                                    ? <Loader2 size={12} className="spin" />
+                                    : <Wrench size={12} />}
+                                  <span className="tool-summary-label">{toolSummary(toolActivity[activeTask ?? ""] ?? [])}</span>
+                                  {toolsExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                                </button>
+                                {toolsExpanded && toolActivity[activeTask ?? ""].map((tool) => {
                                   const name = tool.name.toLowerCase();
                                   const ToolIcon = /(bash|shell|command|exec|terminal)/.test(name) ? TerminalSquare
                                     : /(file|patch|write|edit|read)/.test(name) ? FileText

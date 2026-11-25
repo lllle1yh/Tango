@@ -397,6 +397,12 @@ button { color: inherit; font: inherit; }
 
 /* Tool activity */
 .tool-activity { display: flex; flex-direction: column; gap: 2px; margin: 4px 0 0; }
+.tool-summary { display: inline-flex; width: fit-content; align-items: center; gap: 6px; padding: 3px 8px 3px 3px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--fg-subtle); cursor: pointer; font: inherit; font-size: 12px; }
+.tool-summary:hover { background: var(--surface-2); color: var(--fg-muted); }
+.tool-summary svg { display: block; flex: none; }
+.tool-summary-label { font-variant-numeric: tabular-nums; }
+.tool-activity[data-expanded="true"] .tool-summary { margin-bottom: 2px; }
+.tool-activity[data-expanded="true"] .tool-row { padding-left: 6px; }
 .tool-row { display: flex; align-items: center; gap: 8px; color: var(--fg-muted); font-size: 12px; }
 .tool-row .tool-dot { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--fg-subtle); }
 .tool-row.running .tool-dot { background: var(--primary); animation: tool-pulse 1.1s ease-in-out infinite; }
