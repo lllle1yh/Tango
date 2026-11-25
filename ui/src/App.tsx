@@ -1412,6 +1412,10 @@ function App() {
         ? "You"
         : agents.find((agent) => agent.id === message.agent)?.name ?? message.agent;
       lines.push(`**${who}** · ${formatClock(message.createdAt)}`, "", message.text, "");
+      // Tools are part of how the answer was produced, so the copied transcript keeps them.
+      if (message.role === "assistant" && message.tools?.length) {
+        lines.push(`_Tools: ${message.tools.map((tool) => tool.name + (tool.status === "error" ? " (failed)" : "")).join(", ")}_`, "");
+      }
     }
     await navigator.clipboard.writeText(lines.join("\n").trimEnd() + "\n");
     setCopiedConversation(true);
