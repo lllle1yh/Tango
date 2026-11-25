@@ -460,6 +460,15 @@ function App() {
         renameActiveTask();
         return;
       }
+      // "/" jumps to the command list from anywhere outside a field, so the menu is one key away.
+      if (event.key === "/" && !event.ctrlKey && !event.metaKey && !event.altKey && activeTask
+        && !settingsOpen && !shortcutsOpen && !handoffOpen && !paletteOpen && !taskMenu && !openMenu) {
+        event.preventDefault();
+        setPrompt("/");
+        setSlashIndex(0);
+        composerRef.current?.focus();
+        return;
+      }
       if (!(event.ctrlKey || event.metaKey)) return;
       // Ctrl+F searches tasks unless the caret is in the composer.
       if (event.key.toLowerCase() === "f" && !inComposer(event.target)) {
@@ -1803,6 +1812,7 @@ function App() {
                 ["Settings", "Ctrl ,"],
                 ["Command palette", "Ctrl K"],
                 ["Send message", "Enter"],
+                ["Commands", "/"],
                 ["Stop the running turn", "Esc"],
                 ["New line in message", "Shift Enter"],
                 ["Earlier prompts", "Up Down"],
