@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import type { AgentStatus, AppSettings, LayoutNode, TaskRecord } from "../../electron/preload";
@@ -2057,9 +2057,15 @@ function App() {
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={projectTasks.map((task) => task.id)} strategy={verticalListSortingStrategy}>
             <div className="task-list" ref={taskListRef}>
-              {projectTasks.map((task) => (
+              {projectTasks.map((task, index) => {
+                // Pinned rows sort to the top; one label each keeps the two groups readable.
+                const label = index === 0 && task.pinned ? "Pinned"
+                  : !task.pinned && index > 0 && projectTasks[index - 1].pinned ? "Recent"
+                  : null;
+                return (
+                <Fragment key={task.id}>
+                {label && <div className="task-group-label">{label}</div>}
                 <SortableTaskRow
-                  key={task.id}
                   task={task}
                   selected={task.id === activeTask}
                   unread={Boolean(unreadTasks[task.id])}
@@ -2080,7 +2086,9 @@ function App() {
                   onMenu={(id, x, y) => setTaskMenu({ id, x, y })}
                   onContextMenu={(id, x, y) => setTaskMenu({ id, x, y })}
                 />
-              ))}
+                </Fragment>
+                );
+              })}
             </div>
           </SortableContext>
         </DndContext>
