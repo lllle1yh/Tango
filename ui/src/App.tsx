@@ -365,6 +365,7 @@ function SortableTaskRow({
   unread,
   runningHere,
   draft,
+  lastLabel,
   query,
   renamingId,
   renamingTitle,
@@ -384,6 +385,7 @@ function SortableTaskRow({
   unread: boolean;
   runningHere: boolean;
   draft: boolean;
+  lastLabel: string;
   query: string;
   renamingId: string | null;
   renamingTitle: string;
@@ -432,7 +434,7 @@ function SortableTaskRow({
         >
           <span
             className="task-title"
-            title={`${task.title} · ${task.messages.length} ${task.messages.length === 1 ? "message" : "messages"}`}
+            title={`${task.title} · ${task.messages.length} ${task.messages.length === 1 ? "message" : "messages"}${lastLabel ? " · last " + lastLabel : ""}`}
           >{runningHere && <Loader2 size={11} className="spin task-running-mark" />}{!runningHere && lastFailed && <AlertCircle size={11} className="task-failed" aria-label="Last turn could not run" />}{task.pinned && <Pin size={11} className="task-pin" />}{highlightMatch(task.title, query)}</span>
           {draft && <span className="task-draft" title="Unsent draft" aria-label="Unsent draft" />}
           {unread && <span className="task-unread" title="Finished while you were elsewhere" aria-label="Unread reply" />}
@@ -2057,6 +2059,7 @@ function App() {
                   unread={Boolean(unreadTasks[task.id])}
                   runningHere={Boolean(runningTurnsRef.current[task.id])}
                   draft={task.id !== activeTask && Boolean(localStorage.getItem("tango.draft." + task.id)?.trim())}
+                  lastLabel={formatStamp(task.messages.at(-1)?.createdAt ?? "")}
                   query={taskQuery}
                   renamingId={renamingId}
                   renamingTitle={renamingTitle}
