@@ -1190,12 +1190,17 @@ function App() {
   async function duplicateTask(taskId: string) {
     const source = tasks.find((task) => task.id === taskId);
     if (!source) return;
-    const copy = await window.tango.duplicateTask(taskId);
-    setTasks((current) => [copy, ...current]);
-    setActiveTask(copy.id);
-    setActiveAgent((["codex", "claude", "dsh", "pi"] as const).find((id) =>
-      id === [...source.messages].reverse().find((message) => message.role === "assistant")?.agent)
-      ?? settings?.defaultAgent ?? "codex");
+    try {
+      const copy = await window.tango.duplicateTask(taskId);
+      setTasks((current) => [copy, ...current]);
+      setActiveTask(copy.id);
+      setUnreadTasks((current) => (current[copy.id] ? { ...current, [copy.id]: false } : current));
+      setActiveAgent((["codex", "claude", "dsh", "pi"] as const).find((id) =>
+        id === [...source.messages].reverse().find((message) => message.role === "assistant")?.agent)
+        ?? settings?.defaultAgent ?? "codex");
+    } catch (error) {
+      setAssistantText(errorText(error, "Could not duplicate this task"));
+    }
   }
 
   async function createTask() {
