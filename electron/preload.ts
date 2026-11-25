@@ -29,7 +29,16 @@ export type LayoutNode = { type: "pane"; id: string } | {
   second: LayoutNode;
 };
 
+export type AppInfo = {
+  version: string;
+  platform: string;
+  electron: string;
+  node: string;
+  dataFolder: string;
+};
+
 contextBridge.exposeInMainWorld("tango", {
+  getAppInfo: (): Promise<AppInfo> => ipcRenderer.invoke("app:info"),
   getWorkspace: (): Promise<string | null> => ipcRenderer.invoke("workspace:get"),
   openWorkspace: (): Promise<string | null> => ipcRenderer.invoke("workspace:open"),
   setWorkspace: (projectPath: string): Promise<string> => ipcRenderer.invoke("workspace:set", projectPath),
@@ -169,6 +178,7 @@ export interface TaskRecord {
 }
 
 export interface TangoApi {
+  getAppInfo(): Promise<AppInfo>;
   getWorkspace(): Promise<string | null>;
   openWorkspace(): Promise<string | null>;
   setWorkspace(projectPath: string): Promise<string>;

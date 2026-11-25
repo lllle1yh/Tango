@@ -504,6 +504,7 @@ function App() {
   const [toolActivity, setToolActivity] = useState<Record<string, Array<{ id: string; name: string; status: string; detail?: string }>>>({});
   const [magpie, setMagpie] = useState<{ available: boolean; version: string | null } | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [appInfo, setAppInfo] = useState<{ version: string; platform: string; electron: string; node: string; dataFolder: string } | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
   const taskListRef = useRef<HTMLDivElement>(null);
@@ -766,6 +767,7 @@ function App() {
 
   useEffect(() => {
     void window.tango.getWorkspace().then(setProject);
+    void window.tango.getAppInfo().then(setAppInfo).catch(() => setAppInfo(null));
     void window.tango.detectMagpie().then(setMagpie).catch(() => setMagpie({ available: false, version: null }));
     void refreshAgents();
     void window.tango.listTasks().then(setTasks);
@@ -1000,7 +1002,8 @@ function App() {
     if (Number.isNaN(started)) return "";
     const seconds = Math.max(0, Math.floor((now - started) / 1000));
     const minutes = Math.floor(seconds / 60);
-    return minutes > 0 ? `${minutes}m ${String(seconds % 60).padStart(2, "0")}s` : `${seconds}s`;
+    if (minutes > 0) return `${minutes}m ${String(seconds % 60).padStart(2, "0")}s`;
+    return seconds > 0 ? `${seconds}s` : "just started";
   }
 
   // Streamed text lives in state for the screen and in a ref for handlers that finish a turn;
@@ -2398,6 +2401,16 @@ function App() {
 
             <section className="settings-group">
               <h3>Keyboard</h3>
+              <div className="settings-row">
+                <span>Version</span>
+                <span className="settings-status">
+                  {appInfo ? `Tango ${appInfo.version} · Electron ${appInfo.electron}` : "…"}
+                </span>
+              </div>
+              <div className="settings-row">
+                <span>Platform</span>
+                <span className="settings-status">{appInfo?.platform ?? "…"}</span>
+              </div>
               <div className="settings-row">
                 <span>Shortcut reference</span>
                 <button className="subtle-button" onClick={() => { setSettingsOpen(false); setShortcutsOpen(true); }}>Show shortcuts</button>

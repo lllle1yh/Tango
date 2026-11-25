@@ -46,6 +46,14 @@ type TaskRecord = {
   }>;
 };
 
+type AppInfo = {
+  version: string;
+  platform: string;
+  electron: string;
+  node: string;
+  dataFolder: string;
+};
+
 type AppSettings = {
   theme: "light" | "dark";
   accent: string;
@@ -961,6 +969,18 @@ async function readLastWorkspace(): Promise<string | null> {
 }
 
 function registerIpc() {
+  // Settings shows where it runs and which files it owns, so bug reports can name them.
+  ipcMain.handle("app:info", (event: IpcMainInvokeEvent): AppInfo => {
+    assertTrustedSender(event);
+    const versions = process.versions as Record<string, string | undefined>;
+    return {
+      version: app.getVersion(),
+      platform: `${process.platform} ${process.arch}`,
+      electron: versions.electron ?? "",
+      node: versions.node ?? "",
+      dataFolder: app.getPath("userData"),
+    };
+  });
   ipcMain.handle("workspace:get", async (event: IpcMainInvokeEvent) => {
     assertTrustedSender(event);
     if (!currentProjectPath) currentProjectPath = await readLastWorkspace();
