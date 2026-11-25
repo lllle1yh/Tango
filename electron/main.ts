@@ -468,6 +468,7 @@ function createDshClient(taskId: string, projectPath: string) {
   let buffer = "";
   let sessionId = "";
   let answer = "";
+  let disposed = false;
   const pending = new Map<number, { resolve(value: any): void; reject(error: Error): void }>();
   const pendingPermissions = new Map<number, { options: Array<{ optionId: string; name: string; kind: string }> }>();
   let lastStopReason: string | undefined;
@@ -519,13 +520,16 @@ function createDshClient(taskId: string, projectPath: string) {
     pending.clear();
   });
   child.on("exit", (code) => {
+    // An exit after dispose() is the app stopping the agent, not the agent failing.
+    const stopped = disposed;
+    disposed = true;
     dshProcesses.delete(taskId);
     const detail = stderrTail.trim() ? `
 ${stderrTail.trim().slice(-1600)}` : "";
     for (const waiter of pending.values()) waiter.reject(new Error("DSH ACP exited with code " + code + detail));
     pending.clear();
     pendingPermissions.clear();
-    sendDshEvent(taskId, { type: "process/exit", code });
+    if (!stopped) sendDshEvent(taskId, { type: "process/exit", code });
   });
 
   function request(method: string, params: unknown) {
@@ -551,12 +555,13 @@ ${stderrTail.trim().slice(-1600)}` : "";
     answer = "";
     lastStopReason = undefined;
     if (!sessionId) {
-      const params = { cwd: projectPath };
+      const params = { cwd: projectPath, mcpServers: [] as unknown[] };
       const session = savedSessionId
-        ? await request("session/resume", { ...params, mcpServers: [], sessionId: savedSessionId })
-            .catch(() => request("session/new", { ...params, mcpServers: [] }))
-        : await request("session/new", { ...params, mcpServers: [] });
-      sessionId = session.sessionId ?? "";
+        ? await request("session/resume", { ...params, sessionId: savedSessionId })
+            .catch(() => request("session/new", params))
+        : await request("session/new", params);
+      sessionId = session?.sessionId ?? "";
+      if (!sessionId) throw new Error("DSH did not open a session");
     }
     const result = await request("session/prompt", { sessionId, prompt: [{ type: "text", text: prompt }] });
     lastStopReason = result?.stopReason ?? "end_turn";
@@ -588,7 +593,7 @@ ${stderrTail.trim().slice(-1600)}` : "";
     respondPermission,
     get sessionId() { return sessionId; },
     get lastStopReason() { return lastStopReason; },
-    dispose() { void terminateChild(child); },
+    dispose() { disposed = true; dshProcesses.delete(taskId); void terminateChild(child); },
   };
 }
 
@@ -737,7 +742,17 @@ function sendPiEvent(taskId: string, payload: Record<string, unknown>) {
 
 // Windows 上 Claude / DSH / Pi 是通过 cmd.exe 启动的，kill 外壳会留下真正的 Agent 进程。
 // 用 taskkill /T 结束整棵进程树，失败时退回 child.kill()。
+// Close stdin first so stdio protocols (ACP, stream-json, RPC) finish their own state
+// and exit. Terminating the process outright can cut them off mid-write.
 async function terminateChild(child: import("node:child_process").ChildProcess) {
+  if (child.exitCode !== null) return;
+  try { child.stdin?.end(); } catch { /* already closed */ }
+  const leftPipe = child.stdin && !child.stdin.destroyed && child.stdin.writable;
+  if (leftPipe) await new Promise((resolve) => {
+    const deadline = setTimeout(() => { resolve(undefined); child.stdin?.destroy(); }, 1500);
+    child.once("exit", () => { clearTimeout(deadline); resolve(undefined); });
+  });
+  if (child.exitCode !== null) return;
   if (process.platform === "win32" && child.pid) {
     try {
       await execFileAsync("taskkill", ["/pid", String(child.pid), "/t", "/f"], { windowsHide: true });
@@ -1209,6 +1224,9 @@ function registerIpc() {
       result = await client.run(prompt, task.dshSessionId);
     } finally {
       void clearRunning(task.id);
+      // ACP sessions live on disk, so the process is only needed while the turn runs.
+      // Keeping it alive across turns leaves an orphaned DSH per task forever.
+      client.dispose();
     }
     task.dshSessionId = result.sessionId;
     if (result.answer) {

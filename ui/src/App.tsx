@@ -385,6 +385,14 @@ function App() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
+  const liveTaskRef = useRef<{
+    id: string;
+    agent: AgentStatus["id"];
+    baseMessages: TaskRecord["messages"];
+    userMessage: TaskRecord["messages"][number];
+    readyLength: number;
+    streams: boolean;
+  } | null>(null);
   const draftTaskRef = useRef<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renamingTitle, setRenamingTitle] = useState("");
@@ -645,8 +653,13 @@ function App() {
   }), [activeTask]);
   useEffect(() => window.tango.onDshEvent((taskId, event) => {
     if (taskId !== activeTask) return;
-    if (event.type === "delta" && typeof event.text === "string") setAssistantText((text) => text + event.text);
-    if (event.type === "process/exit") endTurn(taskId);
+    // The process exits right after each turn, so only an unexpected exit while the
+    // turn is still running counts as a failure.
+    if (event.type === "process/exit") {
+      liveTaskRef.current = null;
+      endTurn(taskId);
+    }
+    if (event.type === "delta" && typeof event.text === "string") appendLiveText(taskId, "dsh", event.text);
     if (event.type === "session/update") {
       const update = event.update as { sessionUpdate?: string; toolCallId?: string; title?: string; status?: string } | undefined;
       if (update?.sessionUpdate === "tool_call" || update?.sessionUpdate === "tool_call_update") {
@@ -752,6 +765,24 @@ function App() {
     setToolActivity((current) => (current[taskId]?.length ? { ...current, [taskId]: [] } : current));
   }
 
+  // Streamed answer text is appended to the turn's assistant message as it arrives.
+  function appendLiveText(taskId: string, agent: AgentStatus["id"], text: string) {
+    setTasks((current) => current.map((task) => {
+      if (task.id !== taskId) return task;
+      const live = liveTaskRef.current;
+      if (!live || live.id !== taskId || !live.streams) return task;
+      if (task.messages.length <= live.readyLength) {
+        return {
+          ...task,
+          messages: [...live.baseMessages, live.userMessage, { role: "assistant" as const, agent, text, createdAt: new Date().toISOString() }],
+        };
+      }
+      const last = task.messages[task.messages.length - 1];
+      if (last.role !== "assistant") return task;
+      return { ...task, messages: [...task.messages.slice(0, -1), { ...last, text: last.text + text }] };
+    }));
+  }
+
   // Tools belong to the turn that is running when they arrive. Finished turns keep their
   // own tools in the transcript; this map only holds what the live turn has done so far.
   function recordTool(taskId: string, tool: { id?: string; name?: string; status?: string; detail?: string }) {
@@ -840,7 +871,6 @@ function App() {
     setActiveTask(task.id);
     setActiveAgent(settings?.defaultAgent ?? "codex");
   }
-
   async function startTurn(agent: AgentStatus["id"], task: TaskRecord, text: string) {
     setPrompt("");
     setAssistantText("");
@@ -848,14 +878,30 @@ function App() {
     setStopping(false);
     setRunningAgent(agent);
     const waitsForTurnEnd = agent !== "codex";
+    const baseMessages = task.messages;
     const userMessage = { role: "user" as const, agent, text, createdAt: new Date().toISOString() };
+    // DSH streams its answer as `delta` events. Those are written straight into the task
+    // so the live text and the finished transcript are the same message, not shown twice.
+    liveTaskRef.current = { id: task.id, agent, baseMessages, userMessage, readyLength: baseMessages.length + 1, streams: agent === "dsh" };
+    // Show the prompt as soon as it is sent; the agent's answer lands when the turn reports back.
+    setTasks((current) => current.map((item) => item.id === task.id
+      ? { ...item, messages: [...item.messages, userMessage] }
+      : item));
+    // The prompt is already in the transcript. DSH writes its answer as it streams, so the
+    // reported answer is only appended when the transcript does not already end with it.
     const appendTurn = (answer: string, patch: Partial<TaskRecord>) => {
       setTasks((current) => current.map((item) => {
         if (item.id !== task.id) return item;
-        const messages = [...item.messages, userMessage];
-        if (answer) messages.push({ role: "assistant", agent, text: answer, createdAt: new Date().toISOString() });
+        const messages = [...item.messages];
+        const last = messages[messages.length - 1];
+        const alreadyShown = Boolean(answer) && last?.role === "assistant" && last.text.trim() === answer.trim();
+        if (answer && !alreadyShown) {
+          messages.push({ role: "assistant", agent, text: answer, createdAt: new Date().toISOString() });
+        }
         return { ...item, ...patch, messages };
       }));
+      liveTaskRef.current = null;
+      setAssistantText("");
     };
     try {
       if (agent === "pi") {
@@ -967,7 +1013,7 @@ function App() {
 
   const chatRows: ChatRow[] = [
     ...activeMessages.map((message, index): ChatRow => ({ kind: "message", id: "m-" + index, message })),
-    ...(assistantText || running ? [{ kind: "stream", id: "stream" } as ChatRow] : []),
+    ...(assistantText || (running && !liveTaskRef.current?.streams) ? [{ kind: "stream", id: "stream" } as ChatRow] : []),
     ...((toolActivity[activeTask ?? ""]?.length ?? 0) > 0 ? [{ kind: "tools", id: "tools" } as ChatRow] : []),
   ];
 
