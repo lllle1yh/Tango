@@ -18,7 +18,7 @@ Tango 面向每天和 Agent 一起写代码、查资料、跑测试的人。打�
 
 <a name="project-status"></a>
 
-**项目状态**　原型开发中。当前工作台支持选择项目目录和检测本机 Agent CLI，原生 Agent 会话 Adapter 尚未接通。
+**项目状态**　可用的本地原型。已接通 Codex（app-server）、Claude Code（stream-json）、DSH（ACP）和 Pi（RPC）的原生会话；支持中断、DSH 审批转发、任务记录与恢复、终端画布、Markdown 输出和明暗主题。
 
 ## Tango 如何接入 Agent
 
@@ -70,6 +70,8 @@ npm run dev
 npm run typecheck
 npm run build
 ```
+
+Windows 上也可以直接双击 `start-tango.cmd`：它会启动 Vite、编译主进程并打开窗口。设置 `TANGO_DATA_DIR` 可以把任务、布局和设置写到指定目录（便携模式）。
 
 ## English
 
