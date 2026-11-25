@@ -1746,6 +1746,14 @@ function App() {
                   <span>{task.title}</span>
                 </button>
                 <button
+                  className="task-quick"
+                  aria-label="Restore task"
+                  title="Restore task"
+                  onClick={(event) => { event.stopPropagation(); void archiveTaskAction(task.id, false); }}
+                >
+                  <Archive size={12} />
+                </button>
+                <button
                   className="task-more"
                   aria-label="Task actions"
                   onClick={(event) => {
