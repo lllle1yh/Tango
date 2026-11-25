@@ -1714,11 +1714,17 @@ function App() {
   // selected agent so the header still says who will answer.
   const activeTaskRecord = tasks.find((task) => task.id === activeTask);
 
-  // The window title names the task, so the taskbar and window switcher stay useful.
+  // 标题先写状态（Working / Needs approval）再写任务名，任务栏和窗口切换器一眼可见。
   const activeTitle = activeTaskRecord?.title;
+  const titleStatus = permission?.taskId === activeTask && activeTask
+    ? "Needs approval"
+    : activeTask && runningTurnsRef.current[activeTask]
+      ? "Working"
+      : null;
   useEffect(() => {
-    document.title = activeTitle ? `${activeTitle} — Tango` : "Tango";
-  }, [activeTitle]);
+    const name = activeTitle ? `${activeTitle} — Tango` : "Tango";
+    document.title = titleStatus ? `${titleStatus} · ${name}` : name;
+  }, [activeTitle, titleStatus]);
   const agentIds: Array<AgentStatus["id"]> = ["codex", "claude", "dsh", "pi"];
   const lastAgent = [...activeTaskRecord?.messages ?? []].reverse()
     .find((message) => message.role === "assistant")?.agent;
