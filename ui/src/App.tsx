@@ -672,7 +672,10 @@ function App() {
       // Find-in-conversation is worth reaching from the composer too; the composer's own
       // keys (arrows, Enter, /) stay untouched.
       const findInConversation = (event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "f";
-      if (inField(event.target) && event.key !== "Escape" && !findInConversation
+      // Alt+Up / Alt+Down walk the task list; they are the only arrows this handler wants.
+      const walkTasks = event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey
+        && (event.key === "ArrowUp" || event.key === "ArrowDown");
+      if (inField(event.target) && event.key !== "Escape" && !findInConversation && !walkTasks
         && !((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k")) return;
       // Esc interrupts the turn this task is running, unless a dialog or menu is open to close first.
       if (event.key === "Escape" && running && !stopping && activeTask && runningTurnsRef.current[activeTask]
@@ -693,6 +696,19 @@ function App() {
         setPrompt("/");
         setSlashIndex(0);
         composerRef.current?.focus();
+        return;
+      }
+      // Alt+Up / Alt+Down walk the task list without leaving the conversation.
+      if (walkTasks && !inComposer(event.target)) {
+        event.preventDefault();
+        const ids = projectTasks.map((task) => task.id);
+        if (ids.length > 0) {
+          const at = activeTask ? ids.indexOf(activeTask) : -1;
+          const step = event.key === "ArrowUp" ? -1 : 1;
+          // From no task, Down opens the first one; the ends stop rather than wrap.
+          const next = at < 0 ? (step > 0 ? 0 : ids.length - 1) : Math.min(ids.length - 1, Math.max(0, at + step));
+          if (next !== at) openTask(ids[next]);
+        }
         return;
       }
       if (!(event.ctrlKey || event.metaKey)) return;
@@ -2690,6 +2706,7 @@ function App() {
               {[
                 ["New task", "Ctrl N"],
                 ["Rename task", "F2"],
+                ["Previous or next task", "Alt Up / Alt Down"],
                 ["Search tasks", "Ctrl F"],
                 ["Find in conversation", "Ctrl Shift F"],
                 ["Archive task", "Ctrl Shift E"],
