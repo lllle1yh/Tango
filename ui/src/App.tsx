@@ -1346,9 +1346,10 @@ function App() {
         </button>
 
         {project ? (
-          <div className="project-current">
+          <div className="project-current" title={project}>
             <span className="project-dot" />
-            <span className="project-path" title={project}>{project}</span>
+            {/* The folder name is what the user reads; the full path stays in the tooltip and row title. */}
+            <span className="project-folder">{projectName}</span>
           </div>
         ) : (
           <p className="sidebar-hint">No project selected.</p>
@@ -1609,7 +1610,7 @@ function App() {
                 {tasks.find((task) => task.id === activeTask)?.running && !running && (
                   <div className="run-stale" role="status">
                     <span>
-                      The last turn ({tasks.find((task) => task.id === activeTask)?.running?.agent}) did not finish. It may have been interrupted by a restart.
+                      The last turn ({agents.find((agent) => agent.id === activeTaskRecord?.running?.agent)?.name ?? activeTaskRecord?.running?.agent}) did not finish. It may have been interrupted by a restart.
                     </span>
                     <button
                       className="subtle-button"
