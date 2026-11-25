@@ -402,6 +402,8 @@ function App() {
     streams: boolean;
   } | null>(null);
   const draftTaskRef = useRef<string | null>(null);
+  // Arrow keys walk the task's earlier prompts; this remembers where the walk is and what was being typed.
+  const promptHistoryRef = useRef<{ index: number; draft: string } | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renamingTitle, setRenamingTitle] = useState("");
   const [taskMenu, setTaskMenu] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -521,6 +523,7 @@ function App() {
       return;
     }
     draftTaskRef.current = activeTask;
+    promptHistoryRef.current = null;
     setPrompt(localStorage.getItem("tango.draft." + activeTask) ?? "");
   }, [activeTask]);
 
@@ -842,6 +845,34 @@ function App() {
     window.requestAnimationFrame(() => composerRef.current?.focus());
   }
 
+  // Up walks back through this task's prompts; Down walks forward and finally restores the draft.
+  function recallPrompt(direction: 1 | -1) {
+    const task = tasks.find((item) => item.id === activeTask);
+    if (!task) return;
+    const history = task.messages
+      .filter((message) => message.role === "user")
+      .map((message) => message.text)
+      .reverse();
+    if (!history.length) return;
+    const cursor = promptHistoryRef.current;
+    const nextIndex = cursor ? cursor.index + direction : (direction === 1 ? 0 : -1);
+    if (nextIndex < 0) {
+      promptHistoryRef.current = null;
+      setPrompt(cursor?.draft ?? prompt);
+    } else {
+      if (nextIndex >= history.length) return;
+      promptHistoryRef.current = { index: nextIndex, draft: cursor?.draft ?? prompt };
+      setPrompt(history[nextIndex]);
+    }
+    // The caret belongs at the end of recalled text, not where it was before.
+    window.requestAnimationFrame(() => {
+      const element = composerRef.current;
+      if (!element) return;
+      element.focus();
+      element.setSelectionRange(element.value.length, element.value.length);
+    });
+  }
+
   function startRename(task: TaskRecord) {
     setRenamingId(task.id);
     setRenamingTitle(task.title);
@@ -913,6 +944,7 @@ function App() {
   }
   async function startTurn(agent: AgentStatus["id"], task: TaskRecord, text: string) {
     setPrompt("");
+    promptHistoryRef.current = null;
     setAssistantText("");
     setToolActivity((current) => (current[task.id]?.length ? { ...current, [task.id]: [] } : current));
     setRunning(true);
@@ -1641,6 +1673,12 @@ function App() {
                       if (event.key === "Escape") { event.preventDefault(); setPrompt(""); return; }
                       if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); runSlash(slashIndex); return; }
                     }
+                    // An empty composer means the arrow keys have nothing to move, so they recall prompts.
+                    const browsing = promptHistoryRef.current !== null;
+                    if (!slashOpen && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey) {
+                      if (event.key === "ArrowUp" && (browsing || !prompt.trim())) { event.preventDefault(); recallPrompt(1); return; }
+                      if (event.key === "ArrowDown" && browsing) { event.preventDefault(); recallPrompt(-1); return; }
+                    }
                     if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submitPrompt(); }
                   }} placeholder={"Ask " + activeAgent + " to work in this project…  (/ for commands)"} />
                   {running && (
@@ -1713,6 +1751,7 @@ function App() {
                 ["Command palette", "Ctrl K"],
                 ["Send message", "Enter"],
                 ["New line in message", "Shift Enter"],
+                ["Earlier prompts", "Up Down"],
                 ["Copy in terminal", "Ctrl Shift C"],
                 ["Paste in terminal", "Ctrl Shift V"],
                 ["Copy selection (terminal)", "Ctrl C"],
