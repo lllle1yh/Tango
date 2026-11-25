@@ -2676,7 +2676,11 @@ function App() {
 
             <section className="settings-group">
               <h3>Plugins</h3>
-              <p className="settings-hint">Not supported yet. Tango loads its built-in adapters only.</p>
+              <div className="settings-row">
+                <span>Plugin support</span>
+                <span className="settings-status">Not available</span>
+              </div>
+              <p className="settings-hint">Tango loads its built-in adapters only (Codex, Claude Code, DSH, Pi).</p>
             </section>
 
             <section className="settings-group">
