@@ -1574,12 +1574,12 @@ function App() {
           : gap === "resumed"
             ? `The last turn ended ${createdAt}; this one starts after a longer break.`
             : `Quiet for a while: the previous turn was at ${createdAt}.`;
-        chatRows.push({ kind: "divider", id: "d-" + message.createdAt, title, detail });
+        chatRows.push({ kind: "divider", id: "d-" + message.createdAt + "-" + index, title, detail });
       }
     }
     chatRows.push({ kind: "message", id: "m-" + message.createdAt + "-" + index, message });
     if (message.role === "assistant" && (message.tools?.length ?? 0) > 0) {
-      chatRows.push({ kind: "tools", id: "t-" + message.createdAt, tools: message.tools as ToolItem[], live: false });
+      chatRows.push({ kind: "tools", id: "t-" + message.createdAt + "-" + index, tools: message.tools as ToolItem[], live: false });
     }
   });
   if (assistantText || (running && !liveTaskRef.current?.streams)) chatRows.push({ kind: "stream", id: "stream" });
