@@ -2264,7 +2264,7 @@ function App() {
               )}
             </div>
 
-            <div className={"terminal-panel" + (view === "home" && splitTerminal ? " split" : "")} hidden={!(view === "terminal" || splitTerminal) || activeAgent !== null}>
+            <div className={"terminal-panel" + (view === "home" && splitTerminal ? " split" : "")} hidden={!(view === "terminal" || (view === "home" && splitTerminal))}>
               <div className="terminal-canvas">
                 {layoutRoot ? (
                   <PaneTree
