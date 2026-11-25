@@ -399,14 +399,34 @@ function App() {
     void window.tango.getSettings().then(setSettings);
   }, []);
 
+  function renameActiveTask() {
+    const task = tasks.find((item) => item.id === activeTask);
+    if (!task) return;
+    startRename(task);
+  }
+
   // 菜单栏是主入口；这里保留同样的快捷键，窗口焦点在渲染层时也能用。
   useEffect(() => {
+    const inField = (target: EventTarget | null) =>
+      target instanceof HTMLElement && !!target.closest("input, textarea, [contenteditable='true']");
     const onKeyDown = (event: KeyboardEvent) => {
+      // Plain typing in a field keeps its own shortcuts; keys below intentionally skip that.
+      if (inField(event.target) && event.key !== "Escape") return;
+      if (event.key === "F2" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        event.preventDefault();
+        renameActiveTask();
+        return;
+      }
       if (!(event.ctrlKey || event.metaKey)) return;
       if (event.key === ",") { event.preventDefault(); setSettingsOpen(true); }
-      if (event.key.toLowerCase() === "n" && !event.shiftKey) { event.preventDefault(); void createTask(); }
+      if (event.key.toLowerCase() === "n" && event.shiftKey) { event.preventDefault(); renameActiveTask(); return; }
+      if (event.key.toLowerCase() === "n") { event.preventDefault(); void createTask(); }
       if (event.key.toLowerCase() === "k") { event.preventDefault(); setPaletteOpen(true); }
       if (event.key.toLowerCase() === "b") { event.preventDefault(); updateSettings({ sidebarCollapsed: !settings?.sidebarCollapsed }); }
+      if (event.key.toLowerCase() === "e" && event.shiftKey && activeTask) {
+        event.preventDefault();
+        void archiveTaskAction(activeTask, true);
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -931,6 +951,8 @@ function App() {
   const paletteItems: PaletteItem[] = [
     { id: "a-new", group: "Actions", label: "New task", hint: "Ctrl N", run: () => void createTask() },
     { id: "a-settings", group: "Actions", label: "Settings", hint: "Ctrl ,", run: () => setSettingsOpen(true) },
+    { id: "a-rename", group: "Actions", label: "Rename task", hint: "Ctrl Shift N", run: () => renameActiveTask() },
+    { id: "a-archive", group: "Actions", label: "Archive task", hint: "Ctrl Shift E", run: () => { if (activeTask) void archiveTaskAction(activeTask, true); } },
     { id: "a-project", group: "Actions", label: "Open project folder", run: () => void openProject() },
     { id: "a-shell", group: "Actions", label: "Show terminal", run: () => setActiveAgent(null) },
     {
@@ -959,6 +981,8 @@ function App() {
       items: [
         { label: "Settings…", shortcut: "Ctrl+,", run: () => setSettingsOpen(true) },
         { label: "New Task", shortcut: "Ctrl+N", run: () => void createTask() },
+        { label: "Rename Task", shortcut: "F2", run: () => renameActiveTask() },
+        { label: "Archive Task", shortcut: "Ctrl+Shift+E", run: () => { if (activeTask) void archiveTaskAction(activeTask, true); } },
         { label: "Open Project…", run: () => void openProject() },
         { divider: true },
         { label: "Quit", run: () => void window.tango.runAppAction("quit") },
@@ -1132,8 +1156,8 @@ function App() {
         {archivedTasks.length > 0 && (
           <div className="archived-block">
             <button className="archived-toggle" onClick={() => setArchivedOpen((open) => !open)}>
-              archivedOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />
-              Archived
+              {archivedOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+              <span>Archived</span>
               <span>{archivedTasks.length}</span>
             </button>
             {archivedOpen && archivedTasks.map((task) => (
@@ -1495,9 +1519,10 @@ function App() {
             <section className="settings-group">
               {[
                 ["New task", "Ctrl N"],
+                ["Rename task", "F2"],
+                ["Archive task", "Ctrl Shift E"],
                 ["Settings", "Ctrl ,"],
                 ["Command palette", "Ctrl K"],
-                ["Rename selected task", "F2"],
                 ["Send message", "Enter"],
                 ["New line in message", "Shift Enter"],
                 ["Copy in terminal", "Ctrl Shift C"],
