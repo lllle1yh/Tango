@@ -1428,6 +1428,17 @@ function App() {
                     setAtBottom(distance < 140);
                   }}
                 >
+                  {chatRows.length === 0 && (
+                    <div className="conversation-empty">
+                      <AgentGlyph agentId={headerAgent ?? settings?.defaultAgent ?? "codex"} />
+                      <p className="conversation-empty-title">
+                        {headerAgent
+                          ? `Start with ${agents.find((agent) => agent.id === headerAgent)?.name ?? headerAgent}`
+                          : "Choose an agent to begin"}
+                      </p>
+                      <p className="conversation-empty-hint">Describe the work below. Type / for commands; Hand off switches agent mid-task.</p>
+                    </div>
+                  )}
                   {chatVirtualizer.getTotalSize() > 0 && (
                     <div className="chat-virtual" style={{ height: chatVirtualizer.getTotalSize() }}>
                       {virtualRows.map((virtualRow) => {
