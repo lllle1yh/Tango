@@ -2115,7 +2115,7 @@ function App() {
             {headerAgent && activeTask && (
               <div className="conversation">
                 <div className="conversation-heading">
-                  <span className="conversation-title">{tasks.find((task) => task.id === activeTask)?.title}</span>
+                  <span className="conversation-title" title={tasks.find((task) => task.id === activeTask)?.title}>{tasks.find((task) => task.id === activeTask)?.title}</span>
                   {headerAgent && (
                     <span
                       className="conversation-agent"
@@ -2438,7 +2438,9 @@ function App() {
                       if (event.key === "ArrowDown" && browsing) { event.preventDefault(); recallPrompt(-1); return; }
                     }
                     if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submitPrompt(); }
-                  }} placeholder={"Ask " + (agents.find((agent) => agent.id === activeAgent)?.name ?? "an agent") + " to work in this project…  (/ for commands)"} />
+                  }} placeholder={isActiveTaskRunning
+                    ? (agents.find((agent) => agent.id === activeAgent)?.name ?? "The agent") + " is working… press Esc to stop, or wait for the reply"
+                    : "Ask " + (agents.find((agent) => agent.id === activeAgent)?.name ?? "an agent") + " to work in this project…  (/ for commands)"} />
                   {isActiveTaskRunning && (
                     <button
                       type="button"
