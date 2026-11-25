@@ -557,3 +557,10 @@ button { color: inherit; font: inherit; }
 
 /* A tool's own detail (path, command) reads as quiet context beside its name. */
 .tool-detail { min-width: 0; overflow: hidden; flex: 1; color: var(--fg-subtle); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Handoffs are long machine-written prompts; the summary keeps one line in the transcript. */
+.handoff-prompt-summary { display: flex; align-items: flex-start; gap: 10px; margin-top: 5px; }
+.handoff-prompt-summary p { min-width: 0; flex: 1; margin: 0; color: var(--fg-muted); }
+.handoff-prompt-summary .subtle-button, .handoff-collapse { flex: none; height: 24px; padding: 0 8px; font-size: 11.5px; }
+.handoff-collapse { margin-top: 8px; }
+.message.handoff .message-role { color: var(--accent); }

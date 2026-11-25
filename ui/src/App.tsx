@@ -615,6 +615,8 @@ function App() {
   // Streamed text per task, so a turn keeps writing while another task is open.
   const streamByTaskRef = useRef<Record<string, string>>({});
   const activeTaskRef = useRef<string | null>(null);
+  // A handoff prompt is long machine-written context; it starts folded to one line.
+  const [expandedHandoff, setExpandedHandoff] = useState<Record<string, boolean>>({});
   const [copiedConversation, setCopiedConversation] = useState(false);
   const [handoffOpen, setHandoffOpen] = useState(false);
 
@@ -2263,15 +2265,42 @@ function App() {
                             className="chat-row"
                             style={{ transform: `translateY(${virtualRow.start}px)` }}
                           >
-                            {row.kind === "message" && (
-                              <article className={"message " + row.message.role}>
+                            {row.kind === "message" && (() => {
+                              const handoff = row.message.role === "user" && row.message.text.startsWith("Handoff from ");
+                              const handoffOpen = Boolean(expandedHandoff[row.id]);
+                              return (
+                              <article className={"message " + row.message.role + (handoff ? " handoff" : "")}>
                                 <span className="message-role">
-                                  {row.message.role === "user"
-                                    ? "You"
-                                    : agents.find((agent) => agent.id === row.message.agent)?.name ?? row.message.agent}
+                                  {handoff
+                                    ? "Handoff"
+                                    : row.message.role === "user"
+                                      ? "You"
+                                      : agents.find((agent) => agent.id === row.message.agent)?.name ?? row.message.agent}
                                   <time dateTime={row.message.createdAt}>{formatClock(row.message.createdAt)}</time>
                                 </span>
-                                <Markdown text={row.message.text} />
+                                {handoff && !handoffOpen ? (
+                                  <div className="handoff-prompt-summary">
+                                    <p>{row.message.text.split("\n\n").slice(0, 2).join(" · ")}</p>
+                                    <button
+                                      type="button"
+                                      className="subtle-button"
+                                      onClick={() => setExpandedHandoff((current) => ({ ...current, [row.id]: true }))}
+                                    >
+                                      Show context
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <Markdown text={row.message.text} />
+                                )}
+                                {handoff && handoffOpen && (
+                                  <button
+                                    type="button"
+                                    className="subtle-button handoff-collapse"
+                                    onClick={() => setExpandedHandoff((current) => ({ ...current, [row.id]: false }))}
+                                  >
+                                    Hide context
+                                  </button>
+                                )}
                                 <button
                                   className="message-copy"
                                   aria-label="Copy message"
@@ -2286,7 +2315,8 @@ function App() {
                                   {copiedIndex === row.id ? <Check size={13} /> : <Copy size={13} />}
                                 </button>
                               </article>
-                            )}
+                              );
+                            })()}
                             {row.kind === "divider" && (
                               <div className="turn-divider" role="separator" title={row.detail}>
                                 <span className="turn-divider-line" />
