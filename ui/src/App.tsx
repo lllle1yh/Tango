@@ -19,6 +19,16 @@ function projectLabel(projectPath: string) {
   return projectPath.split("\\").at(-1)?.split("/").at(-1) ?? projectPath;
 }
 
+// Tool inputs across protocols share a few field names for what they act on.
+function toolInputDetail(input: unknown): string | undefined {
+  if (!input || typeof input !== "object") return undefined;
+  for (const key of ["command", "file_path", "path", "pattern", "query", "url", "description"]) {
+    const value = (input as Record<string, unknown>)[key];
+    if (typeof value === "string" && value.trim()) return value.trim().slice(0, 200);
+  }
+  return undefined;
+}
+
 // Task search marks the matched part of the name instead of only filtering rows.
 function highlightMatch(text: string, query: string) {
   const needle = query.trim();
@@ -965,6 +975,8 @@ function App() {
         agent: "dsh",
         requestId: Number(event.requestId),
         title: params?.toolCall?.title ?? "The agent is asking for permission.",
+        // The request carries the tool input; show what it wants to run.
+        detail: toolInputDetail((params?.toolCall as { rawInput?: unknown } | undefined)?.rawInput),
         options: Array.isArray(params?.options) ? params.options : [],
       });
     }
