@@ -163,6 +163,23 @@ function noteTurnTool(taskId: string, tool: { id?: unknown; name?: unknown; stat
   }
 }
 
+// A turn that failed still gets one line in the transcript, so the prompt is not left
+// without an answer when the app is reopened or the task is viewed later.
+async function recordFailedTurn(taskId: string, agent: string, prompt: string, error: unknown) {
+  const message = error instanceof Error && error.message ? error.message : String(error ?? "Unknown error");
+  const tools = takeTurnTools(taskId);
+  const tasks = await readTasks();
+  const task = tasks.find((item) => item.id === taskId);
+  if (!task) return;
+  const last = task.messages[task.messages.length - 1];
+  if (!(last?.role === "user" && last.text === prompt && last.agent === agent)) return;
+  task.messages.push({
+    role: "assistant", text: `The turn could not run: ${message.slice(0, 600)}`, agent, createdAt: new Date().toISOString(),
+    ...(tools ? { tools } : {}),
+  });
+  await saveTasks(tasks);
+}
+
 // Hands the finished turn's tools to the reply it produced and forgets the list.
 function takeTurnTools(taskId: string): TurnTool[] | undefined {
   const tools = turnTools.get(taskId);
@@ -1184,6 +1201,7 @@ function registerIpc() {
       return result.threadId;
     } catch (error) {
       void clearRunning(task.id);
+      await recordFailedTurn(task.id, "codex", prompt, error);
       throw error;
     }
   });
@@ -1201,6 +1219,7 @@ function registerIpc() {
       await client.send(prompt);
     } catch (error) {
       void clearRunning(task.id);
+      await recordFailedTurn(task.id, "codex", prompt, error);
       throw error;
     }
   });
@@ -1237,6 +1256,7 @@ function registerIpc() {
         client.dispose();
         claudeProcesses.delete(task.id);
       }
+      await recordFailedTurn(task.id, "claude", prompt, error);
       throw error;
     } finally {
       void clearRunning(task.id);
@@ -1289,6 +1309,9 @@ function registerIpc() {
     let result;
     try {
       result = await client.run(prompt, task.dshSessionId);
+    } catch (error) {
+      await recordFailedTurn(task.id, "dsh", prompt, error);
+      throw error;
     } finally {
       void clearRunning(task.id);
       dshProcesses.delete(taskId);
@@ -1347,6 +1370,7 @@ function registerIpc() {
         client.dispose();
         piProcesses.delete(task.id);
       }
+      await recordFailedTurn(task.id, "pi", prompt, error);
       throw error;
     } finally {
       void clearRunning(task.id);
