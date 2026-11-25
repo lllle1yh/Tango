@@ -788,6 +788,23 @@ function App() {
     if (command === "show-shortcuts") setShortcutsOpen(true);
   }), [settings, project]);
 
+  // Editing tasks.json by hand (the data folder is offered in Settings) should show up on return
+  // instead of needing a restart; turns owned by this window keep their live state.
+  useEffect(() => {
+    const reload = () => {
+      // A live turn owns the transcript right now; reading the file would replace partial
+      // output with the last saved snapshot.
+      if (document.visibilityState !== "visible" || Object.keys(runningTurnsRef.current).length > 0) return;
+      void window.tango.listTasks().then((next) => {
+        setTasks(next);
+        // A record deleted in the file should not stay open.
+        setActiveTask((current) => (current && next.some((task) => task.id === current) ? current : null));
+      });
+    };
+    window.addEventListener("focus", reload);
+    return () => window.removeEventListener("focus", reload);
+  }, []);
+
   useEffect(() => {
     if (!settings) return;
     const root = document.documentElement;
