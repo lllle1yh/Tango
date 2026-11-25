@@ -411,6 +411,30 @@ function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   });
 
+  // Esc closes whichever dialog or menu is open.
+  useEffect(() => {
+    if (!settingsOpen && !shortcutsOpen && !handoffOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setSettingsOpen(false);
+      setShortcutsOpen(false);
+      setHandoffOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [settingsOpen, shortcutsOpen, handoffOpen]);
+
+  // Clicking elsewhere closes the handoff menu.
+  useEffect(() => {
+    if (!handoffOpen) return;
+    const onDown = (event: MouseEvent) => {
+      if (event.target instanceof Element && event.target.closest(".conversation-heading")) return;
+      setHandoffOpen(false);
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [handoffOpen]);
+
   // 点击空白处或按 Esc 关掉标题栏菜单。
   useEffect(() => {
     if (!openMenu) return;
