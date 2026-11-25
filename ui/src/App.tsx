@@ -392,6 +392,7 @@ function App() {
   const [taskQuery, setTaskQuery] = useState("");
   const [piCommands, setPiCommands] = useState<Array<{ name: string; description?: string }>>([]);
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
+  const [handoffOpen, setHandoffOpen] = useState(false);
 
   useEffect(() => {
     void window.tango.getSettings().then(setSettings);
@@ -725,17 +726,12 @@ function App() {
     setActiveAgent(settings?.defaultAgent ?? "codex");
   }
 
-  async function submitPrompt() {
-    const text = prompt.trim();
-    const task = tasks.find((item) => item.id === activeTask);
-    if (!text || !task) return;
-    if (!activeAgent) return;
+  async function startTurn(agent: AgentStatus["id"], task: TaskRecord, text: string) {
     setPrompt("");
     setAssistantText("");
     setRunning(true);
     setStopping(false);
-    setRunningAgent(activeAgent);
-    const agent = activeAgent;
+    setRunningAgent(agent);
     const waitsForTurnEnd = agent !== "codex";
     const userMessage = { role: "user" as const, agent, text, createdAt: new Date().toISOString() };
     const appendTurn = (answer: string, patch: Partial<TaskRecord>) => {
@@ -768,12 +764,42 @@ function App() {
       setRunning(false); setRunningAgent(null);
       setStopping(false);
     } finally {
-      // Codex returns as soon as the turn is accepted; its events clear `running`.
       if (waitsForTurnEnd) {
         setRunning(false); setRunningAgent(null);
         setStopping(false);
       }
     }
+  }
+
+  async function submitPrompt() {
+    const text = prompt.trim();
+    const task = tasks.find((item) => item.id === activeTask);
+    if (!text || !task || !activeAgent) return;
+    await startTurn(activeAgent, task, text);
+  }
+
+  // A handoff is a labelled selection of the recent turns, not an agent-written
+  // summary: the target sees who said what and continues from there.
+  async function handoffTo(target: AgentStatus["id"]) {
+    setHandoffOpen(false);
+    const task = tasks.find((item) => item.id === activeTask);
+    if (!task) return;
+    if (running) {
+      setAssistantText("Stop the current turn before handing the task off.");
+      return;
+    }
+    const source = activeAgent ?? "another agent";
+    const recent = task.messages.slice(-8)
+      .map((message) => `[${message.agent}] ${message.text}`)
+      .join("\n\n");
+    const context = [
+      `Handoff from ${source}.`,
+      `Task: ${task.title}`,
+      recent ? `Recent turns:\n\n${recent}` : "No earlier turns.",
+      "Continue this task from here. Keep the same goal and report what you changed and what is still pending.",
+    ].join("\n\n");
+    setActiveAgent(target);
+    await startTurn(target, task, context);
   }
 
   async function stopTurn() {
@@ -1153,7 +1179,30 @@ function App() {
 
             {activeAgent && activeTask && (
               <div className="conversation">
-                <div className="conversation-heading">{tasks.find((task) => task.id === activeTask)?.title}</div>
+                <div className="conversation-heading">
+                  <span>{tasks.find((task) => task.id === activeTask)?.title}</span>
+                  <button
+                    className="subtle-button handoff-button"
+                    onClick={() => setHandoffOpen((open) => !open)}
+                    disabled={running}
+                    title={running ? "Stop the current turn first" : "Continue this task with another agent"}
+                  >
+                    Hand off
+                  </button>
+                  {handoffOpen && (
+                    <div className="handoff-menu" role="menu">
+                      {agents.filter((agent) => agent.available && agent.id !== activeAgent).map((agent) => (
+                        <button key={agent.id} role="menuitem" onClick={() => void handoffTo(agent.id)}>
+                          <AgentGlyph agentId={agent.id} />
+                          <span>{agent.name}</span>
+                        </button>
+                      ))}
+                      {agents.filter((agent) => agent.available && agent.id !== activeAgent).length === 0 && (
+                        <p className="settings-hint">No other agent is installed.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
                 {tasks.find((task) => task.id === activeTask)?.running && !running && (
                   <div className="run-stale" role="status">
                     <span>
