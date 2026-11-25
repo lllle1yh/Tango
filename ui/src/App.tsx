@@ -306,6 +306,7 @@ function SortableTaskRow({
   setRenamingTitle,
   onOpen,
   onStartRename,
+  onDuplicate,
   onCommitRename,
   onCancelRename,
   onMenu,
@@ -319,6 +320,7 @@ function SortableTaskRow({
   setRenamingTitle(value: string): void;
   onOpen(id: string): void;
   onStartRename(task: TaskRecord): void;
+  onDuplicate(id: string): void;
   onCommitRename(id: string): void;
   onCancelRename(): void;
   onMenu(id: string, x: number, y: number): void;
@@ -355,6 +357,19 @@ function SortableTaskRow({
         >
           <span className="task-title">{task.pinned && <Pin size={11} className="task-pin" />}{task.title}</span>
           {unread && <span className="task-unread" title="Finished while you were elsewhere" aria-label="Unread reply" />}
+        </button>
+      )}
+      {renamingId !== task.id && (
+        <button
+          className="task-quick"
+          aria-label="Duplicate task"
+          title="Duplicate task"
+          onClick={(event) => {
+            event.stopPropagation();
+            onDuplicate(task.id);
+          }}
+        >
+          <Copy size={12} />
         </button>
       )}
       {renamingId !== task.id && (
@@ -1170,6 +1185,19 @@ function App() {
     }
   }
 
+  // A duplicate is a new task with the same transcript; native sessions are not copied,
+  // because an agent session belongs to the task that created it.
+  async function duplicateTask(taskId: string) {
+    const source = tasks.find((task) => task.id === taskId);
+    if (!source) return;
+    const copy = await window.tango.duplicateTask(taskId);
+    setTasks((current) => [copy, ...current]);
+    setActiveTask(copy.id);
+    setActiveAgent((["codex", "claude", "dsh", "pi"] as const).find((id) =>
+      id === [...source.messages].reverse().find((message) => message.role === "assistant")?.agent)
+      ?? settings?.defaultAgent ?? "codex");
+  }
+
   async function createTask() {
     if (!project) return;
     const task = await window.tango.createTask("New task", project);
@@ -1663,6 +1691,7 @@ function App() {
                   setRenamingTitle={setRenamingTitle}
                   onOpen={openTask}
                   onStartRename={startRename}
+                  onDuplicate={(id) => void duplicateTask(id)}
                   onCommitRename={(id) => void commitRename(id)}
                   onCancelRename={() => setRenamingId(null)}
                   onMenu={(id, x, y) => setTaskMenu({ id, x, y })}
@@ -2114,6 +2143,9 @@ function App() {
           <div className="task-menu" role="menu" style={{ left: Math.max(8, taskMenu.x), top: Math.max(8, taskMenu.y) }}>
             <button role="menuitem" onClick={() => { const task = tasks.find((item) => item.id === taskMenu.id); setTaskMenu(null); if (task) startRename(task); }}>
               <Pencil size={14} />Rename
+            </button>
+            <button role="menuitem" onClick={() => { const id = taskMenu.id; setTaskMenu(null); void duplicateTask(id); }}>
+              <Copy size={14} />Duplicate
             </button>
             {(() => {
               const task = tasks.find((item) => item.id === taskMenu.id);

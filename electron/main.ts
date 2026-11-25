@@ -1122,6 +1122,22 @@ function registerIpc() {
     await saveTasks([task, ...(await readTasks())]);
     return task;
   });
+  // A duplicate keeps the transcript but starts its own native sessions: agent session ids
+  // point at conversations that already belong to the original task.
+  ipcMain.handle("tasks:duplicate", async (event: IpcMainInvokeEvent, taskId: string) => {
+    assertTrustedSender(event);
+    const tasks = await readTasks();
+    const source = tasks.find((item) => item.id === taskId);
+    if (!source) throw new Error("Task not found");
+    const copy: TaskRecord = {
+      id: randomUUID(),
+      title: `${source.title} copy`.slice(0, 200),
+      projectPath: source.projectPath,
+      messages: source.messages.map((message) => ({ ...message })),
+    };
+    await saveTasks([copy, ...tasks]);
+    return copy;
+  });
   ipcMain.handle("tasks:pin", async (event: IpcMainInvokeEvent, taskId: string, pinned: boolean) => {
     assertTrustedSender(event);
     const tasks = await readTasks();

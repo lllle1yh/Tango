@@ -51,6 +51,8 @@ contextBridge.exposeInMainWorld("tango", {
   listTasks: (): Promise<TaskRecord[]> => ipcRenderer.invoke("tasks:list"),
   createTask: (title: string, projectPath: string): Promise<TaskRecord> =>
     ipcRenderer.invoke("tasks:create", title, projectPath),
+  duplicateTask: (taskId: string): Promise<TaskRecord> =>
+    ipcRenderer.invoke("tasks:duplicate", taskId),
   pinTask: (taskId: string, pinned: boolean): Promise<TaskRecord> =>
     ipcRenderer.invoke("tasks:pin", taskId, pinned),
   clearTaskRunning: (taskId: string): Promise<TaskRecord | null> =>
@@ -179,6 +181,7 @@ export interface TangoApi {
   revealDataFolder(): Promise<void>;
   listTasks(): Promise<TaskRecord[]>;
   createTask(title: string, projectPath: string): Promise<TaskRecord>;
+  duplicateTask(taskId: string): Promise<TaskRecord>;
   pinTask(taskId: string, pinned: boolean): Promise<TaskRecord>;
   clearTaskRunning(taskId: string): Promise<TaskRecord | null>;
   reorderTasks(taskIds: string[]): Promise<TaskRecord[]>;

@@ -274,6 +274,10 @@ button { color: inherit; font: inherit; }
 .task-more { display: grid; width: 24px; height: 24px; margin-right: 3px; flex: none; place-items: center; border: 0; border-radius: 5px; background: transparent; color: var(--fg-muted); cursor: pointer; opacity: 0; }
 .task-row:hover .task-more, .task-row.selected .task-more { opacity: 1; }
 .task-more:hover { background: var(--surface-2); color: var(--fg); }
+/* Duplicate sits beside the actions button and only appears on hover, like it. */
+.task-quick { display: grid; width: 22px; height: 22px; flex: none; place-items: center; border: 0; border-radius: 5px; background: transparent; color: var(--fg-muted); cursor: pointer; opacity: 0; }
+.task-row:hover .task-quick, .task-row.selected .task-quick { opacity: 1; }
+.task-quick:hover { background: var(--surface-2); color: var(--fg); }
 .task-more svg { display: block; }
 .task-rename { height: 28px; min-width: 0; flex: 1; margin: 2px 4px; padding: 0 6px; border: 1px solid var(--primary); border-radius: 5px; outline: none; background: var(--bg); color: var(--fg); font: inherit; font-size: 13px; }
 .archived-block { margin-top: 10px; }
