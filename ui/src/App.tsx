@@ -1511,6 +1511,23 @@ function App() {
             </section>
 
             <section className="settings-group">
+              <h3>Claude Code</h3>
+              <div className="settings-row">
+                <span>Permission mode</span>
+                <select className="settings-select" value={settings?.claudePermissionMode ?? "default"} onChange={(event) => updateSettings({ claudePermissionMode: event.target.value as AppSettings["claudePermissionMode"] })}>
+                  <option value="default">Provider default</option>
+                  <option value="acceptEdits">Accept edits</option>
+                  <option value="auto">Auto</option>
+                  <option value="manual">Manual</option>
+                  <option value="dontAsk">Don't ask</option>
+                  <option value="plan">Plan</option>
+                  <option value="bypassPermissions">Bypass permissions</option>
+                </select>
+              </div>
+              <p className="settings-hint">Passed to new Claude Code sessions as --permission-mode.</p>
+            </section>
+
+            <section className="settings-group">
               <h3>Agents</h3>
               {agents.length === 0 && <p className="settings-hint">Checking installed commands…</p>}
               {agents.map((agent) => (

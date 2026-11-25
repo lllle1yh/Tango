@@ -48,6 +48,7 @@ type AppSettings = {
   codexApprovalPolicy: "on-request" | "on-failure" | "never";
   codexSandbox: "read-only" | "workspace-write" | "danger-full-access";
   sidebarCollapsed: boolean;
+  claudePermissionMode: "default" | "acceptEdits" | "auto" | "bypassPermissions" | "manual" | "dontAsk" | "plan";
 };
 
 const defaultSettings: AppSettings = {
@@ -59,6 +60,7 @@ const defaultSettings: AppSettings = {
   codexApprovalPolicy: "on-request",
   codexSandbox: "workspace-write",
   sidebarCollapsed: false,
+  claudePermissionMode: "default",
 };
 
 let cachedSettings: AppSettings | null = null;
@@ -97,6 +99,10 @@ function sanitizeSettings(input: Partial<AppSettings>): AppSettings {
       ? merged.codexSandbox
       : defaultSettings.codexSandbox,
     sidebarCollapsed: merged.sidebarCollapsed === true,
+    claudePermissionMode: (["default", "acceptEdits", "auto", "bypassPermissions", "manual", "dontAsk", "plan"] as const)
+      .includes(merged.claudePermissionMode as never)
+      ? merged.claudePermissionMode
+      : defaultSettings.claudePermissionMode,
   };
 }
 
@@ -319,9 +325,10 @@ function sendCodexEvent(taskId: string, payload: Record<string, unknown>) {
   if (!mainWindow?.isDestroyed()) mainWindow?.webContents.send("codex:event", taskId, payload);
 }
 
-function createClaudeClient(taskId: string, projectPath: string, resumeId?: string) {
+function createClaudeClient(taskId: string, projectPath: string, resumeId: string | undefined, permissionMode: string) {
   const args = ["-p", "--verbose", "--input-format", "stream-json", "--output-format", "stream-json", "--include-partial-messages"];
   if (resumeId) args.push("--resume", resumeId);
+  if (permissionMode && permissionMode !== "default") args.push("--permission-mode", permissionMode);
   const child = require("node:child_process").spawn(
     process.platform === "win32" ? "cmd.exe" : "claude",
     process.platform === "win32" ? ["/d", "/s", "/c", "claude " + args.join(" ")] : args,
@@ -1061,7 +1068,7 @@ function registerIpc() {
     if (!task || task.projectPath !== await realpath(projectPath)) throw new Error("Task does not belong to this project");
     let client = claudeProcesses.get(taskId);
     if (!client) {
-      client = createClaudeClient(taskId, task.projectPath, task.claudeSessionId);
+      client = createClaudeClient(taskId, task.projectPath, task.claudeSessionId, (await readSettings()).claudePermissionMode);
       claudeProcesses.set(taskId, client);
     }
     await markRunning(task.id, "claude");

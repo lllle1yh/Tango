@@ -13,6 +13,7 @@ export type AppSettings = {
   codexApprovalPolicy: "on-request" | "on-failure" | "never";
   codexSandbox: "read-only" | "workspace-write" | "danger-full-access";
   sidebarCollapsed: boolean;
+  claudePermissionMode: "default" | "acceptEdits" | "auto" | "bypassPermissions" | "manual" | "dontAsk" | "plan";
 };
 
 export type WorkspaceLayout = {
