@@ -2732,6 +2732,8 @@ function App() {
                 ["New task", "Ctrl N"],
                 ["Rename task", "F2"],
                 ["Previous or next task", "Alt Up / Alt Down"],
+                ["Tasks page / Shell page", "Ctrl 1 / Ctrl 2"],
+                ["Terminal below the conversation", "Ctrl Shift J"],
                 ["Search tasks", "Ctrl F"],
                 ["Find in conversation", "Ctrl Shift F"],
                 ["Archive task", "Ctrl Shift E"],
