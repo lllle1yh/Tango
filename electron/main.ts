@@ -388,7 +388,11 @@ function createDshClient(taskId: string, projectPath: string) {
       }
     }
   });
-  child.stderr.on("data", () => {});
+  let stderrTail = "";
+  child.stderr.on("data", (chunk: Buffer) => {
+    stderrTail = (stderrTail + chunk.toString()).slice(-4000);
+    sendDshEvent(taskId, { type: "stderr", text: chunk.toString().slice(-1000) });
+  });
   child.on("error", (error) => {
     sendDshEvent(taskId, { type: "process/error", message: error.message });
     for (const waiter of pending.values()) waiter.reject(error);
@@ -396,7 +400,9 @@ function createDshClient(taskId: string, projectPath: string) {
   });
   child.on("exit", (code) => {
     dshProcesses.delete(taskId);
-    for (const waiter of pending.values()) waiter.reject(new Error("DSH ACP exited with code " + code));
+    const detail = stderrTail.trim() ? `
+${stderrTail.trim().slice(-1600)}` : "";
+    for (const waiter of pending.values()) waiter.reject(new Error("DSH ACP exited with code " + code + detail));
     pending.clear();
     pendingPermissions.clear();
     sendDshEvent(taskId, { type: "process/exit", code });
@@ -428,8 +434,9 @@ function createDshClient(taskId: string, projectPath: string) {
       const params = { cwd: projectPath };
       const session = savedSessionId
         ? await request("session/resume", { ...params, mcpServers: [], sessionId: savedSessionId })
+            .catch(() => request("session/new", { ...params, mcpServers: [] }))
         : await request("session/new", { ...params, mcpServers: [] });
-      sessionId = session.sessionId ?? savedSessionId ?? "";
+      sessionId = session.sessionId ?? "";
     }
     const result = await request("session/prompt", { sessionId, prompt: [{ type: "text", text: prompt }] });
     lastStopReason = result?.stopReason ?? "end_turn";

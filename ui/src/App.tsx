@@ -8,7 +8,7 @@ import { CommandPalette, type PaletteItem } from "./CommandPalette";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Pin, Search } from "lucide-react";
+import { GripVertical, Pin, Search, TerminalSquare, FileText, Globe, Wrench, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import "./layout.css";
 import "./agent-icons.css";
 
@@ -1100,12 +1100,24 @@ function App() {
                   )}
                   {(toolActivity[activeTask ?? ""]?.length ?? 0) > 0 && (
                     <div className="tool-activity" aria-label="Tool activity">
-                      {toolActivity[activeTask ?? ""].map((tool) => (
-                        <div key={tool.id} className={"tool-row " + tool.status}>
-                          <span className="tool-dot" />
-                          <span className="tool-name">{tool.name}</span>
-                        </div>
-                      ))}
+                      {toolActivity[activeTask ?? ""].map((tool) => {
+                        const name = tool.name.toLowerCase();
+                        const ToolIcon = /(bash|shell|command|exec|terminal)/.test(name) ? TerminalSquare
+                          : /(file|patch|write|edit|read)/.test(name) ? FileText
+                          : /(search|grep|web|fetch)/.test(name) ? Globe
+                          : Wrench;
+                        return (
+                          <div key={tool.id} className={"tool-row " + tool.status}>
+                            <ToolIcon size={12} className="tool-icon" />
+                            <span className="tool-name">{tool.name}</span>
+                            <span className="tool-status">
+                              {tool.status === "running" ? <Loader2 size={11} className="spin" />
+                                : tool.status === "error" ? <AlertCircle size={11} />
+                                : <CheckCircle2 size={11} />}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

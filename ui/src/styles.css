@@ -406,3 +406,12 @@ button { color: inherit; font: inherit; }
 .task-search input::placeholder { color: var(--fg-subtle); }
 .task-title { display: flex; align-items: center; gap: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task-pin { flex: none; color: var(--fg-subtle); }
+
+/* Tool rows: icon + status */
+.tool-icon { flex: none; color: var(--fg-subtle); }
+.tool-status { display: inline-flex; margin-left: 2px; align-items: center; color: var(--fg-subtle); }
+.tool-row.done .tool-status { color: #16a34a; }
+.tool-row.error .tool-status { color: #dc2626; }
+.tool-row.running .tool-status { color: var(--primary); }
+.spin { animation: tool-spin 1s linear infinite; }
+@keyframes tool-spin { to { transform: rotate(360deg); } }
