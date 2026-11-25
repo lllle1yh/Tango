@@ -156,7 +156,13 @@ export interface TaskRecord {
   claudeSessionId?: string;
   dshSessionId?: string;
   piSessionFile?: string;
-  messages: Array<{ role: "user" | "assistant"; text: string; agent: string; createdAt: string }>;
+  messages: Array<{
+    role: "user" | "assistant";
+    text: string;
+    agent: string;
+    createdAt: string;
+    tools?: Array<{ id: string; name: string; status: string; detail?: string }>;
+  }>;
 }
 
 export interface TangoApi {

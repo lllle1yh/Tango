@@ -380,6 +380,46 @@ function toolSummary(tools: Array<{ status: string }>) {
   return parts.join(" · ");
 }
 
+// One line for the tools of a turn, folded or open; live and finished turns look the same.
+function ToolActivity({ tools, expanded, onToggle }: {
+  tools: Array<{ id: string; name: string; status: string }>;
+  expanded: boolean;
+  onToggle(): void;
+}) {
+  return (
+    <div className="tool-activity" aria-label="Tool activity" data-expanded={expanded}>
+      <button
+        type="button"
+        className="tool-summary"
+        aria-expanded={expanded}
+        onClick={onToggle}
+      >
+        {tools.some((tool) => tool.status === "running") ? <Loader2 size={12} className="spin" /> : <Wrench size={12} />}
+        <span className="tool-summary-label">{toolSummary(tools)}</span>
+        {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+      </button>
+      {expanded && tools.map((tool) => {
+        const name = tool.name.toLowerCase();
+        const ToolIcon = /(bash|shell|command|exec|terminal)/.test(name) ? TerminalSquare
+          : /(file|patch|write|edit|read)/.test(name) ? FileText
+          : /(search|grep|web|fetch)/.test(name) ? Globe
+          : Wrench;
+        return (
+          <div key={tool.id} className={"tool-row " + tool.status}>
+            <ToolIcon size={12} className="tool-icon" />
+            <span className="tool-name">{tool.name}</span>
+            <span className="tool-status">
+              {tool.status === "running" ? <Loader2 size={11} className="spin" />
+                : tool.status === "error" ? <AlertCircle size={11} />
+                : <CheckCircle2 size={11} />}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function errorText(error: unknown, fallback: string) {
   if (!(error instanceof Error) || !error.message) return fallback;
   let text = error.message;
@@ -401,6 +441,9 @@ function App() {
   const [activeTask, setActiveTask] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
   const [assistantText, setAssistantText] = useState("");
+  // The streamed text as of this instant, so finishing a turn reads it without relying on a
+  // state updater that may run more than once.
+  const assistantTextRef = useRef("");
   const [running, setRunning] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
@@ -426,6 +469,9 @@ function App() {
     streams: boolean;
   } | null>(null);
   const draftTaskRef = useRef<string | null>(null);
+  // Mirror of toolActivity so a turn that is finishing can read the tools it ran without
+  // waiting for a re-render.
+  const toolActivityRef = useRef<Record<string, Array<{ id: string; name: string; status: string; detail?: string }>>>({});
   // Arrow keys walk the task's earlier prompts; this remembers where the walk is and what was being typed.
   const promptHistoryRef = useRef<{ index: number; draft: string } | null>(null);
   // Which task owns the turn that is running, so "Stop" interrupts that task and not whichever is open.
@@ -439,6 +485,8 @@ function App() {
   const [piCommands, setPiCommands] = useState<Array<{ name: string; description?: string }>>([]);
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
   const [toolsExpanded, setToolsExpanded] = useState(false);
+  // Finished turns keep their tool list folded into the reply; this remembers which ones were opened.
+  const [expandedTools, setExpandedTools] = useState<Record<string, boolean>>({});
   const [copiedConversation, setCopiedConversation] = useState(false);
   const [handoffOpen, setHandoffOpen] = useState(false);
 
@@ -668,7 +716,7 @@ function App() {
 
   // 切换任务时清掉上一个任务的流式状态，避免把它的输出显示在另一个任务里。
   useEffect(() => {
-    setAssistantText("");
+    resetStreamText();
     setRunning(false);
     setRunningAgent(null);
     setStopping(false);
@@ -677,17 +725,23 @@ function App() {
 
   useEffect(() => window.tango.onCodexEvent((taskId, event) => {
     if (taskId !== activeTask) return;
-    if (event.type === "delta" && typeof event.text === "string") setAssistantText((text) => text + event.text);
+    if (event.type === "delta" && typeof event.text === "string") appendStreamText(event.text);
     if (event.type === "turn/completed") {
       endTurn(taskId);
-      setAssistantText((text) => {
-        if (text.trim()) {
-          setTasks((current) => current.map((task) => task.id === taskId
-            ? { ...task, messages: [...task.messages, { role: "assistant", agent: "codex", text, createdAt: new Date().toISOString() }] }
-            : task));
-        }
-        return "";
-      });
+      const text = assistantTextRef.current;
+      const tools = finishTools(taskId);
+      resetStreamText();
+      if (text.trim()) {
+        setTasks((current) => current.map((task) => task.id === taskId
+          ? {
+              ...task,
+              messages: [...task.messages, {
+                role: "assistant", agent: "codex", text, createdAt: new Date().toISOString(),
+                ...(tools ? { tools } : {}),
+              }],
+            }
+          : task));
+      }
     }
     if (event.type === "tool") recordTool(taskId, event as { id?: string; name?: string; status?: string });
     if (event.type === "permission/request") {
@@ -713,7 +767,7 @@ function App() {
 
   useEffect(() => window.tango.onClaudeEvent((taskId, event) => {
     if (taskId !== activeTask) return;
-    if (event.type === "delta" && typeof event.text === "string") setAssistantText((text) => text + event.text);
+    if (event.type === "delta" && typeof event.text === "string") appendStreamText(event.text);
     if (event.type === "tool") recordTool(taskId, event as { id?: string; name?: string; status?: string });
     if (event.type === "turn/completed") endTurn(taskId);
     if (event.type === "process/error") {
@@ -757,7 +811,7 @@ function App() {
   }), [activeTask]);
   useEffect(() => window.tango.onPiEvent((taskId, event) => {
     if (taskId !== activeTask) return;
-    if (event.type === "delta" && typeof event.text === "string") setAssistantText((text) => text + event.text);
+    if (event.type === "delta" && typeof event.text === "string") appendStreamText(event.text);
     if (event.type === "tool") recordTool(taskId, event as { id?: string; name?: string; status?: string });
     if (event.type === "permission/request") {
       const options = Array.isArray(event.options)
@@ -848,8 +902,29 @@ function App() {
     return minutes > 0 ? `${minutes}m ${String(seconds % 60).padStart(2, "0")}s` : `${seconds}s`;
   }
 
-  // Tool activity stays under the answer it belongs to, so a finished turn can still be
-  // read; it is cleared when the next turn starts instead.
+  // Streamed text lives in state for the screen and in a ref for handlers that finish a turn;
+  // a state updater can run twice, so the message must never be appended from inside one.
+  function appendStreamText(text: string) {
+    assistantTextRef.current += text;
+    setAssistantText(assistantTextRef.current);
+  }
+
+  function resetStreamText(value = "") {
+    assistantTextRef.current = value;
+    setAssistantText(value);
+  }
+
+  // A finished turn folds its tools into the reply, so they stay visible after the task is
+  // reopened instead of vanishing with the live list.
+  function finishTools(taskId: string): Array<{ id: string; name: string; status: string; detail?: string }> | undefined {
+    const tools = toolActivityRef.current[taskId] ?? [];
+    if (tools.length === 0) return undefined;
+    toolActivityRef.current = { ...toolActivityRef.current, [taskId]: [] };
+    setToolActivity((current) => (current[taskId]?.length ? { ...current, [taskId]: [] } : current));
+    // A tool still marked running when the turn ends was cut off; show it as finished.
+    return tools.map((tool) => ({ ...tool, status: tool.status === "running" ? "done" : tool.status }));
+  }
+
   function endTurn(_taskId: string) {
     runningTaskRef.current = null;
     setRunning(false);
@@ -888,7 +963,9 @@ function App() {
       const next = index >= 0
         ? list.map((item, i) => (i === index ? { ...item, name: name ?? item.name, status, detail: detail ?? item.detail } : item))
         : [...list, { id, name: name ?? "tool", status, detail }].slice(-40);
-      return { ...current, [taskId]: next };
+      const merged = { ...current, [taskId]: next };
+      toolActivityRef.current = merged;
+      return merged;
     });
   }
 
@@ -1020,8 +1097,9 @@ function App() {
   async function startTurn(agent: AgentStatus["id"], task: TaskRecord, text: string) {
     setPrompt("");
     promptHistoryRef.current = null;
-    setAssistantText("");
+    resetStreamText();
     setToolActivity((current) => (current[task.id]?.length ? { ...current, [task.id]: [] } : current));
+    toolActivityRef.current = { ...toolActivityRef.current, [task.id]: [] };
     setRunning(true);
     setStopping(false);
     setRunningAgent(agent);
@@ -1042,18 +1120,21 @@ function App() {
     // The prompt is already in the transcript. DSH writes its answer as it streams, so the
     // reported answer is only appended when the transcript does not already end with it.
     const appendTurn = (answer: string, patch: Partial<TaskRecord>) => {
+      const tools = finishTools(task.id);
       setTasks((current) => current.map((item) => {
         if (item.id !== task.id) return item;
         const messages = [...item.messages];
         const last = messages[messages.length - 1];
         const alreadyShown = Boolean(answer) && last?.role === "assistant" && last.text.trim() === answer.trim();
         if (answer && !alreadyShown) {
-          messages.push({ role: "assistant", agent, text: answer, createdAt: new Date().toISOString() });
+          messages.push({ role: "assistant", agent, text: answer, createdAt: new Date().toISOString(), ...(tools ? { tools } : {}) });
+        } else if (alreadyShown && tools) {
+          messages[messages.length - 1] = { ...last, tools };
         }
         return { ...item, ...patch, messages };
       }));
       liveTaskRef.current = null;
-      setAssistantText("");
+      resetStreamText();
     };
     try {
       if (agent === "pi") {
@@ -1183,16 +1264,23 @@ function App() {
   const headerAgent: AgentStatus["id"] | undefined = activeAgent ?? historicalAgent
     ?? (activeTaskRecord?.threadId ? "codex" : undefined);
 
+  type ToolItem = { id: string; name: string; status: string; detail?: string };
   type ChatRow =
     | { kind: "message"; id: string; message: TaskRecord["messages"][number] }
     | { kind: "stream"; id: string }
-    | { kind: "tools"; id: string };
+    | { kind: "tools"; id: string; tools: ToolItem[]; live: boolean };
 
-  const chatRows: ChatRow[] = [
-    ...activeMessages.map((message, index): ChatRow => ({ kind: "message", id: "m-" + index, message })),
-    ...(assistantText || (running && !liveTaskRef.current?.streams) ? [{ kind: "stream", id: "stream" } as ChatRow] : []),
-    ...((toolActivity[activeTask ?? ""]?.length ?? 0) > 0 ? [{ kind: "tools", id: "tools" } as ChatRow] : []),
-  ];
+  // Every reply sits with the tools it ran; the live turn keeps a provisional row until it ends.
+  const chatRows: ChatRow[] = [];
+  activeMessages.forEach((message, index) => {
+    chatRows.push({ kind: "message", id: "m-" + index, message });
+    if (message.role === "assistant" && (message.tools?.length ?? 0) > 0) {
+      chatRows.push({ kind: "tools", id: "t-" + message.createdAt, tools: message.tools as ToolItem[], live: false });
+    }
+  });
+  if (assistantText || (running && !liveTaskRef.current?.streams)) chatRows.push({ kind: "stream", id: "stream" });
+  const liveTools = toolActivity[activeTask ?? ""] ?? [];
+  if (liveTools.length > 0) chatRows.push({ kind: "tools", id: "tools-live", tools: liveTools, live: true });
 
   const chatVirtualizer = useVirtualizer({
     count: chatRows.length,
@@ -1719,38 +1807,13 @@ function App() {
                             )}
                             {row.kind === "tools" && (
                               // Collapsed by default: a turn that used many tools stays one quiet line.
-                              <div className="tool-activity" aria-label="Tool activity" data-expanded={toolsExpanded}>
-                                <button
-                                  type="button"
-                                  className="tool-summary"
-                                  aria-expanded={toolsExpanded}
-                                  onClick={() => setToolsExpanded((open) => !open)}
-                                >
-                                  {toolActivity[activeTask ?? ""].some((tool) => tool.status === "running")
-                                    ? <Loader2 size={12} className="spin" />
-                                    : <Wrench size={12} />}
-                                  <span className="tool-summary-label">{toolSummary(toolActivity[activeTask ?? ""] ?? [])}</span>
-                                  {toolsExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                                </button>
-                                {toolsExpanded && toolActivity[activeTask ?? ""].map((tool) => {
-                                  const name = tool.name.toLowerCase();
-                                  const ToolIcon = /(bash|shell|command|exec|terminal)/.test(name) ? TerminalSquare
-                                    : /(file|patch|write|edit|read)/.test(name) ? FileText
-                                    : /(search|grep|web|fetch)/.test(name) ? Globe
-                                    : Wrench;
-                                  return (
-                                    <div key={tool.id} className={"tool-row " + tool.status}>
-                                      <ToolIcon size={12} className="tool-icon" />
-                                      <span className="tool-name">{tool.name}</span>
-                                      <span className="tool-status">
-                                        {tool.status === "running" ? <Loader2 size={11} className="spin" />
-                                          : tool.status === "error" ? <AlertCircle size={11} />
-                                          : <CheckCircle2 size={11} />}
-                                      </span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
+                              <ToolActivity
+                                tools={row.tools}
+                                expanded={row.live ? toolsExpanded : Boolean(expandedTools[row.id])}
+                                onToggle={() => row.live
+                                  ? setToolsExpanded((open) => !open)
+                                  : setExpandedTools((open) => ({ ...open, [row.id]: !open[row.id] }))}
+                              />
                             )}
                           </div>
                         );

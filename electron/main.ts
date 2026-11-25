@@ -36,7 +36,14 @@ type TaskRecord = {
   claudeSessionId?: string;
   dshSessionId?: string;
   piSessionFile?: string;
-  messages: Array<{ role: "user" | "assistant"; text: string; agent: string; createdAt: string }>;
+  messages: Array<{
+    role: "user" | "assistant";
+    text: string;
+    agent: string;
+    createdAt: string;
+    // Which tools this turn ran, kept with its reply so reopening the task still shows them.
+    tools?: Array<{ id: string; name: string; status: string; detail?: string }>;
+  }>;
 };
 
 type AppSettings = {
@@ -132,6 +139,35 @@ async function readTasks(): Promise<TaskRecord[]> {
 
 async function saveTasks(tasks: TaskRecord[]) {
   await writeJsonAtomic(tasksFile(), tasks);
+}
+
+// Tools the running turn has used so far. The renderer sees every tool event live; the
+// main process keeps the same list so the finished reply can carry its tools to disk.
+type TurnTool = { id: string; name: string; status: string; detail?: string };
+const turnTools = new Map<string, TurnTool[]>();
+
+function noteTurnTool(taskId: string, tool: { id?: unknown; name?: unknown; status?: unknown; detail?: unknown }) {
+  const list = turnTools.get(taskId);
+  if (!list) return; // No turn is recording for this task.
+  const id = String(tool.id ?? tool.name ?? "tool");
+  const name = tool.name !== undefined && tool.name !== null ? String(tool.name) : undefined;
+  const detail = typeof tool.detail === "string" && tool.detail ? tool.detail.slice(0, 400) : undefined;
+  const status = tool.status === "running" ? "running" : tool.status === "error" ? "error" : "done";
+  const index = list.findIndex((item) => item.id === id);
+  if (index >= 0) {
+    const current = list[index];
+    list[index] = { ...current, name: name ?? current.name, status, detail: detail ?? current.detail };
+  } else {
+    list.push({ id, name: name ?? "tool", status, detail });
+    if (list.length > 40) list.shift();
+  }
+}
+
+// Hands the finished turn's tools to the reply it produced and forgets the list.
+function takeTurnTools(taskId: string): TurnTool[] | undefined {
+  const tools = turnTools.get(taskId);
+  turnTools.delete(taskId);
+  return tools && tools.length > 0 ? tools : undefined;
 }
 
 const CODEX_APPROVAL_METHODS = new Set([
@@ -269,11 +305,15 @@ function createCodexClient(taskId: string, projectPath: string) {
           const answer = Array.isArray(turn?.items)
             ? turn.items.filter((item: any) => item.type === "agentMessage").map((item: any) => item.text ?? "").join("")
             : "";
+          const tools = takeTurnTools(taskId);
           if (answer) {
             void readTasks().then(async (tasks) => {
               const task = tasks.find((item) => item.id === taskId);
               if (!task) return;
-              task.messages.push({ role: "assistant", text: answer, agent: "codex", createdAt: new Date().toISOString() });
+              task.messages.push({
+                role: "assistant", text: answer, agent: "codex", createdAt: new Date().toISOString(),
+                ...(tools ? { tools } : {}),
+              });
               await saveTasks(tasks);
             });
           }
@@ -368,6 +408,7 @@ function createCodexClient(taskId: string, projectPath: string) {
 }
 
 function sendCodexEvent(taskId: string, payload: Record<string, unknown>) {
+  if (payload.type === "tool") noteTurnTool(taskId, payload);
   if (!mainWindow?.isDestroyed()) mainWindow?.webContents.send("codex:event", taskId, payload);
 }
 
@@ -457,6 +498,7 @@ function createClaudeClient(taskId: string, projectPath: string, resumeId: strin
 }
 
 function sendClaudeEvent(taskId: string, payload: Record<string, unknown>) {
+  if (payload.type === "tool") noteTurnTool(taskId, payload);
   if (!mainWindow?.isDestroyed()) mainWindow?.webContents.send("claude:event", taskId, payload);
 }
 
@@ -598,6 +640,7 @@ ${stderrTail.trim().slice(-1600)}` : "";
 }
 
 function sendDshEvent(taskId: string, payload: Record<string, unknown>) {
+  if (payload.type === "tool") noteTurnTool(taskId, payload);
   if (!mainWindow?.isDestroyed()) mainWindow?.webContents.send("dsh:event", taskId, payload);
 }
 
@@ -737,6 +780,7 @@ function createPiClient(taskId: string, projectPath: string, sessionFile?: strin
 }
 
 function sendPiEvent(taskId: string, payload: Record<string, unknown>) {
+  if (payload.type === "tool") noteTurnTool(taskId, payload);
   if (!mainWindow?.isDestroyed()) mainWindow?.webContents.send("pi:event", taskId, payload);
 }
 
@@ -775,6 +819,7 @@ function assertTaskIdle(taskId: string) {
 async function markRunning(taskId: string, agent: string) {
   assertTaskIdle(taskId);
   activeRuns.set(taskId, agent);
+  turnTools.set(taskId, []);
   const tasks = await readTasks();
   const task = tasks.find((item) => item.id === taskId);
   if (task) {
@@ -1198,7 +1243,11 @@ function registerIpc() {
     }
     task.claudeSessionId = client.sessionId;
     if (answer) {
-      task.messages.push({ role: "assistant", text: answer, agent: "claude", createdAt: new Date().toISOString() });
+      const tools = takeTurnTools(task.id);
+      task.messages.push({
+        role: "assistant", text: answer, agent: "claude", createdAt: new Date().toISOString(),
+        ...(tools ? { tools } : {}),
+      });
       await saveTasks(tasks);
     }
     return { sessionId: client.sessionId, answer };
@@ -1249,7 +1298,11 @@ function registerIpc() {
     }
     task.dshSessionId = result.sessionId;
     if (result.answer) {
-      task.messages.push({ role: "assistant", text: result.answer, agent: "dsh", createdAt: new Date().toISOString() });
+      const tools = takeTurnTools(task.id);
+      task.messages.push({
+        role: "assistant", text: result.answer, agent: "dsh", createdAt: new Date().toISOString(),
+        ...(tools ? { tools } : {}),
+      });
       await saveTasks(tasks);
     }
     return result;
@@ -1300,7 +1353,11 @@ function registerIpc() {
     }
     task.piSessionFile = result.sessionFile;
     if (result.answer) {
-      task.messages.push({ role: "assistant", text: result.answer, agent: "pi", createdAt: new Date().toISOString() });
+      const tools = takeTurnTools(task.id);
+      task.messages.push({
+        role: "assistant", text: result.answer, agent: "pi", createdAt: new Date().toISOString(),
+        ...(tools ? { tools } : {}),
+      });
       await saveTasks(tasks);
     }
     return result;
