@@ -1024,7 +1024,10 @@ function App() {
   // Running tasks float to the top so a busy agent stays visible while you read another task.
   // They come from every task in the project, not the search results: a busy agent must not
   // disappear just because the task list is filtered.
-  const runningTasks = tasks.filter((task) => task.projectPath === project && !task.archived && task.running);
+  // A running flag written by a previous session is stale: this window tracks the turns it
+  // started. The task itself still shows the "did not finish" note when opened.
+  const runningTasks = tasks.filter((task) => task.projectPath === project && !task.archived
+    && task.running && runningTurnsRef.current[task.id]);
   // The composer's Stop follows this task's own state, not whichever turn was started last:
   // a background turn in another task must not disable sending here.
   const isActiveTaskRunning = running && runningTaskRef.current === activeTask;
