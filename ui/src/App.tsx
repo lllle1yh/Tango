@@ -1111,6 +1111,24 @@ function App() {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
 
+  // A clock alone cannot tell today's 02:10 from one three days old, which an unarchived task
+  // is likely to hold. Older turns keep their day; today's stay as short as before.
+  function formatStamp(value: string) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+    const days = Math.round((startOfToday - startOfDay) / 86400000);
+    const clock = formatClock(value);
+    if (days <= 0) return clock;
+    if (days === 1) return "Yesterday " + clock;
+    const sameYear = date.getFullYear() === now.getFullYear();
+    return date.toLocaleDateString(undefined, sameYear
+      ? { month: "short", day: "numeric" }
+      : { year: "numeric", month: "short", day: "numeric" }) + " · " + clock;
+  }
+
   // Streamed text lives in state for the screen and in a ref for handlers that finish a turn;
   // a state updater can run twice, so the message must never be appended from inside one.
   function appendStreamText(taskId: string, text: string) {
@@ -2336,7 +2354,7 @@ function App() {
                                     : row.message.role === "user"
                                       ? "You"
                                       : agents.find((agent) => agent.id === row.message.agent)?.name ?? row.message.agent}
-                                  <time dateTime={row.message.createdAt}>{formatClock(row.message.createdAt)}</time>
+                                  <time dateTime={row.message.createdAt} title={formatStamp(row.message.createdAt)}>{formatStamp(row.message.createdAt)}</time>
                                 </span>
                                 {handoff && !handoffOpen ? (
                                   <div className="handoff-prompt-summary">
