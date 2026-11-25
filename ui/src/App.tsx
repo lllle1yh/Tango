@@ -526,6 +526,9 @@ function App() {
   const runningTaskRef = useRef<string | null>(null);
   // True while the user's Stop is waiting for the agent, so a turn that ends says it was stopped.
   const stoppedByUserRef = useRef(false);
+  // Turns this window started, by task. Their running flag is cleared when they finish,
+  // even if the user is looking at another task by then.
+  const runningTurnsRef = useRef<Record<string, boolean>>({});
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renamingTitle, setRenamingTitle] = useState("");
   const [taskMenu, setTaskMenu] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -819,7 +822,7 @@ function App() {
           : task));
         if (!isOpen) setUnreadTasks((current) => ({ ...current, [taskId]: true }));
       }
-      if (isOpen) endTurn(taskId);
+      endTurn(taskId);
     }
     if (event.type === "tool") recordTool(taskId, event as { id?: string; name?: string; status?: string });
     if (event.type === "permission/request" && isOpen) {
@@ -836,10 +839,12 @@ function App() {
         options,
       });
     }
-    if ((event.type === "process/exit" || event.type === "process/error") && isOpen) {
-      setRunning(false);
-      setRunningAgent(null);
-      if (event.type === "process/error") setAssistantText(String(event.message ?? "The agent process could not start"));
+    if (event.type === "process/exit" || event.type === "process/error") {
+      // A crashed process ends its turn; a later reply for it would only add a line twice.
+      endTurn(taskId);
+      if (event.type === "process/error" && isOpen) {
+        setAssistantText(String(event.message ?? "The agent process could not start"));
+      }
     }
   }), []);
 
@@ -847,7 +852,7 @@ function App() {
     const isOpen = taskId === activeTaskRef.current;
     if (event.type === "delta" && typeof event.text === "string") appendStreamText(taskId, event.text);
     if (event.type === "tool") recordTool(taskId, event as { id?: string; name?: string; status?: string });
-    if (event.type === "turn/completed" && isOpen) endTurn(taskId);
+    if (event.type === "turn/completed") endTurn(taskId);
     if (event.type === "process/error" && isOpen) {
       setRunning(false);
       setRunningAgent(null);
@@ -860,7 +865,7 @@ function App() {
     // turn is still running counts as a failure.
     if (event.type === "process/exit") {
       if (liveTaskRef.current?.id === taskId) liveTaskRef.current = null;
-      if (isOpen) endTurn(taskId);
+      endTurn(taskId);
     }
     if (event.type === "delta" && typeof event.text === "string") appendLiveText(taskId, "dsh", event.text);
     if (event.type === "session/update") {
@@ -1053,7 +1058,13 @@ function App() {
     return tools.map((tool) => ({ ...tool, status: tool.status === "running" ? "done" : tool.status }));
   }
 
-  function endTurn(_taskId: string) {
+  // Only the turn that this window started can end it; a completion for a turn that was
+  // already finished elsewhere must not clear a different task's running state.
+  function endTurn(taskId: string) {
+    if (!runningTurnsRef.current[taskId]) return;
+    delete runningTurnsRef.current[taskId];
+    setTasks((current) => current.map((task) => (task.id === taskId && task.running ? { ...task, running: undefined } : task)));
+    if (runningTaskRef.current !== taskId) return;
     runningTaskRef.current = null;
     setRunning(false);
     setRunningAgent(null);
@@ -1253,6 +1264,11 @@ function App() {
     setStopping(false);
     setRunningAgent(agent);
     runningTaskRef.current = task.id;
+    runningTurnsRef.current[task.id] = true;
+    // Show it in the sidebar at once; the main process writes the same flag to tasks.json.
+    setTasks((current) => current.map((item) => item.id === task.id
+      ? { ...item, running: { agent, startedAt: new Date().toISOString() } }
+      : item));
     const waitsForTurnEnd = agent !== "codex";
     const baseMessages = task.messages;
     // The prompt is also the turn's name until the task is renamed by hand.
