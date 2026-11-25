@@ -633,7 +633,7 @@ function App() {
       if (inField(event.target) && event.key !== "Escape" && !findInConversation
         && !((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k")) return;
       // Esc interrupts the turn this task is running, unless a dialog or menu is open to close first.
-      if (event.key === "Escape" && running && !stopping && runningTaskRef.current === activeTask
+      if (event.key === "Escape" && running && !stopping && activeTask && runningTurnsRef.current[activeTask]
         && !settingsOpen && !shortcutsOpen && !handoffOpen && !paletteOpen && !taskMenu && !openMenu) {
         event.preventDefault();
         void stopTurn();
@@ -1070,7 +1070,7 @@ function App() {
     && task.running && runningTurnsRef.current[task.id]);
   // The composer's Stop follows this task's own state, not whichever turn was started last:
   // a background turn in another task must not disable sending here.
-  const isActiveTaskRunning = running && runningTaskRef.current === activeTask;
+  const isActiveTaskRunning = Boolean(activeTask && runningTurnsRef.current[activeTask]);
 
   // The elapsed-time labels only need a tick while something is actually running.
   useEffect(() => {
