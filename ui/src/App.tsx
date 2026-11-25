@@ -512,10 +512,16 @@ function App() {
     element.style.height = Math.min(element.scrollHeight, 220) + "px";
   }, [prompt]);
 
-  // Keep the newest output visible unless the reader scrolled up to read history.
+  // Opening a task shows its newest turn; after that the view only follows the output
+  // when the reader is already near the bottom.
   useEffect(() => {
     const element = messagesRef.current;
     if (!element) return;
+    if (scrollTaskRef.current !== activeTask) {
+      scrollTaskRef.current = activeTask;
+      element.scrollTop = element.scrollHeight;
+      return;
+    }
     const distance = element.scrollHeight - element.scrollTop - element.clientHeight;
     if (distance < 140 || running) element.scrollTop = element.scrollHeight;
   }, [tasks, assistantText, toolActivity, running, activeTask]);
@@ -550,6 +556,7 @@ function App() {
     input?: { placeholder: string; prefill: string };
   } | null>(null);
   const [permissionText, setPermissionText] = useState("");
+  const scrollTaskRef = useRef<string | null>(null);
 
   const refreshAgents = useCallback(async () => {
     setDetecting(true);
