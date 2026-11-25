@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import { siAnthropic, siDeepseek, siPi } from "simple-icons";
 import type { AgentStatus, LayoutNode, TaskRecord } from "../../electron/preload";
 import "./layout.css";
 import "./agent-icons.css";
@@ -16,20 +15,13 @@ function FolderIcon() {
 }
 
 function AgentGlyph({ agentId }: { agentId: AgentStatus["id"] }) {
-  const icon = agentId === "claude" ? siAnthropic : agentId === "dsh" ? siDeepseek : agentId === "pi" ? siPi : null;
-  return (
-    <span className={"agent-mark " + agentId + "-mark"} aria-hidden="true">
-      {icon ? (
-        <svg viewBox="0 0 24 24"><path d={icon.path} /></svg>
-      ) : (
-        <svg viewBox="0 0 24 24">
-          <path d="M12 3.2 15.1 5l3.6-.1.2 3.7 2 3.1-2 3.1-.2 3.7-3.6-.1-3.1 1.8L8.9 18l-3.6.1-.2-3.7-2-3.1 2-3.1.2-3.7 3.6.1z" />
-          <circle cx="12" cy="11.9" r="3.2" />
-          <path d="m12 8.7 2.1 3.2L12 15l-2.1-3.1z" />
-        </svg>
-      )}
-    </span>
-  );
+  const icon = {
+    codex: "codex.svg",
+    claude: "claude-code.svg",
+    dsh: "deepseek.svg",
+    pi: "pi.svg",
+  }[agentId];
+  return <span className={"agent-mark " + agentId + "-mark"} aria-hidden="true"><img src={"./icons/" + icon} alt="" /></span>;
 }
 
 function paneIds(node: LayoutNode): string[] {
@@ -454,17 +446,15 @@ function App() {
           </section>
         ) : (
           <section className="workbench">
-            <div className="panel-tabs">
-              <button className="new-terminal" onClick={() => splitPane(activeTerminal, "horizontal")} aria-label="Split left or right" title="Split left or right">◧ Split</button>
-              <button className="new-terminal" onClick={() => splitPane(activeTerminal, "vertical")} aria-label="Split above or below" title="Split above or below">◩ Split</button>
-              {activeAgent && (
+            {activeAgent && (
+              <div className="panel-tabs">
               <div className="active-agent-tab">
                   <AgentGlyph agentId={activeAgent} />
                   <span>{agents.find((agent) => agent.id === activeAgent)?.name}</span>
                 {activeAgent === "codex" && <span className="connection-label">Codex App Server</span>}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {!activeAgent && (
               <div className="terminal-panel">

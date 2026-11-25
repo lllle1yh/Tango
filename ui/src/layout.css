@@ -50,13 +50,16 @@
 }
 
 .pane-actions button {
-  width: 25px;
-  height: 24px;
+  display: grid;
+  width: 27px;
+  height: 27px;
+  place-items: center;
   border: 0;
   border-radius: 4px;
   background: transparent;
   color: #a9a19c;
   cursor: pointer;
+  font-size: 16px;
 }
 
 .pane-actions button:hover {

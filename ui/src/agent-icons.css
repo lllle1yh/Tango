@@ -4,6 +4,13 @@
   fill: currentColor;
 }
 
+.agent-mark img {
+  display: block;
+  width: 21px;
+  height: 21px;
+  object-fit: contain;
+}
+
 .codex-mark svg {
   width: 19px;
   height: 19px;
@@ -14,8 +21,21 @@
   stroke-linejoin: round;
 }
 
+.codex-mark img {
+  width: 23px;
+  height: 23px;
+}
+
 .claude-mark {
-  color: #c06b43;
+  color: #e77a43;
+}
+
+.claude-mark svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .dsh-mark {
