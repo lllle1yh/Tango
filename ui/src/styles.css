@@ -360,6 +360,11 @@ button { color: inherit; font: inherit; }
 .app-shell { grid-template-columns: minmax(0, 1fr); }
 .app-body > .sidebar { height: 100%; min-height: 0; }
 .app-body > .main-area { height: 100%; min-height: 0; }
+/* 终端独占整页时不再留出侧栏那一列。 */
+.app-body.terminal-view { grid-template-columns: minmax(0, 1fr); }
+.app-body.terminal-view .sidebar { display: none; }
+.crumb-tab { padding: 0; border: 0; background: transparent; color: var(--fg-subtle); cursor: pointer; font: inherit; font-size: 12px; }
+.crumb-tab:hover, .crumb-tab.active { color: var(--fg); }
 .app-body .workbench { height: 100%; }
 .app-body .empty-workspace { min-height: 100%; }
 

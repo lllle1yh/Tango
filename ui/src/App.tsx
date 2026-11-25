@@ -646,6 +646,8 @@ function App() {
   const [expandedHandoff, setExpandedHandoff] = useState<Record<string, boolean>>({});
   const [copiedConversation, setCopiedConversation] = useState(false);
   const [handoffOpen, setHandoffOpen] = useState(false);
+  // 打开任务就进「这个任务的页面」；侧栏只属于任务列表页，终端单独成页（对齐 T3 的 thread 视图）。
+  const [view, setView] = useState<"home" | "terminal">("home");
   // Deleting a task asks in Tango's own dialog: a native confirm() blocks the window and
   // cannot be styled or reached from the keyboard like the rest of the app.
   const [deleteTarget, setDeleteTarget] = useState<TaskRecord | null>(null);
@@ -732,6 +734,8 @@ function App() {
       if (event.key.toLowerCase() === "n") { event.preventDefault(); void createTask(); }
       if (event.key.toLowerCase() === "k") { event.preventDefault(); setPaletteOpen(true); }
       if (event.key.toLowerCase() === "b") { event.preventDefault(); updateSettings({ sidebarCollapsed: !settings?.sidebarCollapsed }); }
+      if (event.key === "1" && !event.shiftKey) { event.preventDefault(); openTerminal(); return; }
+      if (event.key === "2" && !event.shiftKey) { event.preventDefault(); setView("home"); return; }
       if (event.key.toLowerCase() === "e" && event.shiftKey && activeTask) {
         event.preventDefault();
         void archiveTaskAction(activeTask, true);
@@ -1297,6 +1301,7 @@ function App() {
       .find((message) => message.role === "assistant")?.agent;
     const remembered = (["codex", "claude", "dsh", "pi"] as const).find((id) => id === lastAgent);
     setActiveTask(taskId);
+    setView("home");
     setUnreadTasks((current) => (current[taskId] ? { ...current, [taskId]: false } : current));
     setActiveAgent(remembered ?? settings?.defaultAgent ?? "codex");
     window.requestAnimationFrame(() => composerRef.current?.focus());
@@ -1654,7 +1659,13 @@ function App() {
         })
       : { type: "pane", id });
     setActiveTerminal(id);
+    openTerminal();
+  }
+
+  // 终端是单独一页：进入时清掉当前 Agent 视图，离开时回到任务列表页。
+  function openTerminal() {
     setActiveAgent(null);
+    setView("terminal");
   }
 
   function renamePane(id: string, name: string) {
@@ -1788,7 +1799,7 @@ function App() {
       label: "Duplicate task",
       run: () => void duplicateTask(activeTask),
     }] : []),
-    { id: "a-shell", group: "Actions", label: "Show terminal", run: () => setActiveAgent(null) },
+    { id: "a-shell", group: "Actions", label: "Show terminal", hint: "Ctrl 1", run: () => openTerminal() },
     ...recentProjects.slice(0, 5).map((projectPath): PaletteItem => ({
       id: "p-" + projectPath,
       group: "Go to",
@@ -1865,7 +1876,7 @@ function App() {
   const slashCommands: Array<{ name: string; label: string; insert?: string; run?: () => void }> = [
     { name: "new", label: "New task", run: () => void createTask() },
     { name: "settings", label: "Open settings", run: () => setSettingsOpen(true) },
-    { name: "shell", label: "Show terminal", run: () => setActiveAgent(null) },
+    { name: "shell", label: "Show terminal", run: () => openTerminal() },
     { name: "project", label: "Open project folder", run: () => void openProject() },
     ...(slashTask ? [{ name: "rename", label: "Rename this task", run: () => renameActiveTask() }] : []),
     ...(slashTask?.archived
@@ -1941,8 +1952,8 @@ function App() {
         <div className="titlebar-fill" />
       </header>
 
-      <div className="app-body">
-      <aside className="sidebar">
+      <div className={"app-body" + (view === "terminal" ? " terminal-view" : "")}>
+      <aside className="sidebar" hidden={view === "terminal"}>
         <div className="sidebar-label">PROJECT</div>
         <button className="project-button" onClick={() => void openProject()}>
           <FolderIcon />
@@ -2189,7 +2200,9 @@ function App() {
       <main className="main-area">
         <header className="topbar">
           <div className="breadcrumb">
-            <span>Workspace</span><b>/</b><strong>{projectName ?? "No project selected"}</strong>
+            <button className={"crumb-tab " + (view === "home" ? "active" : "")} onClick={() => setView("home")}>Workspace</button>
+            <b>/</b>
+            <strong>{view === "terminal" ? "Shell" : projectName ?? "No project selected"}</strong>
           </div>
           <div className="header-right">
             <button
@@ -2224,9 +2237,17 @@ function App() {
           <section className="workbench">
             <div className="panel-tabs">
               <button
-                className={"panel-tab " + (!activeAgent ? "active" : "")}
-                onClick={() => setActiveAgent(null)}
-                title="Show the terminal panes"
+                className={"panel-tab " + (view === "home" ? "active" : "")}
+                onClick={() => setView("home")}
+                title="Tasks and the conversation page (Ctrl 2)"
+              >
+                <FileText size={15} />
+                <span>Tasks</span>
+              </button>
+              <button
+                className={"panel-tab " + (view === "terminal" ? "active" : "")}
+                onClick={() => openTerminal()}
+                title="The terminal page (Ctrl 1)"
               >
                 <TerminalIcon size={15} />
                 <span>Shell</span>
@@ -2240,7 +2261,7 @@ function App() {
               )}
             </div>
 
-            <div className="terminal-panel" hidden={activeAgent !== null}>
+            <div className="terminal-panel" hidden={view !== "terminal" || activeAgent !== null}>
               <div className="terminal-canvas">
                 {layoutRoot ? (
                   <PaneTree
@@ -2266,7 +2287,7 @@ function App() {
               </div>
             </div>
 
-            {headerAgent && activeTask && (
+            {view !== "terminal" && headerAgent && activeTask && (
               <div className="conversation">
                 <div className="conversation-heading">
                   <span className="conversation-title" title={tasks.find((task) => task.id === activeTask)?.title}>{tasks.find((task) => task.id === activeTask)?.title}</span>
@@ -2641,14 +2662,14 @@ function App() {
                 </form>
               </div>
             )}
-            {activeAgent && !activeTask && (
+            {view !== "terminal" && !activeTask && (
               <div className="agent-placeholder">
                 <div className="agent-placeholder-icon">
-                  <AgentGlyph agentId={activeAgent} />
+                  <AgentGlyph agentId={activeAgent ?? settings?.defaultAgent ?? "codex"} />
                 </div>
                 <h1>Select or create a task.</h1>
                 <p>Tasks keep their own conversation and native agent sessions.</p>
-                <button className="subtle-button" onClick={() => setActiveAgent(null)}>Return to terminal</button>
+                <button className="subtle-button" onClick={() => { setActiveAgent(null); setView("home"); }}>Return to task list</button>
               </div>
             )}
           </section>
