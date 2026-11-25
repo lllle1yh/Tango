@@ -602,6 +602,8 @@ function App() {
   // even if the user is looking at another task by then.
   const runningTurnsRef = useRef<Record<string, boolean>>({});
   const [renamingId, setRenamingId] = useState<string | null>(null);
+  // One line under the composer says whose turn the turn list belongs to and what it is doing.
+  const [turnLine, setTurnLine] = useState<{ taskId: string; agent: string; text: string } | null>(null);
   const [renamingTitle, setRenamingTitle] = useState("");
   const [taskMenu, setTaskMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [archivedOpen, setArchivedOpen] = useState(false);
@@ -936,6 +938,7 @@ function App() {
         detail: typeof event.detail === "string" ? event.detail : undefined,
         options,
       });
+      setTurnLine({ taskId, agent: "codex", text: "needs your approval…" });
     }
     if (event.type === "process/exit" || event.type === "process/error") {
       // A crashed process ends its turn; a later reply for it would only add a line twice.
@@ -1139,6 +1142,12 @@ function App() {
       return `No reply was written. ${name} ran ${toolSummary(tools)} before stopping; check the tool list below.`;
     }
     return stoppedByUserRef.current ? `${name} was stopped before it answered.` : `${name} ended without a reply.`;
+  }
+
+  // The composer's status line for a finished turn: what ran, and how it went.
+  function turnSummary(agent: AgentStatus["id"], tools: Array<{ name: string; status: string }> | undefined): string {
+    const name = agents.find((item) => item.id === agent)?.name ?? agent;
+    return tools?.length ? `${name} finished · ${toolSummary(tools)}` : `${name} finished`;
   }
 
   // A finished turn folds its tools into the reply, so they stay visible after the task is
@@ -1376,6 +1385,7 @@ function App() {
     setRunningAgent(agent);
     runningTaskRef.current = task.id;
     runningTurnsRef.current[task.id] = true;
+    setTurnLine({ taskId: task.id, agent, text: "is working…" });
     // Show it in the sidebar at once; the main process writes the same flag to tasks.json.
     setTasks((current) => current.map((item) => item.id === task.id
       ? { ...item, running: { agent, startedAt: new Date().toISOString() } }
@@ -1412,6 +1422,7 @@ function App() {
       }));
       liveTaskRef.current = null;
       resetStreamText(task.id);
+      setTurnLine({ taskId: task.id, agent, text: turnSummary(agent, tools) });
       if (task.id !== activeTaskRef.current) setUnreadTasks((current) => ({ ...current, [task.id]: true }));
     };
     try {
@@ -1445,6 +1456,7 @@ function App() {
             }],
           }
         : item));
+      setTurnLine({ taskId: task.id, agent, text: `could not run · ${reason.slice(0, 120)}` });
       if (task.id !== activeTaskRef.current) setUnreadTasks((current) => ({ ...current, [task.id]: true }));
       endTurn(task.id);
     } finally {
@@ -2455,6 +2467,14 @@ function App() {
                       ))}
                       <button className="permission-option reject" onClick={() => void answerPermission(null)}>Reject</button>
                     </div>
+                  </div>
+                )}
+                {/* Whose turn the turn list belongs to, in one line above the box. */}
+                {turnLine && turnLine.taskId === activeTask && (
+                  <div className={`composer-turn${isActiveTaskRunning ? " live" : ""}`} role="status" aria-live="polite">
+                    {isActiveTaskRunning && <Loader2 size={11} className="spin" />}
+                    <AgentGlyph agentId={turnLine.agent as AgentStatus["id"]} />
+                    <span>{agents.find((agent) => agent.id === turnLine.agent)?.name ?? turnLine.agent} {turnLine.text}</span>
                   </div>
                 )}
                 <form className="composer" onSubmit={(event) => { event.preventDefault(); void submitPrompt(); }}>
