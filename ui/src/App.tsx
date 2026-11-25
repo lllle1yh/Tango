@@ -414,6 +414,7 @@ function App() {
   const taskSearchRef = useRef<HTMLInputElement>(null);
   const [piCommands, setPiCommands] = useState<Array<{ name: string; description?: string }>>([]);
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
+  const [copiedConversation, setCopiedConversation] = useState(false);
   const [handoffOpen, setHandoffOpen] = useState(false);
 
   useEffect(() => {
@@ -1064,6 +1065,23 @@ function App() {
     }
   }
 
+  // The transcript leaves Tango as readable markdown, with the same speaker labels the
+  // screen shows, so it can be pasted into an issue or another agent.
+  async function copyConversation() {
+    const task = tasks.find((item) => item.id === activeTask);
+    if (!task || task.messages.length === 0) return;
+    const lines: string[] = [`# ${task.title}`, ""];
+    for (const message of task.messages) {
+      const who = message.role === "user"
+        ? "You"
+        : agents.find((agent) => agent.id === message.agent)?.name ?? message.agent;
+      lines.push(`**${who}** · ${formatClock(message.createdAt)}`, "", message.text, "");
+    }
+    await navigator.clipboard.writeText(lines.join("\n").trimEnd() + "\n");
+    setCopiedConversation(true);
+    window.setTimeout(() => setCopiedConversation(false), 1500);
+  }
+
   function splitPane(paneId: string | null, direction: "horizontal" | "vertical") {
     const id = "terminal-" + crypto.randomUUID();
     setLayoutRoot((root) => root
@@ -1475,6 +1493,16 @@ function App() {
                       {agents.find((agent) => agent.id === headerAgent)?.name ?? headerAgent}
                     </span>
                   )}
+                  <span className="heading-fill" />
+                  <button
+                    className="icon-button heading-action"
+                    aria-label="Copy conversation"
+                    title="Copy the transcript as Markdown"
+                    disabled={tasks.find((task) => task.id === activeTask)?.messages.length === 0}
+                    onClick={() => void copyConversation()}
+                  >
+                    {copiedConversation ? <Check size={14} /> : <Copy size={14} />}
+                  </button>
                   <button
                     className="subtle-button handoff-button"
                     onClick={() => setHandoffOpen((open) => !open)}
