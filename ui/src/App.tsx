@@ -405,6 +405,7 @@ function App() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
+  const taskListRef = useRef<HTMLDivElement>(null);
   const liveTaskRef = useRef<{
     id: string;
     agent: AgentStatus["id"];
@@ -1369,6 +1370,24 @@ function App() {
               ref={taskSearchRef}
               value={taskQuery}
               onChange={(event) => setTaskQuery(event.target.value)}
+              onKeyDown={(event) => {
+                // Down leaves the filter and lands on the first result, so the list is reachable from the keyboard.
+                if (event.key === "ArrowDown") {
+                  event.preventDefault();
+                  taskListRef.current?.querySelector<HTMLButtonElement>(".task-row .task-link")?.focus();
+                  return;
+                }
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  const first = projectTasks[0];
+                  if (first) { openTask(first.id); taskSearchRef.current?.blur(); }
+                  return;
+                }
+                if (event.key === "Escape") {
+                  setTaskQuery("");
+                  taskSearchRef.current?.blur();
+                }
+              }}
               placeholder="Search tasks"
               aria-label="Search tasks"
             />
@@ -1396,7 +1415,7 @@ function App() {
         )}
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={projectTasks.map((task) => task.id)} strategy={verticalListSortingStrategy}>
-            <div className="task-list">
+            <div className="task-list" ref={taskListRef}>
               {projectTasks.map((task) => (
                 <SortableTaskRow
                   key={task.id}
