@@ -2296,9 +2296,10 @@ function App() {
                       </form>
                     )}
                     <div className="permission-actions">
-                      {permission.options.map((option) => (
+                      {permission.options.map((option, index) => (
                         <button
                           key={option.optionId}
+                          autoFocus={!permission.input && index === 0}
                           className={"permission-option " + (option.kind ?? "")}
                           onClick={() => void answerPermission(option.optionId)}
                         >
@@ -2385,7 +2386,15 @@ function App() {
       {taskMenu && (
         <>
           <div className="menu-scrim" onClick={() => setTaskMenu(null)} onContextMenu={(event) => { event.preventDefault(); setTaskMenu(null); }} />
-          <div className="task-menu" role="menu" style={{ left: Math.max(8, taskMenu.x), top: Math.max(8, taskMenu.y) }}>
+          <div
+            className="task-menu"
+            role="menu"
+            style={{
+              // Keep the menu on screen for rows near the bottom or right edge.
+              left: Math.max(8, Math.min(taskMenu.x, window.innerWidth - 208)),
+              top: Math.max(8, Math.min(taskMenu.y, window.innerHeight - 320)),
+            }}
+          >
             <button role="menuitem" onClick={() => { const task = tasks.find((item) => item.id === taskMenu.id); setTaskMenu(null); if (task) startRename(task); }}>
               <Pencil size={14} />Rename
             </button>
