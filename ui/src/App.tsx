@@ -1480,7 +1480,10 @@ function App() {
     setStopping(true);
     stoppedByUserRef.current = true;
     try {
-      const agent = runningAgent ?? activeAgent;
+      // Stop the agent that is running this task, not whichever agent was picked last.
+      const agent = tasks.find((task) => task.id === taskId)?.running?.agent
+        ?? (runningTaskRef.current === taskId ? runningAgent : null)
+        ?? activeAgent;
       if (agent === "pi") await window.tango.piInterrupt(taskId);
       else if (agent === "dsh") await window.tango.dshInterrupt(taskId);
       else if (agent === "claude") await window.tango.claudeInterrupt(taskId);
