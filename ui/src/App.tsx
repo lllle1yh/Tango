@@ -771,7 +771,9 @@ function App() {
     .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)));
   const archivedTasks = tasks.filter((task) => task.projectPath === project && task.archived);
   // Running tasks float to the top so a busy agent stays visible while you read another task.
-  const runningTasks = projectTasks.filter((task) => task.running && !taskQuery.trim());
+  // They come from every task in the project, not the search results: a busy agent must not
+  // disappear just because the task list is filtered.
+  const runningTasks = tasks.filter((task) => task.projectPath === project && !task.archived && task.running);
 
   function formatClock(value: string) {
     const date = new Date(value);
