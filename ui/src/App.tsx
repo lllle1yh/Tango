@@ -798,7 +798,7 @@ function App() {
     setRunning(false);
     setRunningAgent(null);
     setStopping(false);
-    setPermission(null);
+    // A pending permission stays with its task: switching away hides it, coming back shows it.
   }, [activeTask]);
 
   useEffect(() => window.tango.onCodexEvent((taskId, event) => {
@@ -827,7 +827,7 @@ function App() {
       endTurn(taskId);
     }
     if (event.type === "tool") recordTool(taskId, event as { id?: string; name?: string; status?: string });
-    if (event.type === "permission/request" && isOpen) {
+    if (event.type === "permission/request") {
       const options = Array.isArray(event.options)
         ? (event.options as Array<{ optionId: string; label?: string; name?: string; kind?: string }>)
           .map((option) => ({ optionId: option.optionId, name: option.label ?? option.name ?? option.optionId, kind: option.kind }))
@@ -862,7 +862,6 @@ function App() {
     }
   }), []);
   useEffect(() => window.tango.onDshEvent((taskId, event) => {
-    const isOpen = taskId === activeTaskRef.current;
     // The process exits right after each turn, so only an unexpected exit while the
     // turn is still running counts as a failure.
     if (event.type === "process/exit") {
@@ -880,7 +879,7 @@ function App() {
         });
       }
     }
-    if (event.type === "permission/request" && isOpen) {
+    if (event.type === "permission/request") {
       const params = event.params as {
         toolCall?: { title?: string };
         options?: Array<{ optionId: string; name: string; kind?: string }>;
@@ -898,7 +897,7 @@ function App() {
     const isOpen = taskId === activeTaskRef.current;
     if (event.type === "delta" && typeof event.text === "string") appendStreamText(taskId, event.text);
     if (event.type === "tool") recordTool(taskId, event as { id?: string; name?: string; status?: string });
-    if (event.type === "permission/request" && isOpen) {
+    if (event.type === "permission/request") {
       const options = Array.isArray(event.options)
         ? (event.options as Array<{ optionId: string; label?: string; kind?: string }>)
           .map((option) => ({ optionId: option.optionId, name: option.label ?? option.optionId, kind: option.kind }))
@@ -1064,6 +1063,8 @@ function App() {
   // already finished elsewhere must not clear a different task's running state.
   function endTurn(taskId: string) {
     if (!runningTurnsRef.current[taskId]) return;
+    // A request that was never answered belongs to this turn; do not leave it on screen.
+    setPermission((current) => (current?.taskId === taskId ? null : current));
     delete runningTurnsRef.current[taskId];
     setTasks((current) => current.map((task) => (task.id === taskId && task.running ? { ...task, running: undefined } : task)));
     if (runningTaskRef.current !== taskId) return;
@@ -1764,6 +1765,9 @@ function App() {
               >
                 <Loader2 size={12} className="spin" />
                 <span className="running-row-title">{task.title}</span>
+                {permission?.taskId === task.id && (
+                  <span className="running-row-needs" title="The agent is waiting for your approval">Needs approval</span>
+                )}
                 <span className="running-row-elapsed">{formatElapsed(task.running?.startedAt, nowTick)}</span>
                 <span className="running-row-agent">
                   {agents.find((agent) => agent.id === task.running?.agent)?.name ?? task.running?.agent}

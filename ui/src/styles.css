@@ -538,3 +538,6 @@ button { color: inherit; font: inherit; }
 .turn-divider { display: flex; align-items: center; gap: 10px; padding: 6px 0 2px; color: var(--fg-subtle); }
 .turn-divider-line { flex: 1; height: 1px; background: var(--line); }
 .turn-divider-label { flex: none; font-size: 11px; letter-spacing: .02em; }
+
+/* A permission request in a task you are not reading still needs to be visible. */
+.running-row-needs { flex: none; padding: 1px 5px; border-radius: 4px; background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); font-size: 10px; font-weight: 600; letter-spacing: .01em; }
