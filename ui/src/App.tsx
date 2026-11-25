@@ -1261,8 +1261,17 @@ function App() {
     setTaskMenu(null);
     const target = tasks.find((task) => task.id === taskId);
     if (!target) return;
+    if (target.running || runningTurnsRef.current[taskId]) {
+      setAssistantText("Stop the current turn before deleting this task.");
+      return;
+    }
     if (!window.confirm(`Delete "${target.title}"? This cannot be undone.`)) return;
-    await window.tango.deleteTask(taskId);
+    try {
+      await window.tango.deleteTask(taskId);
+    } catch (error) {
+      setAssistantText(errorText(error, "Could not delete this task"));
+      return;
+    }
     setTasks((current) => current.filter((task) => task.id !== taskId));
     if (activeTask === taskId) {
       setActiveTask(null);
