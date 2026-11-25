@@ -440,6 +440,14 @@ function App() {
     return () => { alive = false; };
   }, [activeAgent, activeTask, tasks]);
 
+  // Grow the composer with the draft instead of showing a scrollbar early.
+  useEffect(() => {
+    const element = composerRef.current;
+    if (!element) return;
+    element.style.height = "auto";
+    element.style.height = Math.min(element.scrollHeight, 220) + "px";
+  }, [prompt]);
+
   // Keep the newest output visible unless the reader scrolled up to read history.
   useEffect(() => {
     const element = messagesRef.current;

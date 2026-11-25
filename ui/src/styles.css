@@ -428,3 +428,8 @@ button { color: inherit; font: inherit; }
 .titlebar-icon:hover { background: var(--surface-2); color: var(--fg); }
 .app-shell.sidebar-collapsed .app-body { grid-template-columns: 0 minmax(0, 1fr); }
 .app-shell.sidebar-collapsed .sidebar { padding: 0; border-right: 0; overflow: hidden; visibility: hidden; }
+
+/* Composer grows with the draft; scroll only past the cap. */
+.composer textarea { overflow-y: auto; }
+/* Skip layout and paint for messages far off screen. */
+.message { content-visibility: auto; contain-intrinsic-size: auto 140px; }
