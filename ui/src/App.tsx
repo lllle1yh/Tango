@@ -1197,7 +1197,20 @@ function App() {
         appendTurn("", { threadId });
       }
     } catch (error) {
-      setAssistantText(errorText(error, "Could not start the agent"));
+      // The prompt is already in the transcript; a failed turn leaves why there in a line.
+      const tools = finishTools(task.id);
+      const reason = errorText(error, "Could not start the agent");
+      resetStreamText(task.id);
+      setTasks((current) => current.map((item) => item.id === task.id
+        ? {
+            ...item,
+            messages: [...item.messages, {
+              role: "assistant", agent, text: `The turn could not run: ${reason}`, createdAt: new Date().toISOString(),
+              ...(tools ? { tools } : {}),
+            }],
+          }
+        : item));
+      if (task.id !== activeTaskRef.current) setUnreadTasks((current) => ({ ...current, [task.id]: true }));
       endTurn(task.id);
     } finally {
       if (waitsForTurnEnd) endTurn(task.id);
