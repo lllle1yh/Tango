@@ -295,6 +295,7 @@ function TitlebarMenu({ label, items, open, onOpen, onClose }: {
 function SortableTaskRow({
   task,
   selected,
+  unread,
   renamingId,
   renamingTitle,
   setRenamingTitle,
@@ -307,6 +308,7 @@ function SortableTaskRow({
 }: {
   task: TaskRecord;
   selected: boolean;
+  unread: boolean;
   renamingId: string | null;
   renamingTitle: string;
   setRenamingTitle(value: string): void;
@@ -347,6 +349,7 @@ function SortableTaskRow({
           }}
         >
           <span className="task-title">{task.pinned && <Pin size={11} className="task-pin" />}{task.title}</span>
+          {unread && <span className="task-unread" title="Finished while you were elsewhere" aria-label="Unread reply" />}
         </button>
       )}
       {renamingId !== task.id && (
@@ -489,6 +492,11 @@ function App() {
   const [toolsExpanded, setToolsExpanded] = useState(false);
   // Finished turns keep their tool list folded into the reply; this remembers which ones were opened.
   const [expandedTools, setExpandedTools] = useState<Record<string, boolean>>({});
+  // A turn that finishes in a task you are not looking at leaves a dot there.
+  const [unreadTasks, setUnreadTasks] = useState<Record<string, boolean>>({});
+  // Streamed text per task, so a turn keeps writing while another task is open.
+  const streamByTaskRef = useRef<Record<string, string>>({});
+  const activeTaskRef = useRef<string | null>(null);
   const [copiedConversation, setCopiedConversation] = useState(false);
   const [handoffOpen, setHandoffOpen] = useState(false);
 
@@ -718,7 +726,9 @@ function App() {
 
   // 切换任务时清掉上一个任务的流式状态，避免把它的输出显示在另一个任务里。
   useEffect(() => {
-    resetStreamText();
+    activeTaskRef.current = activeTask;
+    assistantTextRef.current = streamByTaskRef.current[activeTask ?? ""] ?? "";
+    setAssistantText(assistantTextRef.current);
     setRunning(false);
     setRunningAgent(null);
     setStopping(false);
@@ -726,13 +736,14 @@ function App() {
   }, [activeTask]);
 
   useEffect(() => window.tango.onCodexEvent((taskId, event) => {
-    if (taskId !== activeTask) return;
-    if (event.type === "delta" && typeof event.text === "string") appendStreamText(event.text);
+    // Events keep coming for a task you switched away from; only the screen parts are limited
+    // to the open task, the transcript update is not.
+    const isOpen = taskId === activeTaskRef.current;
+    if (event.type === "delta" && typeof event.text === "string") appendStreamText(taskId, event.text);
     if (event.type === "turn/completed") {
-      endTurn(taskId);
-      const text = assistantTextRef.current;
+      const text = streamByTaskRef.current[taskId] ?? "";
       const tools = finishTools(taskId);
-      resetStreamText();
+      resetStreamText(taskId);
       const answer = text.trim() ? text : noAnswerText("codex", tools);
       stoppedByUserRef.current = false;
       if (answer) {
@@ -745,10 +756,12 @@ function App() {
               }],
             }
           : task));
+        if (!isOpen) setUnreadTasks((current) => ({ ...current, [taskId]: true }));
       }
+      if (isOpen) endTurn(taskId);
     }
     if (event.type === "tool") recordTool(taskId, event as { id?: string; name?: string; status?: string });
-    if (event.type === "permission/request") {
+    if (event.type === "permission/request" && isOpen) {
       const options = Array.isArray(event.options)
         ? (event.options as Array<{ optionId: string; label?: string; name?: string; kind?: string }>)
           .map((option) => ({ optionId: option.optionId, name: option.label ?? option.name ?? option.optionId, kind: option.kind }))
@@ -762,31 +775,31 @@ function App() {
         options,
       });
     }
-    if (event.type === "process/exit" || event.type === "process/error") {
+    if ((event.type === "process/exit" || event.type === "process/error") && isOpen) {
       setRunning(false);
       setRunningAgent(null);
       if (event.type === "process/error") setAssistantText(String(event.message ?? "The agent process could not start"));
     }
-  }), [activeTask]);
+  }), []);
 
   useEffect(() => window.tango.onClaudeEvent((taskId, event) => {
-    if (taskId !== activeTask) return;
-    if (event.type === "delta" && typeof event.text === "string") appendStreamText(event.text);
+    const isOpen = taskId === activeTaskRef.current;
+    if (event.type === "delta" && typeof event.text === "string") appendStreamText(taskId, event.text);
     if (event.type === "tool") recordTool(taskId, event as { id?: string; name?: string; status?: string });
-    if (event.type === "turn/completed") endTurn(taskId);
-    if (event.type === "process/error") {
+    if (event.type === "turn/completed" && isOpen) endTurn(taskId);
+    if (event.type === "process/error" && isOpen) {
       setRunning(false);
       setRunningAgent(null);
       setAssistantText(String(event.message ?? "Claude Code could not start"));
     }
-  }), [activeTask]);
+  }), []);
   useEffect(() => window.tango.onDshEvent((taskId, event) => {
-    if (taskId !== activeTask) return;
+    const isOpen = taskId === activeTaskRef.current;
     // The process exits right after each turn, so only an unexpected exit while the
     // turn is still running counts as a failure.
     if (event.type === "process/exit") {
-      liveTaskRef.current = null;
-      endTurn(taskId);
+      if (liveTaskRef.current?.id === taskId) liveTaskRef.current = null;
+      if (isOpen) endTurn(taskId);
     }
     if (event.type === "delta" && typeof event.text === "string") appendLiveText(taskId, "dsh", event.text);
     if (event.type === "session/update") {
@@ -799,7 +812,7 @@ function App() {
         });
       }
     }
-    if (event.type === "permission/request") {
+    if (event.type === "permission/request" && isOpen) {
       const params = event.params as {
         toolCall?: { title?: string };
         options?: Array<{ optionId: string; name: string; kind?: string }>;
@@ -812,12 +825,12 @@ function App() {
         options: Array.isArray(params?.options) ? params.options : [],
       });
     }
-  }), [activeTask]);
+  }), []);
   useEffect(() => window.tango.onPiEvent((taskId, event) => {
-    if (taskId !== activeTask) return;
-    if (event.type === "delta" && typeof event.text === "string") appendStreamText(event.text);
+    const isOpen = taskId === activeTaskRef.current;
+    if (event.type === "delta" && typeof event.text === "string") appendStreamText(taskId, event.text);
     if (event.type === "tool") recordTool(taskId, event as { id?: string; name?: string; status?: string });
-    if (event.type === "permission/request") {
+    if (event.type === "permission/request" && isOpen) {
       const options = Array.isArray(event.options)
         ? (event.options as Array<{ optionId: string; label?: string; kind?: string }>)
           .map((option) => ({ optionId: option.optionId, name: option.label ?? option.optionId, kind: option.kind }))
@@ -840,10 +853,10 @@ function App() {
         ? String((event.input as { prefill?: string }).prefill)
         : "");
     }
-    if (event.type === "agent_end" || event.type === "process/exit" || event.type === "process/error") {
+    if ((event.type === "agent_end" || event.type === "process/exit" || event.type === "process/error") && isOpen) {
       endTurn(taskId);
     }
-  }), [activeTask]);
+  }), []);
 
   async function answerPermission(optionId: string | null, text?: string) {
     if (!permission) return;
@@ -908,14 +921,25 @@ function App() {
 
   // Streamed text lives in state for the screen and in a ref for handlers that finish a turn;
   // a state updater can run twice, so the message must never be appended from inside one.
-  function appendStreamText(text: string) {
-    assistantTextRef.current += text;
-    setAssistantText(assistantTextRef.current);
+  function appendStreamText(taskId: string, text: string) {
+    const next = (streamByTaskRef.current[taskId] ?? "") + text;
+    streamByTaskRef.current = { ...streamByTaskRef.current, [taskId]: next };
+    if (taskId !== activeTaskRef.current) return;
+    assistantTextRef.current = next;
+    setAssistantText(next);
   }
 
-  function resetStreamText(value = "") {
-    assistantTextRef.current = value;
-    setAssistantText(value);
+  function resetStreamText(taskId?: string) {
+    if (taskId) {
+      const next = { ...streamByTaskRef.current };
+      delete next[taskId];
+      streamByTaskRef.current = next;
+      if (taskId !== activeTaskRef.current) return;
+    } else {
+      streamByTaskRef.current = {};
+    }
+    assistantTextRef.current = "";
+    setAssistantText("");
   }
 
   // A turn can end without any streamed text when the agent fails or stops. The transcript
@@ -1007,6 +1031,7 @@ function App() {
       .find((message) => message.role === "assistant")?.agent;
     const remembered = (["codex", "claude", "dsh", "pi"] as const).find((id) => id === lastAgent);
     setActiveTask(taskId);
+    setUnreadTasks((current) => (current[taskId] ? { ...current, [taskId]: false } : current));
     setActiveAgent(remembered ?? settings?.defaultAgent ?? "codex");
     window.requestAnimationFrame(() => composerRef.current?.focus());
   }
@@ -1111,7 +1136,9 @@ function App() {
   async function startTurn(agent: AgentStatus["id"], task: TaskRecord, text: string) {
     setPrompt("");
     promptHistoryRef.current = null;
-    resetStreamText();
+    resetStreamText(task.id);
+    assistantTextRef.current = "";
+    setAssistantText("");
     setToolActivity((current) => (current[task.id]?.length ? { ...current, [task.id]: [] } : current));
     toolActivityRef.current = { ...toolActivityRef.current, [task.id]: [] };
     setRunning(true);
@@ -1149,7 +1176,8 @@ function App() {
         return { ...item, ...patch, messages };
       }));
       liveTaskRef.current = null;
-      resetStreamText();
+      resetStreamText(task.id);
+      if (task.id !== activeTaskRef.current) setUnreadTasks((current) => ({ ...current, [task.id]: true }));
     };
     try {
       if (agent === "pi") {
@@ -1552,6 +1580,7 @@ function App() {
                   key={task.id}
                   task={task}
                   selected={task.id === activeTask}
+                  unread={Boolean(unreadTasks[task.id])}
                   renamingId={renamingId}
                   renamingTitle={renamingTitle}
                   setRenamingTitle={setRenamingTitle}

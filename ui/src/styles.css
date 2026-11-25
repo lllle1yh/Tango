@@ -444,6 +444,8 @@ button { color: inherit; font: inherit; }
 .task-search input::placeholder { color: var(--fg-subtle); }
 .task-title { display: flex; align-items: center; gap: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task-pin { flex: none; color: var(--fg-subtle); }
+/* A finished turn in another task leaves a small dot here until the task is opened. */
+.task-unread { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
 
 /* Tool rows: icon + status */
 .tool-icon { flex: none; color: var(--fg-subtle); }
