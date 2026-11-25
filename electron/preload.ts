@@ -65,6 +65,8 @@ contextBridge.exposeInMainWorld("tango", {
     ipcRenderer.invoke("codex:send", taskId, prompt),
   codexInterrupt: (taskId: string): Promise<void> =>
     ipcRenderer.invoke("codex:interrupt", taskId),
+  codexRespondPermission: (taskId: string, requestId: number, optionId: string | null): Promise<void> =>
+    ipcRenderer.invoke("codex:permission", taskId, requestId, optionId),
   onCodexEvent: (listener: CodexEventListener): (() => void) => {
     const handle = (_event: Electron.IpcRendererEvent, taskId: string, payload: Record<string, unknown>) =>
       listener(taskId, payload);
@@ -171,6 +173,7 @@ export interface TangoApi {
   codexStart(taskId: string, projectPath: string, prompt: string): Promise<string>;
   codexSend(taskId: string, prompt: string): Promise<void>;
   codexInterrupt(taskId: string): Promise<void>;
+  codexRespondPermission(taskId: string, requestId: number, optionId: string | null): Promise<void>;
   onCodexEvent(listener: (taskId: string, event: Record<string, unknown>) => void): () => void;
   runClaude(taskId: string, projectPath: string, prompt: string): Promise<{ sessionId: string; answer: string }>;
   claudeInterrupt(taskId: string): Promise<void>;

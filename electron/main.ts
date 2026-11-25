@@ -127,6 +127,13 @@ async function saveTasks(tasks: TaskRecord[]) {
   await writeJsonAtomic(tasksFile(), tasks);
 }
 
+const CODEX_APPROVAL_METHODS = new Set([
+  "item/commandExecution/requestApproval",
+  "item/fileChange/requestApproval",
+  "applyPatchApproval",
+  "execCommandApproval",
+]);
+
 function createCodexClient(taskId: string, projectPath: string) {
   // Windows 上全局 npm 安装的 codex 是 .cmd 包装，直接 spawn("codex") 会 ENOENT。
   const spawnChild = require("node:child_process").spawn;
@@ -145,6 +152,7 @@ function createCodexClient(taskId: string, projectPath: string) {
   let buffer = "";
   let threadId: string | undefined;
   let turnId: string | undefined;
+  const serverRequests = new Map<number, { method: string }>();
 
   child.stdout.on("data", (chunk: Buffer) => {
     buffer += chunk.toString();
@@ -154,7 +162,38 @@ function createCodexClient(taskId: string, projectPath: string) {
       if (!line) continue;
       let message: any;
       try { message = JSON.parse(line); } catch { continue; }
-      if (typeof message.id === "number" && pending.has(message.id)) {
+      if (typeof message.method === "string" && !pending.has(message.id) && message.id !== undefined
+        && CODEX_APPROVAL_METHODS.has(message.method)) {
+        serverRequests.set(message.id, { method: message.method });
+        const params = message.params ?? {};
+        const legacy = message.method === "applyPatchApproval" || message.method === "execCommandApproval";
+        const command = Array.isArray(params.command) ? params.command.join(" ") : params.command;
+        const files = params.fileChanges && typeof params.fileChanges === "object"
+          ? Object.keys(params.fileChanges).slice(0, 6).join(", ")
+          : undefined;
+        const title = message.method === "item/fileChange/requestApproval" || message.method === "applyPatchApproval"
+          ? "Apply file changes"
+          : "Run a command";
+        const detail = command || files || params.reason || params.cwd || "";
+        sendCodexEvent(taskId, {
+          type: "permission/request",
+          requestId: message.id,
+          method: message.method,
+          title,
+          detail,
+          options: legacy
+            ? [
+                { optionId: "approved", label: "Allow", kind: "allow_once" },
+                { optionId: "approved_for_session", label: "Always allow", kind: "allow_always" },
+                { optionId: "abort", label: "Decline", kind: "reject_once" },
+              ]
+            : [
+                { optionId: "accept", label: "Allow", kind: "allow_once" },
+                { optionId: "acceptForSession", label: "Always allow", kind: "allow_always" },
+                { optionId: "decline", label: "Decline", kind: "reject_once" },
+              ],
+        });
+      } else if (typeof message.id === "number" && pending.has(message.id)) {
         const waiter = pending.get(message.id)!;
         pending.delete(message.id);
         if (message.error) waiter.reject(new Error(message.error.message ?? "Codex request failed"));
@@ -251,7 +290,26 @@ function createCodexClient(taskId: string, projectPath: string) {
     threadId = result.thread.id;
   }
 
-  return { initialize, start, send, interrupt, resume, get threadId() { return threadId; }, dispose: () => { void terminateChild(child); } };
+  function respondPermission(requestId: number, optionId: string | null) {
+    const request = serverRequests.get(requestId);
+    if (!request) return false;
+    serverRequests.delete(requestId);
+    const legacy = request.method === "applyPatchApproval" || request.method === "execCommandApproval";
+    const fallback = legacy ? "abort" : "decline";
+    child.stdin.write(JSON.stringify({ id: requestId, result: { decision: optionId ?? fallback } }) + String.fromCharCode(10));
+    return true;
+  }
+
+  return {
+    initialize,
+    start,
+    send,
+    interrupt,
+    resume,
+    respondPermission,
+    get threadId() { return threadId; },
+    dispose: () => { void terminateChild(child); },
+  };
 }
 
 function sendCodexEvent(taskId: string, payload: Record<string, unknown>) {
@@ -948,6 +1006,13 @@ function registerIpc() {
   ipcMain.handle("codex:interrupt", async (event: IpcMainInvokeEvent, taskId: string) => {
     assertTrustedSender(event);
     await codexProcesses.get(taskId)?.interrupt();
+  });
+  ipcMain.handle("codex:permission", async (event: IpcMainInvokeEvent, taskId: string, requestId: number, optionId: string | null) => {
+    assertTrustedSender(event);
+    if (!Number.isInteger(requestId)) throw new Error("Invalid permission request");
+    if (optionId !== null && typeof optionId !== "string") throw new Error("Invalid permission option");
+    const handled = codexProcesses.get(taskId)?.respondPermission(requestId, optionId) ?? false;
+    if (!handled) throw new Error("Permission request is no longer pending");
   });
   ipcMain.handle("claude:run", async (event: IpcMainInvokeEvent, taskId: string, projectPath: string, prompt: string) => {
     assertTrustedSender(event);

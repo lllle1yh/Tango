@@ -478,8 +478,10 @@ function App() {
   };
   const [permission, setPermission] = useState<{
     taskId: string;
+    agent: "codex" | "dsh";
     requestId: number;
     title: string;
+    detail?: string;
     options: Array<{ optionId: string; name: string; kind?: string }>;
   } | null>(null);
 
@@ -535,6 +537,20 @@ function App() {
       });
     }
     if (event.type === "tool") recordTool(taskId, event as { id?: string; name?: string; status?: string });
+    if (event.type === "permission/request") {
+      const options = Array.isArray(event.options)
+        ? (event.options as Array<{ optionId: string; label?: string; name?: string; kind?: string }>)
+          .map((option) => ({ optionId: option.optionId, name: option.label ?? option.name ?? option.optionId, kind: option.kind }))
+        : [];
+      setPermission({
+        taskId,
+        agent: "codex",
+        requestId: Number(event.requestId),
+        title: String(event.title ?? "Codex is asking for permission."),
+        detail: typeof event.detail === "string" ? event.detail : undefined,
+        options,
+      });
+    }
     if (event.type === "process/exit" || event.type === "process/error") {
       setRunning(false);
       setRunningAgent(null);
@@ -574,6 +590,7 @@ function App() {
       } | undefined;
       setPermission({
         taskId,
+        agent: "dsh",
         requestId: Number(event.requestId),
         title: params?.toolCall?.title ?? "The agent is asking for permission.",
         options: Array.isArray(params?.options) ? params.options : [],
@@ -595,7 +612,11 @@ function App() {
     const current = permission;
     setPermission(null);
     try {
-      await window.tango.dshRespondPermission(current.taskId, current.requestId, optionId);
+      if (current.agent === "codex") {
+        await window.tango.codexRespondPermission(current.taskId, current.requestId, optionId);
+      } else {
+        await window.tango.dshRespondPermission(current.taskId, current.requestId, optionId);
+      }
     } catch (error) {
       setAssistantText(error instanceof Error ? error.message : "Could not answer the permission request");
     }
@@ -1168,6 +1189,7 @@ function App() {
                 {permission && permission.taskId === activeTask && (
                   <div className="permission-request" role="alertdialog" aria-label="Agent permission request">
                     <p className="permission-title">{permission.title}</p>
+                    {permission.detail && <pre className="permission-detail">{permission.detail}</pre>}
                     <div className="permission-actions">
                       {permission.options.map((option) => (
                         <button
