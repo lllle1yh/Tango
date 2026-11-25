@@ -699,7 +699,8 @@ function App() {
         return;
       }
       // Alt+Up / Alt+Down walk the task list without leaving the conversation.
-      if (walkTasks && !inComposer(event.target)) {
+      // The composer keeps the arrows for its own prompt history.
+      if (walkTasks && !inComposer(event.target) && !inComposer(document.activeElement)) {
         event.preventDefault();
         const ids = projectTasks.map((task) => task.id);
         if (ids.length > 0) {
