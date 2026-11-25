@@ -13,6 +13,11 @@ import { Check, Copy, GripVertical, PanelLeft, Pin, Search, TerminalSquare, File
 import "./layout.css";
 import "./agent-icons.css";
 
+// Windows paths use backslashes, other platforms slashes; the label is only the last part.
+function projectLabel(projectPath: string) {
+  return projectPath.split("\\").at(-1)?.split("/").at(-1) ?? projectPath;
+}
+
 function FolderIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -876,6 +881,31 @@ function App() {
     }
   }
 
+  // Folders this app has tasks in, newest first, so switching back needs no dialog.
+  const recentProjects = (() => {
+    const latest = new Map<string, string>();
+    for (const task of tasks) {
+      const at = task.messages.at(-1)?.createdAt ?? "";
+      if (!latest.has(task.projectPath) || at > (latest.get(task.projectPath) ?? "")) latest.set(task.projectPath, at);
+    }
+    return [...latest.entries()]
+      .sort((a, b) => b[1].localeCompare(a[1]))
+      .map(([projectPath]) => projectPath)
+      .filter((projectPath) => projectPath !== project);
+  })();
+
+  async function switchProject(projectPath: string) {
+    setWorkspaceError(null);
+    try {
+      const selected = await window.tango.setWorkspace(projectPath);
+      setProject(selected);
+      setActiveTask(null);
+      setActiveAgent(null);
+    } catch (error) {
+      setWorkspaceError(errorText(error, "Could not switch project"));
+    }
+  }
+
   async function openProject() {
     setWorkspaceError(null);
     try {
@@ -1459,7 +1489,7 @@ function App() {
     if (command.name !== "clear") command.run?.();
   }
 
-  const projectName = project?.split(/[\\/]/).filter(Boolean).at(-1);
+  const projectName = project ? projectLabel(project) : undefined;
   const paneIdList = layoutRoot ? paneIds(layoutRoot) : [];
   const terminalLabels = Object.fromEntries(paneIdList.map((id, index) => [id, "Shell " + (index + 1)]));
   return (
@@ -1516,6 +1546,21 @@ function App() {
           </div>
         ) : (
           <p className="sidebar-hint">No project selected.</p>
+        )}
+        {recentProjects.length > 0 && (
+          <>
+            <div className="sidebar-label">RECENT</div>
+            <ul className="recent-projects">
+              {recentProjects.slice(0, 5).map((projectPath) => (
+                <li key={projectPath}>
+                  <button className="recent-project" title={projectPath} onClick={() => void switchProject(projectPath)}>
+                    <FolderIcon />
+                    <span>{projectLabel(projectPath)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
         {workspaceError && <p className="sidebar-hint sidebar-error" role="alert">{workspaceError}</p>}
 

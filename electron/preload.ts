@@ -32,6 +32,7 @@ export type LayoutNode = { type: "pane"; id: string } | {
 contextBridge.exposeInMainWorld("tango", {
   getWorkspace: (): Promise<string | null> => ipcRenderer.invoke("workspace:get"),
   openWorkspace: (): Promise<string | null> => ipcRenderer.invoke("workspace:open"),
+  setWorkspace: (projectPath: string): Promise<string> => ipcRenderer.invoke("workspace:set", projectPath),
   detectAgents: (): Promise<AgentStatus[]> => ipcRenderer.invoke("agents:detect"),
   detectMagpie: (): Promise<{ available: boolean; version: string | null }> => ipcRenderer.invoke("tools:magpie"),
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke("settings:get"),
@@ -168,6 +169,7 @@ export interface TaskRecord {
 export interface TangoApi {
   getWorkspace(): Promise<string | null>;
   openWorkspace(): Promise<string | null>;
+  setWorkspace(projectPath: string): Promise<string>;
   detectAgents(): Promise<AgentStatus[]>;
   detectMagpie(): Promise<{ available: boolean; version: string | null }>;
   getSettings(): Promise<AppSettings>;

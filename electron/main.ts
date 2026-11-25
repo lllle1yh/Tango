@@ -966,6 +966,23 @@ function registerIpc() {
     if (!currentProjectPath) currentProjectPath = await readLastWorkspace();
     return currentProjectPath;
   });
+  // Switching to a folder you have already used needs no dialog; the picker is for new ones.
+  ipcMain.handle("workspace:set", async (event: IpcMainInvokeEvent, projectPath: string) => {
+    assertTrustedSender(event);
+    if (typeof projectPath !== "string" || !projectPath) throw new Error("Project path is required");
+    const resolved = await realpath(projectPath);
+    const tasks = await readTasks();
+    if (!tasks.some((task) => task.projectPath === resolved)) throw new Error("No tasks in that project");
+    const info = await stat(resolved);
+    if (!info.isDirectory()) throw new Error("Project path is not a folder");
+    currentProjectPath = resolved;
+    try {
+      await writeJsonAtomic(workspaceFile(), { projectPath: resolved });
+    } catch (error) {
+      console.warn("Could not persist the selected project:", error);
+    }
+    return resolved;
+  });
   ipcMain.handle("workspace:open", async (event: IpcMainInvokeEvent) => {
     assertTrustedSender(event);
     const options: Electron.OpenDialogOptions = {
