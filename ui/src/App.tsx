@@ -22,6 +22,14 @@ function FolderIcon() {
   );
 }
 
+// The first line of a prompt, shortened, works better than "New task" in the sidebar.
+function titleFromPrompt(text: string) {
+  const firstLine = text.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? "";
+  const cleaned = firstLine.replace(/^[/#>\-*]+\s*/, "");
+  if (!cleaned) return null;
+  return cleaned.length > 60 ? cleaned.slice(0, 57).trimEnd() + "…" : cleaned;
+}
+
 function AgentGlyph({ agentId }: { agentId: AgentStatus["id"] }) {
   const icon = {
     codex: "codex.svg",
@@ -900,14 +908,17 @@ function App() {
     setRunningAgent(agent);
     const waitsForTurnEnd = agent !== "codex";
     const baseMessages = task.messages;
+    // The prompt is also the turn's name until the task is renamed by hand.
     const userMessage = { role: "user" as const, agent, text, createdAt: new Date().toISOString() };
+    const taskTitle = task.title === "New task" ? titleFromPrompt(text) : null;
     // DSH streams its answer as `delta` events. Those are written straight into the task
     // so the live text and the finished transcript are the same message, not shown twice.
     liveTaskRef.current = { id: task.id, agent, baseMessages, userMessage, readyLength: baseMessages.length + 1, streams: agent === "dsh" };
     // Show the prompt as soon as it is sent; the agent's answer lands when the turn reports back.
     setTasks((current) => current.map((item) => item.id === task.id
-      ? { ...item, messages: [...item.messages, userMessage] }
+      ? { ...item, ...(taskTitle ? { title: taskTitle } : {}), messages: [...item.messages, userMessage] }
       : item));
+    if (taskTitle) void window.tango.renameTask(task.id, taskTitle);
     // The prompt is already in the transcript. DSH writes its answer as it streams, so the
     // reported answer is only appended when the transcript does not already end with it.
     const appendTurn = (answer: string, patch: Partial<TaskRecord>) => {
