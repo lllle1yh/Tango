@@ -929,6 +929,16 @@ function App() {
 
   const activeMessages = tasks.find((task) => task.id === activeTask)?.messages ?? [];
 
+  // The chip reflects what this task actually used last; a fresh task falls back to the
+  // selected agent so the header still says who will answer.
+  const activeTaskRecord = tasks.find((task) => task.id === activeTask);
+  const agentIds: Array<AgentStatus["id"]> = ["codex", "claude", "dsh", "pi"];
+  const lastAgent = [...activeTaskRecord?.messages ?? []].reverse()
+    .find((message) => message.role === "assistant")?.agent;
+  const historicalAgent = agentIds.find((id) => id === lastAgent);
+  const headerAgent: AgentStatus["id"] | undefined = activeAgent ?? historicalAgent
+    ?? (activeTaskRecord?.threadId ? "codex" : undefined);
+
   type ChatRow =
     | { kind: "message"; id: string; message: TaskRecord["messages"][number] }
     | { kind: "stream"; id: string }
@@ -1271,14 +1281,17 @@ function App() {
               </div>
             </div>
 
-            {activeAgent && activeTask && (
+            {headerAgent && activeTask && (
               <div className="conversation">
                 <div className="conversation-heading">
                   <span className="conversation-title">{tasks.find((task) => task.id === activeTask)?.title}</span>
-                  {activeAgent && agents.find((agent) => agent.id === activeAgent) && (
-                    <span className="conversation-agent" title="Agent handling this task">
-                      <AgentGlyph agentId={activeAgent} />
-                      {agents.find((agent) => agent.id === activeAgent)!.name}
+                  {headerAgent && (
+                    <span
+                      className="conversation-agent"
+                      title={`${agents.find((agent) => agent.id === headerAgent)?.name ?? headerAgent} is selected for this task`}
+                    >
+                      <AgentGlyph agentId={headerAgent} />
+                      {agents.find((agent) => agent.id === headerAgent)?.name ?? headerAgent}
                     </span>
                   )}
                   <button
@@ -1334,7 +1347,11 @@ function App() {
                           >
                             {row.kind === "message" && (
                               <article className={"message " + row.message.role}>
-                                <span>{row.message.agent}</span>
+                                <span className="message-role">
+                                  {row.message.role === "user"
+                                    ? "You"
+                                    : agents.find((agent) => agent.id === row.message.agent)?.name ?? row.message.agent}
+                                </span>
                                 <Markdown text={row.message.text} />
                                 <button
                                   className="message-copy"
@@ -1353,7 +1370,9 @@ function App() {
                             )}
                             {row.kind === "stream" && (
                               <article className="message assistant">
-                                <span>{activeAgent}</span>
+                                <span className="message-role">
+                                  {agents.find((agent) => agent.id === activeAgent)?.name ?? activeAgent}
+                                </span>
                                 {assistantText ? <Markdown text={assistantText} /> : <p>Working…</p>}
                               </article>
                             )}
