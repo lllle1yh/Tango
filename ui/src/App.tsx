@@ -385,6 +385,7 @@ function App() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
+  const draftTaskRef = useRef<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renamingTitle, setRenamingTitle] = useState("");
   const [taskMenu, setTaskMenu] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -465,6 +466,23 @@ function App() {
       .catch(() => { if (alive) setPiCommands([]); });
     return () => { alive = false; };
   }, [activeAgent, activeTask, tasks]);
+
+  // Drafts belong to a task: switching away keeps what was typed.
+  useEffect(() => {
+    if (!activeTask) {
+      draftTaskRef.current = null;
+      setPrompt("");
+      return;
+    }
+    draftTaskRef.current = activeTask;
+    setPrompt(localStorage.getItem("tango.draft." + activeTask) ?? "");
+  }, [activeTask]);
+
+  useEffect(() => {
+    if (!activeTask || draftTaskRef.current !== activeTask) return;
+    if (prompt) localStorage.setItem("tango.draft." + activeTask, prompt);
+    else localStorage.removeItem("tango.draft." + activeTask);
+  }, [prompt, activeTask]);
 
   // Grow the composer with the draft instead of showing a scrollbar early.
   useEffect(() => {
