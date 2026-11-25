@@ -1680,6 +1680,9 @@ function App() {
   const virtualRows = chatVirtualizer.getVirtualItems();
 
   const paletteItems: PaletteItem[] = [
+    { id: "a-search", group: "Actions", label: "Search tasks", hint: "Ctrl F", run: () => { window.requestAnimationFrame(() => taskSearchRef.current?.focus()); } },
+    { id: "a-sidebar", group: "Actions", label: "Show or hide the sidebar", hint: "Ctrl B", run: () => updateSettings({ sidebarCollapsed: !settings?.sidebarCollapsed }) },
+    { id: "a-theme", group: "Actions", label: "Toggle light / dark theme", run: () => updateSettings({ theme: settings?.theme === "dark" ? "light" : "dark" }) },
     { id: "a-new", group: "Actions", label: "New task", hint: "Ctrl N", run: () => void createTask() },
     { id: "a-settings", group: "Actions", label: "Settings", hint: "Ctrl ,", run: () => setSettingsOpen(true) },
     { id: "a-shortcuts", group: "Actions", label: "Keyboard shortcuts", run: () => setShortcutsOpen(true) },
@@ -1701,20 +1704,16 @@ function App() {
       run: () => void duplicateTask(activeTask),
     }] : []),
     { id: "a-shell", group: "Actions", label: "Show terminal", run: () => setActiveAgent(null) },
-    {
-      id: "a-theme", group: "Actions", label: "Toggle light / dark theme",
-      run: () => updateSettings({ theme: settings?.theme === "dark" ? "light" : "dark" }),
-    },
     ...recentProjects.slice(0, 5).map((projectPath): PaletteItem => ({
       id: "p-" + projectPath,
-      group: "Projects",
+      group: "Go to",
       label: "Switch to " + projectLabel(projectPath),
       hint: projectPath,
       run: () => void switchProject(projectPath),
     })),
     ...tasks.map((task): PaletteItem => ({
       id: "t-" + task.id,
-      group: "Tasks",
+      group: "Go to",
       label: task.title,
       hint: task.archived ? "archived" : undefined,
       run: () => openTask(task.id),

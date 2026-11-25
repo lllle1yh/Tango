@@ -3,7 +3,7 @@ import { Command } from "cmdk";
 export type PaletteItem = {
   id: string;
   label: string;
-  group: "Actions" | "Projects" | "Tasks" | "Agents";
+  group: "Actions" | "Go to" | "Agents";
   hint?: string;
   run(): void;
 };
@@ -18,12 +18,19 @@ export function CommandPalette({
   onClose(): void;
 }) {
   if (!open) return null;
-  const groups: PaletteItem["group"][] = ["Actions", "Projects", "Tasks", "Agents"];
+  const groups: PaletteItem["group"][] = ["Actions", "Go to", "Agents"];
+  // Sections are capped: one project with many tasks must not bury Settings below the fold.
+  const visible = (group: PaletteItem["group"]) => {
+    const groupItems = items.filter((item) => item.group === group);
+    if (group === "Actions") return groupItems;
+    return groupItems.slice(0, 8);
+  };
   return (
     <div className="palette-backdrop" onMouseDown={onClose}>
       <Command
         className="palette"
         label="Command palette"
+        loop
         onMouseDown={(event) => event.stopPropagation()}
         onKeyDown={(event) => { if (event.key === "Escape") onClose(); }}
       >
@@ -31,7 +38,7 @@ export function CommandPalette({
         <Command.List className="palette-list">
           <Command.Empty className="palette-empty">No results.</Command.Empty>
           {groups.map((group) => {
-            const groupItems = items.filter((item) => item.group === group);
+            const groupItems = visible(group);
             if (!groupItems.length) return null;
             return (
               <Command.Group key={group} heading={group} className="palette-group">
