@@ -852,6 +852,25 @@ function App() {
     }
   }
 
+  async function toggleArchiveActive() {
+    const task = tasks.find((item) => item.id === activeTask);
+    if (!task) return;
+    if (task.running) {
+      setAssistantText("Stop the current turn before archiving this task.");
+      return;
+    }
+    await archiveTaskAction(task.id, !task.archived);
+  }
+
+  async function deleteActiveTask() {
+    if (activeTask) await deleteTaskAction(activeTask);
+  }
+
+  async function togglePinActive() {
+    const task = tasks.find((item) => item.id === activeTask);
+    if (task) await pinTaskAction(task.id, !task.pinned);
+  }
+
   async function deleteTaskAction(taskId: string) {
     setTaskMenu(null);
     const target = tasks.find((task) => task.id === taskId);
@@ -1107,6 +1126,11 @@ function App() {
     { name: "settings", label: "Open settings", run: () => setSettingsOpen(true) },
     { name: "shell", label: "Show terminal", run: () => setActiveAgent(null) },
     { name: "project", label: "Open project folder", run: () => void openProject() },
+    { name: "rename", label: "Rename this task", run: () => renameActiveTask() },
+    { name: "archive", label: "Archive or restore this task", run: () => void toggleArchiveActive() },
+    { name: "unarchive", label: "Restore this task from Archived", run: () => void toggleArchiveActive() },
+    { name: "pin", label: "Pin or unpin this task", run: () => void togglePinActive() },
+    { name: "delete", label: "Delete this task", run: () => void deleteActiveTask() },
     { name: "clear", label: "Clear the input", run: () => { /* handled by caller */ } },
     ...piCommands.map((command) => ({
       name: command.name,
