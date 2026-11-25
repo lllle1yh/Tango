@@ -1809,22 +1809,29 @@ function App() {
       ],
     },
   ];
+  // Only the commands that apply right now: an archived task offers Restore, an open one Archive.
+  const slashTask = tasks.find((task) => task.id === activeTask);
   const slashCommands: Array<{ name: string; label: string; insert?: string; run?: () => void }> = [
     { name: "new", label: "New task", run: () => void createTask() },
     { name: "settings", label: "Open settings", run: () => setSettingsOpen(true) },
     { name: "shell", label: "Show terminal", run: () => setActiveAgent(null) },
     { name: "project", label: "Open project folder", run: () => void openProject() },
-    { name: "rename", label: "Rename this task", run: () => renameActiveTask() },
-    { name: "archive", label: "Archive or restore this task", run: () => void toggleArchiveActive() },
-    { name: "unarchive", label: "Restore this task from Archived", run: () => void toggleArchiveActive() },
-    { name: "pin", label: "Pin or unpin this task", run: () => void togglePinActive() },
-    { name: "delete", label: "Delete this task", run: () => void deleteActiveTask() },
+    ...(slashTask ? [{ name: "rename", label: "Rename this task", run: () => renameActiveTask() }] : []),
+    ...(slashTask?.archived
+      ? [{ name: "unarchive", label: "Restore this task from Archived", run: () => void toggleArchiveActive() }]
+      : slashTask
+        ? [{ name: "archive", label: "Archive this task", run: () => void toggleArchiveActive() }]
+        : []),
+    ...(slashTask
+      ? [{ name: "pin", label: slashTask.pinned ? "Unpin this task" : "Pin this task to the top", run: () => void togglePinActive() }]
+      : []),
+    ...(slashTask ? [{ name: "delete", label: "Delete this task", run: () => void deleteActiveTask() }] : []),
     { name: "clear", label: "Clear the input", run: () => { /* handled by caller */ } },
-    ...piCommands.map((command) => ({
+    ...(activeAgent === "pi" ? piCommands.map((command) => ({
       name: command.name,
       label: command.description?.split(/\n/)[0].slice(0, 72) ?? "Pi command",
       insert: "/" + command.name,
-    })),
+    })) : []),
   ];
   const slashQuery = prompt.startsWith("/") && !prompt.includes(" ") ? prompt.slice(1).toLowerCase() : null;
   const slashItems = slashQuery === null
