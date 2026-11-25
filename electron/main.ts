@@ -791,6 +791,14 @@ function registerIpc() {
     if (!next || typeof next !== "object") throw new Error("Invalid settings");
     const settings = sanitizeSettings({ ...(await readSettings()), ...next });
     cachedSettings = settings;
+    // The native window-control overlay sits above the web page; keep it in step with the theme.
+    if (mainWindow && process.platform === "win32") {
+      mainWindow.setTitleBarOverlay({
+        color: settings.theme === "dark" ? "#0a0a0a" : "#fafafa",
+        symbolColor: settings.theme === "dark" ? "#f4f4f5" : "#18181b",
+        height: 44,
+      });
+    }
     try {
       await writeJsonAtomic(settingsFile(), settings);
     } catch (error) {
