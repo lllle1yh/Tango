@@ -2388,7 +2388,7 @@ function App() {
                                     </button>
                                   </div>
                                 ) : (
-                                  <Markdown text={row.message.text} />
+                                  <Markdown text={row.message.text} highlight={chatSearchOpen ? chatNeedle : undefined} />
                                 )}
                                 {row.message.role === "user" && !handoff && !isActiveTaskRunning && (
                                   <button

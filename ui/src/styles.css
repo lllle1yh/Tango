@@ -447,6 +447,10 @@ button { color: inherit; font: inherit; }
 .task-drag:active { cursor: grabbing; }
 .task-row .task-link { padding-left: 2px; }
 
+/* Conversation search: the hit itself is marked, the sentence around it is not. */
+.markdown mark.chat-hit { padding: 0 1px; border-radius: 2px; background: #fde68a; color: inherit; }
+:root[data-theme="dark"] .markdown mark.chat-hit { background: #7c5c12; color: #fef3c7; }
+
 /* Code token colours (highlight.js classes) */
 .markdown .hljs-comment, .markdown .hljs-quote { color: #6e7781; font-style: italic; }
 .markdown .hljs-keyword, .markdown .hljs-selector-tag, .markdown .hljs-literal { color: #cf222e; }
