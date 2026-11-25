@@ -307,6 +307,8 @@ function SortableTaskRow({
   onOpen,
   onStartRename,
   onDuplicate,
+  onPin,
+  onArchive,
   onCommitRename,
   onCancelRename,
   onMenu,
@@ -321,6 +323,8 @@ function SortableTaskRow({
   onOpen(id: string): void;
   onStartRename(task: TaskRecord): void;
   onDuplicate(id: string): void;
+  onPin(id: string): void;
+  onArchive(id: string): void;
   onCommitRename(id: string): void;
   onCancelRename(): void;
   onMenu(id: string, x: number, y: number): void;
@@ -358,6 +362,26 @@ function SortableTaskRow({
           <span className="task-title">{task.pinned && <Pin size={11} className="task-pin" />}{task.title}</span>
           {unread && <span className="task-unread" title="Finished while you were elsewhere" aria-label="Unread reply" />}
         </button>
+      )}
+      {renamingId !== task.id && (
+        <>
+          <button
+            className="task-quick"
+            aria-label={task.pinned ? "Unpin task" : "Pin task"}
+            title={task.pinned ? "Unpin task" : "Pin to top"}
+            onClick={(event) => { event.stopPropagation(); onPin(task.id); }}
+          >
+            <Pin size={12} />
+          </button>
+          <button
+            className="task-quick"
+            aria-label="Archive task"
+            title="Archive task"
+            onClick={(event) => { event.stopPropagation(); onArchive(task.id); }}
+          >
+            <Archive size={12} />
+          </button>
+        </>
       )}
       {renamingId !== task.id && (
         <button
@@ -1697,6 +1721,8 @@ function App() {
                   onOpen={openTask}
                   onStartRename={startRename}
                   onDuplicate={(id) => void duplicateTask(id)}
+                  onPin={(id) => { const task = tasks.find((item) => item.id === id); if (task) void pinTaskAction(id, !task.pinned); }}
+                  onArchive={(id) => void archiveTaskAction(id, true)}
                   onCommitRename={(id) => void commitRename(id)}
                   onCancelRename={() => setRenamingId(null)}
                   onMenu={(id, x, y) => setTaskMenu({ id, x, y })}
