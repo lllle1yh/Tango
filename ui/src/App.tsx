@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
+import { siAnthropic, siDeepseek, siPi } from "simple-icons";
 import type { AgentStatus, LayoutNode, TaskRecord } from "../../electron/preload";
 import "./layout.css";
+import "./agent-icons.css";
 
 function FolderIcon() {
   return (
@@ -14,8 +16,20 @@ function FolderIcon() {
 }
 
 function AgentGlyph({ agentId }: { agentId: AgentStatus["id"] }) {
-  const marks = { codex: "◉", claude: "✳", dsh: "D", pi: "π" };
-  return <span className={"agent-mark " + agentId + "-mark"}>{marks[agentId]}</span>;
+  const icon = agentId === "claude" ? siAnthropic : agentId === "dsh" ? siDeepseek : agentId === "pi" ? siPi : null;
+  return (
+    <span className={"agent-mark " + agentId + "-mark"} aria-hidden="true">
+      {icon ? (
+        <svg viewBox="0 0 24 24"><path d={icon.path} /></svg>
+      ) : (
+        <svg viewBox="0 0 24 24">
+          <path d="M12 3.2 15.1 5l3.6-.1.2 3.7 2 3.1-2 3.1-.2 3.7-3.6-.1-3.1 1.8L8.9 18l-3.6.1-.2-3.7-2-3.1 2-3.1.2-3.7 3.6.1z" />
+          <circle cx="12" cy="11.9" r="3.2" />
+          <path d="m12 8.7 2.1 3.2L12 15l-2.1-3.1z" />
+        </svg>
+      )}
+    </span>
+  );
 }
 
 function paneIds(node: LayoutNode): string[] {

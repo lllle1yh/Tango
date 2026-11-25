@@ -1,0 +1,27 @@
+.agent-mark svg {
+  width: 17px;
+  height: 17px;
+  fill: currentColor;
+}
+
+.codex-mark svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.35;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.claude-mark {
+  color: #c06b43;
+}
+
+.dsh-mark {
+  color: #4038b8;
+}
+
+.pi-mark {
+  color: #5356a6;
+}

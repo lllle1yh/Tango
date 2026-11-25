@@ -5,7 +5,7 @@
   "description": "A local-first workspace for existing AI agents",
   "main": "dist-electron/electron/main.js",
   "scripts": {
-    "dev": "concurrently -k \"vite --host 127.0.0.1 --config ui/vite.config.mts\" \"tsc -p tsconfig.node.json --watch\" \"wait-on tcp:5173 dist-electron/electron/main.js && electron .\"",
+    "dev": "concurrently -k \"vite --host 127.0.0.1 --strictPort --config ui/vite.config.mts\" \"tsc -p tsconfig.node.json --watch\" \"wait-on tcp:5173 dist-electron/electron/main.js && electron .\"",
     "build": "tsc -b && vite build --config ui/vite.config.mts",
     "typecheck": "tsc -b --pretty",
     "terminal:smoke": "npm run build && electron . --pty-smoke"
@@ -15,7 +15,8 @@
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "simple-icons": "^16.38.1"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
