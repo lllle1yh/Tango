@@ -4,6 +4,18 @@ type TerminalDataListener = (terminalId: string, data: string) => void;
 type TerminalExitListener = (terminalId: string, exitCode: number) => void;
 type CodexEventListener = (taskId: string, event: Record<string, unknown>) => void;
 type AgentEventListener = (taskId: string, event: Record<string, unknown>) => void;
+export type WorkspaceLayout = {
+  root: LayoutNode;
+  activePaneId: string;
+};
+export type LayoutNode = { type: "pane"; id: string } | {
+  type: "split";
+  id: string;
+  direction: "horizontal" | "vertical";
+  ratio: number;
+  first: LayoutNode;
+  second: LayoutNode;
+};
 
 contextBridge.exposeInMainWorld("tango", {
   getWorkspace: (): Promise<string | null> => ipcRenderer.invoke("workspace:get"),
@@ -48,9 +60,9 @@ contextBridge.exposeInMainWorld("tango", {
     ipcRenderer.on("pi:event", handle);
     return () => ipcRenderer.removeListener("pi:event", handle);
   },
-  getLayout: (): Promise<{ terminalTabs: string[]; activeTerminal: string } | null> =>
+  getLayout: (): Promise<WorkspaceLayout | null> =>
     ipcRenderer.invoke("layout:get"),
-  saveLayout: (layout: { terminalTabs: string[]; activeTerminal: string }): Promise<void> =>
+  saveLayout: (layout: WorkspaceLayout): Promise<void> =>
     ipcRenderer.invoke("layout:save", layout),
   startTerminal: (projectPath: string, terminalId: string): Promise<void> =>
     ipcRenderer.invoke("terminal:start", projectPath, terminalId),
@@ -108,8 +120,8 @@ export interface TangoApi {
   onDshEvent(listener: (taskId: string, event: Record<string, unknown>) => void): () => void;
   runPi(taskId: string, projectPath: string, prompt: string): Promise<{ sessionFile: string; answer: string }>;
   onPiEvent(listener: (taskId: string, event: Record<string, unknown>) => void): () => void;
-  getLayout(): Promise<{ terminalTabs: string[]; activeTerminal: string } | null>;
-  saveLayout(layout: { terminalTabs: string[]; activeTerminal: string }): Promise<void>;
+  getLayout(): Promise<WorkspaceLayout | null>;
+  saveLayout(layout: WorkspaceLayout): Promise<void>;
   startTerminal(projectPath: string, terminalId: string): Promise<void>;
   writeTerminal(terminalId: string, data: string): void;
   resizeTerminal(terminalId: string, cols: number, rows: number): void;

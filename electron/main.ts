@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import type { WorkspaceLayout, LayoutNode } from "./preload";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { readFile, realpath, stat, writeFile, mkdir } from "node:fs/promises";
@@ -449,11 +450,21 @@ function registerIpc() {
     assertTrustedSender(event);
     try { return JSON.parse(await readFile(layoutFile(), "utf8")); } catch { return null; }
   });
-  ipcMain.handle("layout:save", async (event: IpcMainInvokeEvent, layout: { terminalTabs: string[]; activeTerminal: string }) => {
+  ipcMain.handle("layout:save", async (event: IpcMainInvokeEvent, layout: WorkspaceLayout) => {
     assertTrustedSender(event);
-    if (!Array.isArray(layout?.terminalTabs) || layout.terminalTabs.length < 1 || layout.terminalTabs.length > 32 ||
-      layout.terminalTabs.some((id) => typeof id !== "string" || !/^[a-zA-Z0-9-]{1,80}$/.test(id)) ||
-      typeof layout.activeTerminal !== "string" || !layout.terminalTabs.includes(layout.activeTerminal)) {
+    const paneIds: string[] = [];
+    const validate = (node: LayoutNode, depth: number): boolean => {
+      if (!node || depth > 12 || typeof node.id !== "string" || !/^[a-zA-Z0-9-]{1,80}$/.test(node.id)) return false;
+      if (node.type === "pane") {
+        paneIds.push(node.id);
+        return paneIds.length <= 32;
+      }
+      return node.type === "split" && (node.direction === "horizontal" || node.direction === "vertical") &&
+        Number.isFinite(node.ratio) && node.ratio >= 0.15 && node.ratio <= 0.85 &&
+        validate(node.first, depth + 1) && validate(node.second, depth + 1);
+    };
+    if (!layout || !validate(layout.root, 0) || new Set(paneIds).size !== paneIds.length ||
+      !paneIds.includes(layout.activePaneId)) {
       throw new Error("Invalid terminal layout");
     }
     await mkdir(app.getPath("userData"), { recursive: true });
@@ -593,12 +604,18 @@ function registerIpc() {
       "v1.0",
       "powershell.exe",
     );
+    const terminalEnvironment: NodeJS.ProcessEnv = {
+      ...process.env,
+      TERM: "xterm-256color",
+      COLORTERM: "truecolor",
+    };
+    delete terminalEnvironment.NO_COLOR;
     const terminal = spawn(shell, ["-NoLogo", "-NoExit"], {
       name: "xterm-256color",
       cols: 100,
       rows: 30,
       cwd: requested,
-      env: { ...process.env, TERM: "xterm-256color" } as Record<string, string>,
+      env: terminalEnvironment as Record<string, string>,
       useConpty: true,
       conptyInheritCursor: true,
     });

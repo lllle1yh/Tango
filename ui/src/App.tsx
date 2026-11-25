@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import type { AgentStatus, TaskRecord } from "../../electron/preload";
+import type { AgentStatus, LayoutNode, TaskRecord } from "../../electron/preload";
+import "./layout.css";
 
 function FolderIcon() {
   return (
@@ -15,6 +16,32 @@ function FolderIcon() {
 function AgentGlyph({ agentId }: { agentId: AgentStatus["id"] }) {
   const marks = { codex: "◉", claude: "✳", dsh: "D", pi: "π" };
   return <span className={"agent-mark " + agentId + "-mark"}>{marks[agentId]}</span>;
+}
+
+function paneIds(node: LayoutNode): string[] {
+  return node.type === "pane" ? [node.id] : [...paneIds(node.first), ...paneIds(node.second)];
+}
+
+function replacePane(node: LayoutNode, paneId: string, replacement: LayoutNode): LayoutNode {
+  if (node.type === "pane") return node.id === paneId ? replacement : node;
+  return { ...node, first: replacePane(node.first, paneId, replacement), second: replacePane(node.second, paneId, replacement) };
+}
+
+function removePane(node: LayoutNode, paneId: string): LayoutNode | null {
+  if (node.type === "pane") return node.id === paneId ? null : node;
+  if (node.first.type === "pane" && node.first.id === paneId) return node.second;
+  if (node.second.type === "pane" && node.second.id === paneId) return node.first;
+  const first = removePane(node.first, paneId);
+  const second = removePane(node.second, paneId);
+  if (!first) return second;
+  if (!second) return first;
+  return { ...node, first, second };
+}
+
+function updateRatio(node: LayoutNode, splitId: string, ratio: number): LayoutNode {
+  if (node.type === "pane") return node;
+  if (node.id === splitId) return { ...node, ratio };
+  return { ...node, first: updateRatio(node.first, splitId, ratio), second: updateRatio(node.second, splitId, ratio) };
 }
 
 function TerminalView({ projectPath, terminalId }: { projectPath: string; terminalId: string }) {
@@ -31,26 +58,10 @@ function TerminalView({ projectPath, terminalId }: { projectPath: string; termin
       fontSize: 14,
       scrollback: 5000,
       theme: {
-        background: "#17171c",
-        foreground: "#e6e0d6",
-        cursor: "#e7b395",
-        selectionBackground: "#67617b",
-        black: "#222229",
-        red: "#d97867",
-        green: "#89a982",
-        yellow: "#d5b47b",
-        blue: "#8d92c7",
-        magenta: "#b398c4",
-        cyan: "#82aeb1",
-        white: "#dedad1",
-        brightBlack: "#77727e",
-        brightRed: "#ef9584",
-        brightGreen: "#a5c399",
-        brightYellow: "#e6c791",
-        brightBlue: "#aab0e5",
-        brightMagenta: "#c7a6d9",
-        brightCyan: "#9acbcb",
-        brightWhite: "#fffaf0",
+        background: "#0c0c0c",
+        foreground: "#cccccc",
+        cursor: "#f2f2f2",
+        selectionBackground: "#264f78",
       },
     });
     const fit = new FitAddon();
@@ -119,12 +130,80 @@ function TerminalView({ projectPath, terminalId }: { projectPath: string; termin
   );
 }
 
+function PaneTree({
+  node,
+  projectPath,
+  activePaneId,
+  onActivate,
+  onSplit,
+  onClose,
+  onResize,
+}: {
+  node: LayoutNode;
+  projectPath: string;
+  activePaneId: string;
+  onActivate(id: string): void;
+  onSplit(id: string, direction: "horizontal" | "vertical"): void;
+  onClose(id: string): void;
+  onResize(id: string, ratio: number): void;
+}) {
+  if (node.type === "pane") {
+    return (
+      <section className={"layout-pane " + (activePaneId === node.id ? "focused" : "")} onMouseDown={() => onActivate(node.id)}>
+        <header className="layout-pane-header">
+          <span className="pane-title"><i />Terminal</span>
+          <div className="pane-actions">
+            <button onClick={() => onSplit(node.id, "horizontal")} title="Split left or right" aria-label="Split left or right">◧</button>
+            <button onClick={() => onSplit(node.id, "vertical")} title="Split above or below" aria-label="Split above or below">◩</button>
+            <button onClick={() => onClose(node.id)} title="Close pane" aria-label="Close pane">×</button>
+          </div>
+        </header>
+        <TerminalView projectPath={projectPath} terminalId={node.id} />
+      </section>
+    );
+  }
+
+  const firstSize = Math.round(node.ratio * 100);
+  const gridTemplate = firstSize + "fr 6px " + (100 - firstSize) + "fr";
+  return (
+    <div className={"split-tree " + node.direction} style={node.direction === "horizontal"
+      ? { gridTemplateColumns: gridTemplate }
+      : { gridTemplateRows: gridTemplate }}>
+      <PaneTree node={node.first} projectPath={projectPath} activePaneId={activePaneId} onActivate={onActivate} onSplit={onSplit} onClose={onClose} onResize={onResize} />
+      <div
+        className="splitter"
+        role="separator"
+        aria-orientation={node.direction === "horizontal" ? "vertical" : "horizontal"}
+        onPointerDown={(event) => {
+          const parent = event.currentTarget.parentElement;
+          if (!parent) return;
+          event.currentTarget.setPointerCapture(event.pointerId);
+          const move = (pointerEvent: PointerEvent) => {
+            const bounds = parent.getBoundingClientRect();
+            const ratio = node.direction === "horizontal"
+              ? (pointerEvent.clientX - bounds.left) / bounds.width
+              : (pointerEvent.clientY - bounds.top) / bounds.height;
+            onResize(node.id, Math.max(0.15, Math.min(0.85, ratio)));
+          };
+          const end = () => {
+            window.removeEventListener("pointermove", move);
+            window.removeEventListener("pointerup", end);
+          };
+          window.addEventListener("pointermove", move);
+          window.addEventListener("pointerup", end, { once: true });
+        }}
+      />
+      <PaneTree node={node.second} projectPath={projectPath} activePaneId={activePaneId} onActivate={onActivate} onSplit={onSplit} onClose={onClose} onResize={onResize} />
+    </div>
+  );
+}
+
 function App() {
   const [project, setProject] = useState<string | null>(null);
   const [agents, setAgents] = useState<AgentStatus[]>([]);
   const [detecting, setDetecting] = useState(false);
   const [activeAgent, setActiveAgent] = useState<AgentStatus["id"] | null>(null);
-  const [tabs, setTabs] = useState<string[]>(["terminal-1"]);
+  const [layoutRoot, setLayoutRoot] = useState<LayoutNode>({ type: "pane", id: "terminal-1" });
   const [activeTerminal, setActiveTerminal] = useState("terminal-1");
   const [layoutLoaded, setLayoutLoaded] = useState(false);
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
@@ -150,17 +229,17 @@ function App() {
     void refreshAgents();
     void window.tango.listTasks().then(setTasks);
     void window.tango.getLayout().then((layout) => {
-      if (layout?.terminalTabs.length) {
-        setTabs(layout.terminalTabs);
-        setActiveTerminal(layout.activeTerminal);
+      if (layout?.root) {
+        setLayoutRoot(layout.root);
+        setActiveTerminal(layout.activePaneId);
       }
       setLayoutLoaded(true);
     });
   }, [refreshAgents]);
 
   useEffect(() => {
-    if (layoutLoaded) void window.tango.saveLayout({ terminalTabs: tabs, activeTerminal });
-  }, [tabs, activeTerminal, layoutLoaded]);
+    if (layoutLoaded) void window.tango.saveLayout({ root: layoutRoot, activePaneId: activeTerminal });
+  }, [layoutRoot, activeTerminal, layoutLoaded]);
 
   useEffect(() => window.tango.onCodexEvent((taskId, event) => {
     if (taskId !== activeTask) return;
@@ -244,10 +323,10 @@ function App() {
         const threadId = await window.tango.codexStart(task.id, task.projectPath, text);
         setTasks((current) => current.map((item) => item.id === task.id ? { ...item, threadId } : item));
       }
-      if (!claudeMode && !dshMode) {
-      setTasks((current) => current.map((item) => item.id === task.id
-        ? { ...item, messages: [...item.messages, { role: "user", agent: "codex", text, createdAt: new Date().toISOString() }] }
-        : item));
+      if (!claudeMode && !dshMode && !piMode) {
+        setTasks((current) => current.map((item) => item.id === task.id
+          ? { ...item, messages: [...item.messages, { role: "user", agent: "codex", text, createdAt: new Date().toISOString() }] }
+          : item));
       }
     } catch (error) {
       setRunning(false);
@@ -255,23 +334,25 @@ function App() {
     }
   }
 
-  function newTerminal() {
+  function splitPane(paneId: string, direction: "horizontal" | "vertical") {
     const id = "terminal-" + crypto.randomUUID();
-    setTabs((current) => [...current, id]);
+    setLayoutRoot((root) => replacePane(root, paneId, {
+      type: "split", id: "split-" + crypto.randomUUID(), direction, ratio: 0.5,
+      first: { type: "pane", id: paneId }, second: { type: "pane", id },
+    }));
     setActiveTerminal(id);
     setActiveAgent(null);
   }
 
-  function closeTerminal(id: string) {
-    if (tabs.length <= 1) return;
-    const remaining = tabs.filter((tab) => tab !== id);
-    setTabs((current) => current.filter((tab) => tab !== id));
-    if (activeTerminal === id) setActiveTerminal(remaining.at(-1) ?? "terminal-1");
+  function closePane(id: string) {
+    const remaining = paneIds(layoutRoot).filter((paneId) => paneId !== id);
+    if (!remaining.length) return;
+    const root = removePane(layoutRoot, id);
+    if (root) setLayoutRoot(root);
+    if (activeTerminal === id) setActiveTerminal(remaining[0]);
   }
 
   const projectName = project?.split(/[\\/]/).filter(Boolean).at(-1);
-  const activeTab = activeTerminal;
-
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -299,7 +380,13 @@ function App() {
         {project && <button className="project-button create-task" onClick={() => void createTask()}>＋ New task</button>}
         <div className="task-list">
           {tasks.filter((task) => task.projectPath === project).map((task) => (
-            <button key={task.id} className={"task-link " + (task.id === activeTask ? "selected" : "")} onClick={() => { setActiveTask(task.id); setActiveAgent("codex"); }}>
+            <button key={task.id} className={"task-link " + (task.id === activeTask ? "selected" : "")} onClick={() => {
+              setActiveTask(task.id);
+              setActiveAgent("codex");
+              setClaudeMode(false);
+              setDshMode(false);
+              setPiMode(false);
+            }}>
               <span>◌</span><span>{task.title}</span>
             </button>
           ))}
@@ -354,23 +441,8 @@ function App() {
         ) : (
           <section className="workbench">
             <div className="panel-tabs">
-              {tabs.map((tab, index) => (
-                <button
-                  key={tab}
-                  className={"panel-tab " + (activeTab === tab && !activeAgent ? "active" : "")}
-                  onClick={() => { setActiveTerminal(tab); setActiveAgent(null); }}
-                >
-                  <span className="tab-terminal-icon">›_</span>
-                  <span>Terminal {index + 1}</span>
-                  {tabs.length > 1 && (
-                    <span className="tab-close" role="button" aria-label={"Close Terminal " + (index + 1)} onClick={(event) => {
-                      event.stopPropagation();
-                      closeTerminal(tab);
-                    }}>×</span>
-                  )}
-                </button>
-              ))}
-              <button className="new-terminal" onClick={newTerminal} aria-label="New terminal" title="New terminal">＋</button>
+              <button className="new-terminal" onClick={() => splitPane(activeTerminal, "horizontal")} aria-label="Split left or right" title="Split left or right">◧ Split</button>
+              <button className="new-terminal" onClick={() => splitPane(activeTerminal, "vertical")} aria-label="Split above or below" title="Split above or below">◩ Split</button>
               {activeAgent && (
               <div className="active-agent-tab">
                   <AgentGlyph agentId={activeAgent} />
@@ -382,11 +454,15 @@ function App() {
 
             {!activeAgent && (
               <div className="terminal-panel">
-                {tabs.map((tab) => (
-                  <div className="terminal-instance" key={tab} hidden={activeTab !== tab}>
-                    <TerminalView projectPath={project} terminalId={tab} />
-                  </div>
-                ))}
+                <PaneTree
+                  node={layoutRoot}
+                  projectPath={project}
+                  activePaneId={activeTerminal}
+                  onActivate={setActiveTerminal}
+                  onSplit={splitPane}
+                  onClose={closePane}
+                  onResize={(splitId, ratio) => setLayoutRoot((root) => updateRatio(root, splitId, ratio))}
+                />
               </div>
             )}
 
