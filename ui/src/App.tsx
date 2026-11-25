@@ -647,7 +647,8 @@ function App() {
   const [copiedConversation, setCopiedConversation] = useState(false);
   const [handoffOpen, setHandoffOpen] = useState(false);
   // 打开任务就进「这个任务的页面」；侧栏只属于任务列表页，终端单独成页（对齐 T3 的 thread 视图）。
-  const [view, setView] = useState<"home" | "terminal">("home");
+  // 三页：首页（项目 / 最近项目 / 任务列表）、任务页（某任务独占整页）、终端页。
+  const [view, setView] = useState<"home" | "chat" | "terminal">("home");
   // 需要边看终端边对话时按 Ctrl+Shift+J 把终端叠在下方；默认仍然是一页一内容。
   const [splitTerminal, setSplitTerminal] = useState(false);
   // Deleting a task asks in Tango's own dialog: a native confirm() blocks the window and
@@ -738,7 +739,8 @@ function App() {
       if (event.key.toLowerCase() === "b") { event.preventDefault(); updateSettings({ sidebarCollapsed: !settings?.sidebarCollapsed }); }
       if (event.key === "1" && !event.shiftKey) { event.preventDefault(); openTerminal(); return; }
       if (event.key === "2" && !event.shiftKey) { event.preventDefault(); setView("home"); return; }
-      if (event.key.toLowerCase() === "j" && event.shiftKey) { event.preventDefault(); setSplitTerminal((split) => !split); setView("home"); return; }
+      if (event.key === "3" && !event.shiftKey && activeTask) { event.preventDefault(); setView("chat"); return; }
+      if (event.key.toLowerCase() === "j" && event.shiftKey) { event.preventDefault(); setSplitTerminal((split) => !split); setView("chat"); return; }
       if (event.key.toLowerCase() === "e" && event.shiftKey && activeTask) {
         event.preventDefault();
         void archiveTaskAction(activeTask, true);
@@ -1304,7 +1306,7 @@ function App() {
       .find((message) => message.role === "assistant")?.agent;
     const remembered = (["codex", "claude", "dsh", "pi"] as const).find((id) => id === lastAgent);
     setActiveTask(taskId);
-    setView("home");
+    setView("chat");
     setUnreadTasks((current) => (current[taskId] ? { ...current, [taskId]: false } : current));
     setActiveAgent(remembered ?? settings?.defaultAgent ?? "codex");
     window.requestAnimationFrame(() => composerRef.current?.focus());
@@ -1431,7 +1433,8 @@ function App() {
       setTasks((current) => [copy, ...current]);
       setActiveTask(copy.id);
       setUnreadTasks((current) => (current[copy.id] ? { ...current, [copy.id]: false } : current));
-      setActiveAgent((["codex", "claude", "dsh", "pi"] as const).find((id) =>
+      setView("chat");
+    setActiveAgent((["codex", "claude", "dsh", "pi"] as const).find((id) =>
         id === [...source.messages].reverse().find((message) => message.role === "assistant")?.agent)
         ?? settings?.defaultAgent ?? "codex");
     } catch (error) {
@@ -1444,6 +1447,7 @@ function App() {
     const task = await window.tango.createTask("New task", project);
     setTasks((current) => [task, ...current]);
     setActiveTask(task.id);
+    setView("chat");
     setActiveAgent(settings?.defaultAgent ?? "codex");
     window.requestAnimationFrame(() => composerRef.current?.focus());
   }
@@ -1955,8 +1959,8 @@ function App() {
         <div className="titlebar-fill" />
       </header>
 
-      <div className={"app-body" + (view === "terminal" ? " terminal-view" : "")}>
-      <aside className="sidebar" hidden={view === "terminal"}>
+      <div className={"app-body" + (view === "terminal" ? " terminal-view" : "") + (view === "chat" ? " chat-view" : "")}>
+      <aside className="sidebar" hidden={view !== "home"}>
         <div className="sidebar-label">PROJECT</div>
         <button className="project-button" onClick={() => void openProject()}>
           <FolderIcon />
@@ -2201,24 +2205,82 @@ function App() {
       </aside>
 
       <main className="main-area">
+        {/* 顶栏只放当前页标题；品牌和菜单已经在标题栏里。 */}
         <header className="topbar">
           <div className="breadcrumb">
-            <button className={"crumb-tab " + (view === "home" ? "active" : "")} onClick={() => setView("home")}>Workspace</button>
-            <b>/</b>
-            <strong>{view === "terminal" ? "Shell" : projectName ?? "No project selected"}</strong>
-          </div>
-          <div className="header-right">
-            <button
-              className="icon-button"
-              onClick={() => void refreshAgents()}
-              aria-label="Refresh agent detection"
-              title="Refresh agent detection"
-              disabled={detecting}
-            ><RefreshCw size={14} /></button>
+            <strong>{view === "terminal" ? "Shell" : view === "chat"
+              ? tasks.find((task) => task.id === activeTask)?.title ?? "Task"
+              : projectName ?? "Home"}</strong>
           </div>
         </header>
 
-        {!project ? (
+        {view === "home" ? (
+          // 首页：项目、最近项目、任务列表；任务页与终端页各自独占整页。
+          <section className="home-page">
+            <header className="home-head">
+              <div className="home-titles">
+                <h1>{projectName ?? "No project open"}</h1>
+                <p title={project ?? undefined}>{project ?? "Pick a folder to keep its tasks in one place."}</p>
+              </div>
+              <div className="home-actions">
+                <button className="subtle-button" onClick={() => void openProject()}>
+                  {project ? "Change project" : "Open project"}
+                </button>
+                {project && (
+                  <button className="primary-button" onClick={() => void createTask()}>
+                    <Plus size={14} />New task
+                  </button>
+                )}
+                <button
+                  className="icon-button"
+                  onClick={() => void refreshAgents()}
+                  aria-label="Refresh agent detection"
+                  title="Refresh agent detection"
+                  disabled={detecting}
+                ><RefreshCw size={14} /></button>
+              </div>
+            </header>
+
+            {!project && recentProjects.length > 0 && (
+              <div className="home-section">
+                <span className="home-label">RECENT PROJECTS</span>
+                <div className="home-recents">
+                  {recentProjects.map((projectPath) => (
+                    <button key={projectPath} className="home-recent" title={projectPath} onClick={() => void switchProject(projectPath)}>
+                      <FolderIcon />
+                      <span>{projectLabel(projectPath)}</span>
+                      <em>{tasks.filter((task) => samePath(task.projectPath, projectPath) && !task.archived).length}</em>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {project && (
+              <div className="home-section">
+                <span className="home-label">TASKS</span>
+                {projectTasks.length === 0 ? (
+                  <p className="home-empty">{taskQuery ? "No matching tasks." : "No tasks yet. Start one above."}</p>
+                ) : (
+                  <div className="home-tasks">
+                    {projectTasks.map((task) => (
+                      <button key={task.id} className="home-task" onClick={() => openTask(task.id)}>
+                        <span className="home-task-title">
+                          {runningTurnsRef.current[task.id] && <Loader2 size={12} className="spin" />}
+                          {task.title}
+                        </span>
+                        <span className="home-task-meta">
+                          {task.messages.length} {task.messages.length === 1 ? "message" : "messages"}
+                          {task.messages.at(-1) ? " · " + formatStamp(task.messages.at(-1)!.createdAt) : ""}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        ) : !project ? (
           <section className="empty-workspace">
             <h1>Open a project.</h1>
             <p>Choose a folder on your computer.</p>
@@ -2237,16 +2299,26 @@ function App() {
             )}
           </section>
         ) : (
-          <section className={"workbench" + (view === "home" && splitTerminal ? " split-terminal" : "")}>
+          <section className={"workbench" + (view === "chat" && splitTerminal ? " split-terminal" : "")}>
             <div className="panel-tabs">
               <button
-                className={"panel-tab " + (view === "home" ? "active" : "")}
+                className="panel-tab"
                 onClick={() => setView("home")}
-                title="Tasks and the conversation page (Ctrl 2)"
+                title="Back to the home page (Ctrl 2)"
               >
                 <FileText size={15} />
-                <span>Tasks</span>
+                <span>Home</span>
               </button>
+              {activeTask && (
+                <button
+                  className={"panel-tab " + (view === "chat" ? "active" : "")}
+                  onClick={() => setView("chat")}
+                  title="This task's page"
+                >
+                  <AgentGlyph agentId={headerAgent ?? settings?.defaultAgent ?? "codex"} />
+                  <span>{tasks.find((task) => task.id === activeTask)?.title}</span>
+                </button>
+              )}
               <button
                 className={"panel-tab " + (view === "terminal" ? "active" : "")}
                 onClick={() => openTerminal()}
@@ -2264,7 +2336,7 @@ function App() {
               )}
             </div>
 
-            <div className={"terminal-panel" + (view === "home" && splitTerminal ? " split" : "")} hidden={!(view === "terminal" || (view === "home" && splitTerminal))}>
+            <div className={"terminal-panel" + (view === "chat" && splitTerminal ? " split" : "")} hidden={!(view === "terminal" || (view === "chat" && splitTerminal))}>
               <div className="terminal-canvas">
                 {layoutRoot ? (
                   <PaneTree
@@ -2290,7 +2362,7 @@ function App() {
               </div>
             </div>
 
-            {view !== "terminal" && headerAgent && activeTask && (
+            {view === "chat" && headerAgent && activeTask && (
               <div className="conversation">
                 <div className="conversation-heading">
                   <span className="conversation-title" title={tasks.find((task) => task.id === activeTask)?.title}>{tasks.find((task) => task.id === activeTask)?.title}</span>
@@ -2665,7 +2737,7 @@ function App() {
                 </form>
               </div>
             )}
-            {view !== "terminal" && !activeTask && (
+            {view === "chat" && !activeTask && (
               <div className="agent-placeholder">
                 <div className="agent-placeholder-icon">
                   <AgentGlyph agentId={activeAgent ?? settings?.defaultAgent ?? "codex"} />
@@ -2732,7 +2804,8 @@ function App() {
                 ["New task", "Ctrl N"],
                 ["Rename task", "F2"],
                 ["Previous or next task", "Alt Up / Alt Down"],
-                ["Tasks page / Shell page", "Ctrl 1 / Ctrl 2"],
+                ["Home / Shell page", "Ctrl 2 / Ctrl 1"],
+                ["This task's page", "Ctrl 3"],
                 ["Terminal below the conversation", "Ctrl Shift J"],
                 ["Search tasks", "Ctrl F"],
                 ["Find in conversation", "Ctrl Shift F"],

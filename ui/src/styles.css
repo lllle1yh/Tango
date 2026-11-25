@@ -363,6 +363,29 @@ button { color: inherit; font: inherit; }
 /* 终端独占整页时不再留出侧栏那一列。 */
 .app-body.terminal-view { grid-template-columns: minmax(0, 1fr); }
 .app-body.terminal-view .sidebar { display: none; }
+/* 首页：项目、最近项目、任务列表各自成块，点任务进入任务页。 */
+.home-page { min-height: 0; flex: 1; overflow: auto; padding: 26px max(26px, calc((100% - 960px) / 2)) 40px; }
+.home-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+.home-titles h1 { margin: 0 0 4px; font-size: 20px; font-weight: 600; letter-spacing: -.01em; }
+.home-titles p { margin: 0; overflow: hidden; max-width: 620px; color: var(--fg-subtle); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.home-actions { display: flex; flex: none; align-items: center; gap: 8px; }
+.home-section { margin-top: 22px; }
+.home-label { display: block; margin-bottom: 8px; color: var(--fg-subtle); font-size: 10.5px; font-weight: 600; letter-spacing: .04em; }
+.home-recents { display: flex; flex-wrap: wrap; gap: 8px; }
+.home-recent { display: inline-flex; max-width: 260px; align-items: center; gap: 7px; padding: 7px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--fg-muted); cursor: pointer; font: inherit; font-size: 12.5px; }
+.home-recent:hover { border-color: var(--line-strong); color: var(--fg); }
+.home-recent span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-recent em { flex: none; color: var(--fg-subtle); font-size: 11px; font-style: normal; }
+.home-tasks { display: flex; flex-direction: column; gap: 6px; }
+.home-task { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); cursor: pointer; font: inherit; text-align: left; }
+.home-task:hover { border-color: var(--line-strong); background: var(--surface-2); }
+.home-task-title { display: inline-flex; overflow: hidden; align-items: center; gap: 6px; color: var(--fg); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.home-task-meta { flex: none; color: var(--fg-subtle); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.home-empty { margin: 4px 0 0; color: var(--fg-subtle); font-size: 12.5px; }
+
+/* 任务页也不留侧栏那一列：任务独占整页。 */
+.app-body.chat-view { grid-template-columns: minmax(0, 1fr); }
+.app-body.chat-view .sidebar { display: none; }
 .crumb-tab { padding: 0; border: 0; background: transparent; color: var(--fg-subtle); cursor: pointer; font: inherit; font-size: 12px; }
 .crumb-tab:hover, .crumb-tab.active { color: var(--fg); }
 .app-body .workbench { height: 100%; }
