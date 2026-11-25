@@ -1238,7 +1238,13 @@ function App() {
             {activeAgent && activeTask && (
               <div className="conversation">
                 <div className="conversation-heading">
-                  <span>{tasks.find((task) => task.id === activeTask)?.title}</span>
+                  <span className="conversation-title">{tasks.find((task) => task.id === activeTask)?.title}</span>
+                  {activeAgent && agents.find((agent) => agent.id === activeAgent) && (
+                    <span className="conversation-agent" title="Agent handling this task">
+                      <AgentGlyph agentId={activeAgent} />
+                      {agents.find((agent) => agent.id === activeAgent)!.name}
+                    </span>
+                  )}
                   <button
                     className="subtle-button handoff-button"
                     onClick={() => setHandoffOpen((open) => !open)}
