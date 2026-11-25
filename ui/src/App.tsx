@@ -2349,6 +2349,7 @@ function App() {
                 ["Send message", "Enter"],
                 ["Commands", "/"],
                 ["Stop the running turn", "Esc"],
+                ["Show or hide the sidebar", "Ctrl B"],
                 ["New line in message", "Shift Enter"],
                 ["Earlier prompts", "Up Down"],
                 ["Copy in terminal", "Ctrl Shift C"],
