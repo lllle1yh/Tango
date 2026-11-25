@@ -990,6 +990,13 @@ function firstLine(text: string | undefined): string | null {
 }
 
 
+// A task can hold the path a picker returned while realpath answers a resolved one; the two
+// spell the same folder, and treating them as different rejects the task's own turns.
+function samePath(a: string, b: string) {
+  const normal = (value: string) => value.split("\\").join("/").replace(/\/+$/, "").toLowerCase();
+  return normal(a) === normal(b);
+}
+
 async function readLastWorkspace(): Promise<string | null> {
   try {
     const contents = await readFile(workspaceFile(), "utf8");
@@ -1024,7 +1031,7 @@ function registerIpc() {
     if (typeof projectPath !== "string" || !projectPath) throw new Error("Project path is required");
     const resolved = await realpath(projectPath);
     const tasks = await readTasks();
-    if (!tasks.some((task) => task.projectPath === resolved)) throw new Error("No tasks in that project");
+    if (!tasks.some((task) => samePath(task.projectPath, resolved))) throw new Error("No tasks in that project");
     const info = await stat(resolved);
     if (!info.isDirectory()) throw new Error("Project path is not a folder");
     currentProjectPath = resolved;
@@ -1279,7 +1286,7 @@ function registerIpc() {
     assertTrustedSender(event);
     const tasks = await readTasks();
     const task = tasks.find((item) => item.id === taskId);
-    if (!task || task.projectPath !== await realpath(projectPath)) throw new Error("Task does not belong to this project");
+    if (!task || !samePath(task.projectPath, await realpath(projectPath))) throw new Error("Task does not belong to this project");
     await markRunning(task.id, "codex");
     // A turn that never reached the app server must not leave the task "running" forever.
     try {
@@ -1329,7 +1336,7 @@ function registerIpc() {
     assertTrustedSender(event);
     const tasks = await readTasks();
     const task = tasks.find((item) => item.id === taskId);
-    if (!task || task.projectPath !== await realpath(projectPath)) throw new Error("Task does not belong to this project");
+    if (!task || !samePath(task.projectPath, await realpath(projectPath))) throw new Error("Task does not belong to this project");
     let client = claudeProcesses.get(taskId);
     if (!client) {
       client = createClaudeClient(taskId, task.projectPath, task.claudeSessionId, (await readSettings()).claudePermissionMode);
@@ -1382,7 +1389,7 @@ function registerIpc() {
     assertTrustedSender(event);
     const tasks = await readTasks();
     const task = tasks.find((item) => item.id === taskId);
-    if (!task || task.projectPath !== await realpath(projectPath)) throw new Error("Task does not belong to this project");
+    if (!task || !samePath(task.projectPath, await realpath(projectPath))) throw new Error("Task does not belong to this project");
     let client = dshProcesses.get(taskId);
     if (!client) {
       client = createDshClient(taskId, task.projectPath);
@@ -1436,7 +1443,7 @@ function registerIpc() {
     assertTrustedSender(event);
     const tasks = await readTasks();
     const task = tasks.find((item) => item.id === taskId);
-    if (!task || task.projectPath !== await realpath(projectPath)) throw new Error("Task does not belong to this project");
+    if (!task || !samePath(task.projectPath, await realpath(projectPath))) throw new Error("Task does not belong to this project");
     let client = piProcesses.get(taskId);
     if (!client) {
       client = createPiClient(taskId, task.projectPath, task.piSessionFile);
