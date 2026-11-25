@@ -253,11 +253,14 @@ function createCodexClient(taskId: string, projectPath: string) {
         } else if (message.method === "item/started" || message.method === "item/completed") {
           const item = message.params?.item;
           if (item && item.type !== "agentMessage" && item.type !== "reasoning") {
+            // Codex reports progress through item status (inProgress/completed/failed/declined).
+            const status = item.status === "inProgress" ? "running"
+              : item.status === "failed" || item.status === "declined" ? "error" : "done";
             sendCodexEvent(taskId, {
               type: "tool",
               id: item.id,
-              name: item.command ?? item.type,
-              status: message.method === "item/started" ? "running" : "done",
+              name: item.command ?? item.tool ?? item.type,
+              status: message.method === "item/started" && item.status === undefined ? "running" : status,
             });
           }
           sendCodexEvent(taskId, { type: message.method, item });
