@@ -400,6 +400,9 @@ function SortableTaskRow({
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+  // A task whose last turn never ran is worth spotting from the list, not from opening it.
+  const last = task.messages.at(-1);
+  const lastFailed = last?.role === "assistant" && last.text.startsWith("The turn could not run:");
   return (
     <div ref={setNodeRef} style={style} className={"task-row " + (selected ? "selected" : "")}>
       <span className="task-drag" {...attributes} {...listeners} aria-label="Reorder task" title="Reorder task">
@@ -430,7 +433,7 @@ function SortableTaskRow({
           <span
             className="task-title"
             title={`${task.title} · ${task.messages.length} ${task.messages.length === 1 ? "message" : "messages"}`}
-          >{runningHere && <Loader2 size={11} className="spin task-running-mark" />}{task.pinned && <Pin size={11} className="task-pin" />}{highlightMatch(task.title, query)}</span>
+          >{runningHere && <Loader2 size={11} className="spin task-running-mark" />}{!runningHere && lastFailed && <AlertCircle size={11} className="task-failed" aria-label="Last turn could not run" />}{task.pinned && <Pin size={11} className="task-pin" />}{highlightMatch(task.title, query)}</span>
           {draft && <span className="task-draft" title="Unsent draft" aria-label="Unsent draft" />}
           {unread && <span className="task-unread" title="Finished while you were elsewhere" aria-label="Unread reply" />}
         </button>
