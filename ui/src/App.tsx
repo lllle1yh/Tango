@@ -9,7 +9,7 @@ import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from 
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Check, Copy, GripVertical, PanelLeft, Pin, Search, TerminalSquare, FileText, Globe, Wrench, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Check, Copy, GripVertical, PanelLeft, Pin, Search, Square, TerminalSquare, FileText, Globe, Wrench, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import "./layout.css";
 import "./agent-icons.css";
 
@@ -1704,6 +1704,25 @@ function App() {
                 <span className="running-row-elapsed">{formatElapsed(task.running?.startedAt, nowTick)}</span>
                 <span className="running-row-agent">
                   {agents.find((agent) => agent.id === task.running?.agent)?.name ?? task.running?.agent}
+                </span>
+                <span
+                  className="running-row-stop"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Stop ${task.title}`}
+                  title="Stop this turn"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void stopTurn(task.id);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    void stopTurn(task.id);
+                  }}
+                >
+                  <Square size={9} />
                 </span>
               </button>
             ))}
