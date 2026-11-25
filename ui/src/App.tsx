@@ -892,8 +892,13 @@ function App() {
   }
 
   function openTask(taskId: string) {
+    const task = tasks.find((item) => item.id === taskId);
+    // Reopening a task selects the agent that answered it last, so its native session keeps going.
+    const lastAgent = [...(task?.messages ?? [])].reverse()
+      .find((message) => message.role === "assistant")?.agent;
+    const remembered = (["codex", "claude", "dsh", "pi"] as const).find((id) => id === lastAgent);
     setActiveTask(taskId);
-    setActiveAgent(settings?.defaultAgent ?? "codex");
+    setActiveAgent(remembered ?? settings?.defaultAgent ?? "codex");
     window.requestAnimationFrame(() => composerRef.current?.focus());
   }
 
