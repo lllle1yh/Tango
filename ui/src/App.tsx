@@ -2571,6 +2571,9 @@ function App() {
                       if (event.key === "ArrowUp" && (browsing || !prompt.trim())) { event.preventDefault(); recallPrompt(1); return; }
                       if (event.key === "ArrowDown" && browsing) { event.preventDefault(); recallPrompt(-1); return; }
                     }
+                    // While the task is busy the turn belongs to someone else: Enter must neither
+                    // send nor swallow the draft, or the text looks sent and is silently lost.
+                    if (event.key === "Enter" && !event.shiftKey && isActiveTaskRunning) { event.preventDefault(); return; }
                     if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submitPrompt(); }
                   }} placeholder={isActiveTaskRunning
                     ? (agents.find((agent) => agent.id === activeAgent)?.name ?? "The agent") + " is working… press Esc to stop, or wait for the reply"
