@@ -380,7 +380,7 @@ function App() {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [slashIndex, setSlashIndex] = useState(0);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [toolActivity, setToolActivity] = useState<Record<string, Array<{ id: string; name: string; status: string }>>>({});
+  const [toolActivity, setToolActivity] = useState<Record<string, Array<{ id: string; name: string; status: string; detail?: string }>>>({});
   const [magpie, setMagpie] = useState<{ available: boolean; version: string | null } | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -600,7 +600,7 @@ function App() {
     if (taskId !== activeTask) return;
     if (event.type === "delta" && typeof event.text === "string") setAssistantText((text) => text + event.text);
     if (event.type === "turn/completed") {
-      setRunning(false); setRunningAgent(null);
+      endTurn(taskId);
       setAssistantText((text) => {
         if (text.trim()) {
           setTasks((current) => current.map((task) => task.id === taskId
@@ -636,7 +636,7 @@ function App() {
     if (taskId !== activeTask) return;
     if (event.type === "delta" && typeof event.text === "string") setAssistantText((text) => text + event.text);
     if (event.type === "tool") recordTool(taskId, event as { id?: string; name?: string; status?: string });
-    if (event.type === "turn/completed") { setRunning(false); setRunningAgent(null); }
+    if (event.type === "turn/completed") endTurn(taskId);
     if (event.type === "process/error") {
       setRunning(false);
       setRunningAgent(null);
@@ -646,7 +646,7 @@ function App() {
   useEffect(() => window.tango.onDshEvent((taskId, event) => {
     if (taskId !== activeTask) return;
     if (event.type === "delta" && typeof event.text === "string") setAssistantText((text) => text + event.text);
-    if (event.type === "process/exit") { setRunning(false); setRunningAgent(null); }
+    if (event.type === "process/exit") endTurn(taskId);
     if (event.type === "session/update") {
       const update = event.update as { sessionUpdate?: string; toolCallId?: string; title?: string; status?: string } | undefined;
       if (update?.sessionUpdate === "tool_call" || update?.sessionUpdate === "tool_call_update") {
@@ -699,8 +699,7 @@ function App() {
         : "");
     }
     if (event.type === "agent_end" || event.type === "process/exit" || event.type === "process/error") {
-      setRunning(false);
-      setRunningAgent(null);
+      endTurn(taskId);
     }
   }), [activeTask]);
 
@@ -738,16 +737,32 @@ function App() {
     .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)));
   const archivedTasks = tasks.filter((task) => task.projectPath === project && task.archived);
 
-  function recordTool(taskId: string, tool: { id?: string; name?: string; status?: string }) {
+  function formatClock(value: string) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function endTurn(taskId: string) {
+    setRunning(false);
+    setRunningAgent(null);
+    setStopping(false);
+    setToolActivity((current) => (current[taskId]?.length ? { ...current, [taskId]: [] } : current));
+  }
+
+  // Tools belong to the turn that is running when they arrive. Finished turns keep their
+  // own tools in the transcript; this map only holds what the live turn has done so far.
+  function recordTool(taskId: string, tool: { id?: string; name?: string; status?: string; detail?: string }) {
     const id = String(tool.id ?? tool.name ?? "tool");
     const name = tool.name ? String(tool.name) : undefined;
+    const detail = typeof tool.detail === "string" && tool.detail ? tool.detail.slice(0, 400) : undefined;
     const status = tool.status === "running" ? "running" : tool.status === "error" ? "error" : "done";
     setToolActivity((current) => {
       const list = current[taskId] ?? [];
       const index = list.findIndex((item) => item.id === id);
       const next = index >= 0
-        ? list.map((item, i) => (i === index ? { ...item, name: name ?? item.name, status } : item))
-        : [...list, { id, name: name ?? "tool", status }].slice(-12);
+        ? list.map((item, i) => (i === index ? { ...item, name: name ?? item.name, status, detail: detail ?? item.detail } : item))
+        : [...list, { id, name: name ?? "tool", status, detail }].slice(-40);
       return { ...current, [taskId]: next };
     });
   }
@@ -859,13 +874,9 @@ function App() {
       }
     } catch (error) {
       setAssistantText(error instanceof Error ? error.message : "Could not start the agent");
-      setRunning(false); setRunningAgent(null);
-      setStopping(false);
+      endTurn(task.id);
     } finally {
-      if (waitsForTurnEnd) {
-        setRunning(false); setRunningAgent(null);
-        setStopping(false);
-      }
+      if (waitsForTurnEnd) endTurn(task.id);
     }
   }
 
@@ -1367,6 +1378,7 @@ function App() {
                                   {row.message.role === "user"
                                     ? "You"
                                     : agents.find((agent) => agent.id === row.message.agent)?.name ?? row.message.agent}
+                                  <time dateTime={row.message.createdAt}>{formatClock(row.message.createdAt)}</time>
                                 </span>
                                 <Markdown text={row.message.text} />
                                 <button
