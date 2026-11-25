@@ -533,3 +533,8 @@ button { color: inherit; font: inherit; }
 .chat-search input::placeholder { color: var(--fg-subtle); }
 .chat-search-count { flex: none; color: var(--fg-subtle); font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .chat-search .icon-button { width: 24px; height: 24px; }
+
+/* Gaps between turns: an agent handoff or a long pause gets one quiet line. */
+.turn-divider { display: flex; align-items: center; gap: 10px; padding: 6px 0 2px; color: var(--fg-subtle); }
+.turn-divider-line { flex: 1; height: 1px; background: var(--line); }
+.turn-divider-label { flex: none; font-size: 11px; letter-spacing: .02em; }

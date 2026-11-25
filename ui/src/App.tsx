@@ -1452,7 +1452,25 @@ function App() {
   type ChatRow =
     | { kind: "message"; id: string; message: TaskRecord["messages"][number] }
     | { kind: "stream"; id: string }
-    | { kind: "tools"; id: string; tools: ToolItem[]; live: boolean };
+    | { kind: "tools"; id: string; tools: ToolItem[]; live: boolean }
+    | { kind: "divider"; id: string; title: string; detail: string };
+  type TurnGap = "handoff" | "quiet" | "resumed";
+
+  // A long pause or an agent switch should be visible in the transcript, not only in timestamps.
+  function turnGap(previous: TaskRecord["messages"][number], next: TaskRecord["messages"][number]): TurnGap | null {
+    const before = previous.role === "user" ? previous.agent : previous.agent;
+    const after = next.role === "user" ? next.agent : next.agent;
+    if (previous.role === "assistant" && next.role === "user" && before !== after) return "handoff";
+    const from = new Date(previous.createdAt).getTime();
+    const to = new Date(next.createdAt).getTime();
+    if (Number.isNaN(from) || Number.isNaN(to)) return null;
+    const minutes = Math.round((to - from) / 60000);
+    if (minutes >= 60 * 6) return "resumed";
+    if (minutes >= 30) return "quiet";
+    return null;
+  }
+
+  const agentName = (id: string) => agents.find((agent) => agent.id === id)?.name ?? id;
 
   // Every reply sits with the tools it ran; the live turn keeps a provisional row until it ends.
   const chatNeedle = chatQuery.trim().toLowerCase();
@@ -1461,6 +1479,21 @@ function App() {
     : activeMessages;
   const chatRows: ChatRow[] = [];
   filteredMessages.forEach((message, index) => {
+    // Gaps only make sense between neighbours in the unfiltered list.
+    if (!chatNeedle && index > 0) {
+      const gap = turnGap(filteredMessages[index - 1], message);
+      if (gap) {
+        const previous = filteredMessages[index - 1];
+        const createdAt = new Date(previous.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+        const title = gap === "handoff" ? `Handed off to ${agentName(message.agent)}` : gap === "resumed" ? "Conversation resumed" : "Pause";
+        const detail = gap === "handoff"
+          ? `${agentName(previous.agent)} finished the last turn; ${agentName(message.agent)} takes over from here.`
+          : gap === "resumed"
+            ? `The last turn ended ${createdAt}; this one starts after a longer break.`
+            : `Quiet for a while: the previous turn was at ${createdAt}.`;
+        chatRows.push({ kind: "divider", id: "d-" + message.createdAt, title, detail });
+      }
+    }
     chatRows.push({ kind: "message", id: "m-" + message.createdAt + "-" + index, message });
     if (message.role === "assistant" && (message.tools?.length ?? 0) > 0) {
       chatRows.push({ kind: "tools", id: "t-" + message.createdAt, tools: message.tools as ToolItem[], live: false });
@@ -2090,6 +2123,13 @@ function App() {
                                   {copiedIndex === row.id ? <Check size={13} /> : <Copy size={13} />}
                                 </button>
                               </article>
+                            )}
+                            {row.kind === "divider" && (
+                              <div className="turn-divider" role="separator" title={row.detail}>
+                                <span className="turn-divider-line" />
+                                <span className="turn-divider-label">{row.title}</span>
+                                <span className="turn-divider-line" />
+                              </div>
                             )}
                             {row.kind === "stream" && (
                               <article className="message assistant">
