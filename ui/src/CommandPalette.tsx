@@ -3,7 +3,7 @@ import { Command } from "cmdk";
 export type PaletteItem = {
   id: string;
   label: string;
-  group: "Actions" | "Tasks" | "Agents";
+  group: "Actions" | "Projects" | "Tasks" | "Agents";
   hint?: string;
   run(): void;
 };
@@ -18,7 +18,7 @@ export function CommandPalette({
   onClose(): void;
 }) {
   if (!open) return null;
-  const groups: PaletteItem["group"][] = ["Actions", "Tasks", "Agents"];
+  const groups: PaletteItem["group"][] = ["Actions", "Projects", "Tasks", "Agents"];
   return (
     <div className="palette-backdrop" onMouseDown={onClose}>
       <Command

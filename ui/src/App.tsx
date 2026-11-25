@@ -1518,11 +1518,31 @@ function App() {
     { id: "a-rename", group: "Actions", label: "Rename task", hint: "Ctrl Shift N", run: () => renameActiveTask() },
     { id: "a-archive", group: "Actions", label: "Archive task", hint: "Ctrl Shift E", run: () => { if (activeTask) void archiveTaskAction(activeTask, true); } },
     { id: "a-project", group: "Actions", label: "Open project folder", run: () => void openProject() },
+    ...(activeTask ? [{
+      id: "a-find",
+      group: "Actions" as const,
+      label: "Find in this conversation",
+      hint: "Ctrl Shift F",
+      run: () => { setChatSearchOpen(true); window.requestAnimationFrame(() => chatSearchRef.current?.focus()); },
+    }] : []),
+    ...(activeTask ? [{
+      id: "a-duplicate",
+      group: "Actions" as const,
+      label: "Duplicate task",
+      run: () => void duplicateTask(activeTask),
+    }] : []),
     { id: "a-shell", group: "Actions", label: "Show terminal", run: () => setActiveAgent(null) },
     {
       id: "a-theme", group: "Actions", label: "Toggle light / dark theme",
       run: () => updateSettings({ theme: settings?.theme === "dark" ? "light" : "dark" }),
     },
+    ...recentProjects.slice(0, 5).map((projectPath): PaletteItem => ({
+      id: "p-" + projectPath,
+      group: "Projects",
+      label: "Switch to " + projectLabel(projectPath),
+      hint: projectPath,
+      run: () => void switchProject(projectPath),
+    })),
     ...tasks.map((task): PaletteItem => ({
       id: "t-" + task.id,
       group: "Tasks",
