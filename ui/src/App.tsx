@@ -387,7 +387,7 @@ function SortableTaskRow({
             onContextMenu(task.id, event.clientX, event.clientY);
           }}
         >
-          <span className="task-title">{task.pinned && <Pin size={11} className="task-pin" />}{task.title}</span>
+          <span className="task-title" title={task.title}>{task.pinned && <Pin size={11} className="task-pin" />}{task.title}</span>
           {unread && <span className="task-unread" title="Finished while you were elsewhere" aria-label="Unread reply" />}
         </button>
       )}
@@ -1512,6 +1512,12 @@ function App() {
   // The chip reflects what this task actually used last; a fresh task falls back to the
   // selected agent so the header still says who will answer.
   const activeTaskRecord = tasks.find((task) => task.id === activeTask);
+
+  // The window title names the task, so the taskbar and window switcher stay useful.
+  const activeTitle = activeTaskRecord?.title;
+  useEffect(() => {
+    document.title = activeTitle ? `${activeTitle} — Tango` : "Tango";
+  }, [activeTitle]);
   const agentIds: Array<AgentStatus["id"]> = ["codex", "claude", "dsh", "pi"];
   const lastAgent = [...activeTaskRecord?.messages ?? []].reverse()
     .find((message) => message.role === "assistant")?.agent;
