@@ -1731,10 +1731,10 @@ function App() {
   const virtualRows = chatVirtualizer.getVirtualItems();
 
   const paletteItems: PaletteItem[] = [
+    { id: "a-new", group: "Actions", label: "New task", hint: "Ctrl N", run: () => void createTask() },
     { id: "a-search", group: "Actions", label: "Search tasks", hint: "Ctrl F", run: () => { window.requestAnimationFrame(() => taskSearchRef.current?.focus()); } },
     { id: "a-sidebar", group: "Actions", label: "Show or hide the sidebar", hint: "Ctrl B", run: () => updateSettings({ sidebarCollapsed: !settings?.sidebarCollapsed }) },
     { id: "a-theme", group: "Actions", label: "Toggle light / dark theme", run: () => updateSettings({ theme: settings?.theme === "dark" ? "light" : "dark" }) },
-    { id: "a-new", group: "Actions", label: "New task", hint: "Ctrl N", run: () => void createTask() },
     { id: "a-settings", group: "Actions", label: "Settings", hint: "Ctrl ,", run: () => setSettingsOpen(true) },
     { id: "a-shortcuts", group: "Actions", label: "Keyboard shortcuts", run: () => setShortcutsOpen(true) },
     { id: "a-data", group: "Actions", label: "Reveal data folder", run: () => void window.tango.revealDataFolder() },
