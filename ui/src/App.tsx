@@ -2280,7 +2280,7 @@ function App() {
                                 </span>
                                 {handoff && !handoffOpen ? (
                                   <div className="handoff-prompt-summary">
-                                    <p>{row.message.text.split("\n\n").slice(0, 2).join(" · ")}</p>
+                                    <p>{row.message.text.split("\n\n").find((part) => part.startsWith("Task:")) ?? row.message.text.split("\n\n")[0]}</p>
                                     <button
                                       type="button"
                                       className="subtle-button"
