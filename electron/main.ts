@@ -733,7 +733,7 @@ function createPiClient(taskId: string, projectPath: string, sessionFile?: strin
     return true;
   }
 
-  return { restore, run, interrupt, respondUi, dispose() { void terminateChild(child); } };
+  return { restore, run, interrupt, respondUi, get sessionFile() { return sessionPath; }, dispose() { void terminateChild(child); } };
 }
 
 function sendPiEvent(taskId: string, payload: Record<string, unknown>) {
@@ -1128,13 +1128,19 @@ function registerIpc() {
     const task = tasks.find((item) => item.id === taskId);
     if (!task || task.projectPath !== await realpath(projectPath)) throw new Error("Task does not belong to this project");
     await markRunning(task.id, "codex");
-    const client = await ensureCodexClient(task);
-    task.messages.push({ role: "user", text: prompt, agent: "codex", createdAt: new Date().toISOString() });
-    await saveTasks(tasks);
-    const result = await client.start(task.projectPath, prompt);
-    task.threadId = result.threadId;
-    await saveTasks(tasks);
-    return result.threadId;
+    // A turn that never reached the app server must not leave the task "running" forever.
+    try {
+      const client = await ensureCodexClient(task);
+      task.messages.push({ role: "user", text: prompt, agent: "codex", createdAt: new Date().toISOString() });
+      await saveTasks(tasks);
+      const result = await client.start(task.projectPath, prompt);
+      task.threadId = result.threadId;
+      await saveTasks(tasks);
+      return result.threadId;
+    } catch (error) {
+      void clearRunning(task.id);
+      throw error;
+    }
   });
   ipcMain.handle("codex:send", async (event: IpcMainInvokeEvent, taskId: string, prompt: string) => {
     assertTrustedSender(event);
@@ -1142,11 +1148,16 @@ function registerIpc() {
     const task = tasks.find((item) => item.id === taskId);
     if (!task) throw new Error("Codex task session is not connected");
     await markRunning(task.id, "codex");
-    const client = await ensureCodexClient(task);
-    if (!client.threadId) throw new Error("Codex conversation could not be resumed");
-    task.messages.push({ role: "user", text: prompt, agent: "codex", createdAt: new Date().toISOString() });
-    await saveTasks(tasks);
-    await client.send(prompt);
+    try {
+      const client = await ensureCodexClient(task);
+      if (!client.threadId) throw new Error("Codex conversation could not be resumed");
+      task.messages.push({ role: "user", text: prompt, agent: "codex", createdAt: new Date().toISOString() });
+      await saveTasks(tasks);
+      await client.send(prompt);
+    } catch (error) {
+      void clearRunning(task.id);
+      throw error;
+    }
   });
   ipcMain.handle("codex:interrupt", async (event: IpcMainInvokeEvent, taskId: string) => {
     assertTrustedSender(event);
@@ -1175,6 +1186,13 @@ function registerIpc() {
     let answer: string;
     try {
       answer = await client.run(prompt);
+    } catch (error) {
+      // A failed run leaves nothing to resume from it; the next turn starts clean.
+      if (!client.sessionId) {
+        client.dispose();
+        claudeProcesses.delete(task.id);
+      }
+      throw error;
     } finally {
       void clearRunning(task.id);
     }
@@ -1224,6 +1242,7 @@ function registerIpc() {
       result = await client.run(prompt, task.dshSessionId);
     } finally {
       void clearRunning(task.id);
+      dshProcesses.delete(taskId);
       // ACP sessions live on disk, so the process is only needed while the turn runs.
       // Keeping it alive across turns leaves an orphaned DSH per task forever.
       client.dispose();
@@ -1269,6 +1288,13 @@ function registerIpc() {
     let result;
     try {
       result = await client.run(prompt);
+    } catch (error) {
+      // A client that failed before it knew its session file cannot be reused.
+      if (!client.sessionFile) {
+        client.dispose();
+        piProcesses.delete(task.id);
+      }
+      throw error;
     } finally {
       void clearRunning(task.id);
     }
