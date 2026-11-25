@@ -2,15 +2,24 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, type IpcMainEvent, type IpcM
 import type { WorkspaceLayout, LayoutNode } from "./preload";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { readFile, realpath, stat, writeFile, mkdir } from "node:fs/promises";
+import { readFile, realpath, rename, stat, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { spawn, type IPty } from "@homebridge/node-pty-prebuilt-multiarch";
 
 const execFileAsync = promisify(execFile);
+
+// Portable data directory. The default is Electron's userData folder; a dev or
+// restricted environment can point TANGO_DATA_DIR somewhere writable instead.
+if (process.env.TANGO_DATA_DIR) {
+  app.setPath("userData", path.resolve(process.env.TANGO_DATA_DIR));
+}
 const workspaceFile = () => path.join(app.getPath("userData"), "workspace.json");
 let mainWindow: BrowserWindow | null = null;
-const terminals = new Map<string, { process: IPty; closeTimer?: NodeJS.Timeout }>();
+// 当前工作区的权威来源是内存，而不是 workspace.json。写盘可能失败（权限、只读安装），
+// 但终端和 Agent 必须继续指向用户刚选中的目录。
+let currentProjectPath: string | null = null;
+const terminals = new Map<string, { process: IPty; cwd: string; closeTimer?: NodeJS.Timeout }>();
 const codexProcesses = new Map<string, ReturnType<typeof createCodexClient>>();
 const claudeProcesses = new Map<string, ReturnType<typeof createClaudeClient>>();
 const dshProcesses = new Map<string, ReturnType<typeof createDshClient>>();
@@ -20,12 +29,80 @@ type TaskRecord = {
   id: string;
   title: string;
   projectPath: string;
+  archived?: boolean;
+  pinned?: boolean;
   threadId?: string;
   claudeSessionId?: string;
   dshSessionId?: string;
   piSessionFile?: string;
   messages: Array<{ role: "user" | "assistant"; text: string; agent: string; createdAt: string }>;
 };
+
+type AppSettings = {
+  theme: "light" | "dark";
+  accent: string;
+  chatWidth: "comfortable" | "wide";
+  defaultAgent: "codex" | "claude" | "dsh" | "pi";
+  terminalShell: "powershell" | "gitbash" | "cmd";
+  codexApprovalPolicy: "on-request" | "on-failure" | "never";
+  codexSandbox: "read-only" | "workspace-write" | "danger-full-access";
+};
+
+const defaultSettings: AppSettings = {
+  theme: "light",
+  accent: "#4a57d9",
+  chatWidth: "comfortable",
+  defaultAgent: "codex",
+  terminalShell: "powershell",
+  codexApprovalPolicy: "on-request",
+  codexSandbox: "workspace-write",
+};
+
+let cachedSettings: AppSettings | null = null;
+
+function settingsFile() {
+  return path.join(app.getPath("userData"), "settings.json");
+}
+
+async function readSettings(): Promise<AppSettings> {
+  if (cachedSettings) return cachedSettings;
+  try {
+    const parsed = JSON.parse(await readFile(settingsFile(), "utf8")) as Partial<AppSettings>;
+    cachedSettings = sanitizeSettings(parsed);
+  } catch {
+    cachedSettings = { ...defaultSettings };
+  }
+  return cachedSettings;
+}
+
+function sanitizeSettings(input: Partial<AppSettings>): AppSettings {
+  const merged = { ...defaultSettings, ...input };
+  return {
+    theme: merged.theme === "dark" ? "dark" : "light",
+    accent: /^#[0-9a-fA-F]{6}$/.test(merged.accent) ? merged.accent : defaultSettings.accent,
+    chatWidth: merged.chatWidth === "wide" ? "wide" : "comfortable",
+    defaultAgent: (["codex", "claude", "dsh", "pi"] as const).includes(merged.defaultAgent as never)
+      ? merged.defaultAgent
+      : defaultSettings.defaultAgent,
+    terminalShell: (["powershell", "gitbash", "cmd"] as const).includes(merged.terminalShell as never)
+      ? merged.terminalShell
+      : defaultSettings.terminalShell,
+    codexApprovalPolicy: (["on-request", "on-failure", "never"] as const).includes(merged.codexApprovalPolicy as never)
+      ? merged.codexApprovalPolicy
+      : defaultSettings.codexApprovalPolicy,
+    codexSandbox: (["read-only", "workspace-write", "danger-full-access"] as const).includes(merged.codexSandbox as never)
+      ? merged.codexSandbox
+      : defaultSettings.codexSandbox,
+  };
+}
+
+// 先写临时文件再 rename，避免覆盖到一半的 JSON 在崩溃后留下坏文件。
+async function writeJsonAtomic(file: string, value: unknown) {
+  await mkdir(path.dirname(file), { recursive: true });
+  const temporary = `${file}.${randomUUID()}.tmp`;
+  await writeFile(temporary, JSON.stringify(value, null, 2), "utf8");
+  await rename(temporary, file);
+}
 
 function tasksFile() {
   return path.join(app.getPath("userData"), "tasks.json");
@@ -44,16 +121,22 @@ async function readTasks(): Promise<TaskRecord[]> {
 }
 
 async function saveTasks(tasks: TaskRecord[]) {
-  await mkdir(app.getPath("userData"), { recursive: true });
-  await writeFile(tasksFile(), JSON.stringify(tasks, null, 2), "utf8");
+  await writeJsonAtomic(tasksFile(), tasks);
 }
 
-function createCodexClient(taskId: string) {
-  const child = require("node:child_process").spawn("codex", ["app-server"], {
-    cwd: process.cwd(),
-    stdio: ["pipe", "pipe", "pipe"],
-    windowsHide: true,
-  }) as import("node:child_process").ChildProcessWithoutNullStreams;
+function createCodexClient(taskId: string, projectPath: string) {
+  // Windows 上全局 npm 安装的 codex 是 .cmd 包装，直接 spawn("codex") 会 ENOENT。
+  const spawnChild = require("node:child_process").spawn;
+  const child = (process.platform === "win32"
+    ? spawnChild("cmd.exe", ["/d", "/s", "/c", "codex app-server"], { cwd: projectPath, stdio: ["pipe", "pipe", "pipe"], windowsHide: true })
+    : spawnChild("codex", ["app-server"], { cwd: projectPath, stdio: ["pipe", "pipe", "pipe"], windowsHide: true })
+  ) as import("node:child_process").ChildProcessWithoutNullStreams;
+  // 没有 error 监听时 Node 会抛未捕获异常，直接带崩主进程。
+  child.on("error", (error) => {
+    sendCodexEvent(taskId, { type: "process/error", message: error.message });
+    for (const waiter of pending.values()) waiter.reject(error);
+    pending.clear();
+  });
   let nextId = 1;
   const pending = new Map<number, { resolve(value: any): void; reject(error: Error): void }>();
   let buffer = "";
@@ -77,7 +160,16 @@ function createCodexClient(taskId: string) {
         if (message.method === "item/agentMessage/delta") {
           sendCodexEvent(taskId, { type: "delta", text: message.params?.delta ?? "" });
         } else if (message.method === "item/started" || message.method === "item/completed") {
-          sendCodexEvent(taskId, { type: message.method, item: message.params?.item });
+          const item = message.params?.item;
+          if (item && item.type !== "agentMessage" && item.type !== "reasoning") {
+            sendCodexEvent(taskId, {
+              type: "tool",
+              id: item.id,
+              name: item.command ?? item.type,
+              status: message.method === "item/started" ? "running" : "done",
+            });
+          }
+          sendCodexEvent(taskId, { type: message.method, item });
         } else if (message.method === "turn/completed") {
           const turn = message.params?.turn;
           const answer = Array.isArray(turn?.items)
@@ -132,7 +224,8 @@ function createCodexClient(taskId: string) {
 
   async function start(projectPath: string, prompt: string) {
     if (!threadId) {
-      const thread = await request("thread/start", { cwd: projectPath, approvalPolicy: "on-request", sandbox: "workspace-write" });
+      const settings = await readSettings();
+      const thread = await request("thread/start", { cwd: projectPath, approvalPolicy: settings.codexApprovalPolicy, sandbox: settings.codexSandbox });
       threadId = thread.thread.id;
     }
     const turn = await request("turn/start", { threadId, input: [{ type: "text", text: prompt }] });
@@ -155,7 +248,7 @@ function createCodexClient(taskId: string) {
     threadId = result.thread.id;
   }
 
-  return { initialize, start, send, interrupt, resume, get threadId() { return threadId; }, dispose: () => child.kill() };
+  return { initialize, start, send, interrupt, resume, get threadId() { return threadId; }, dispose: () => { void terminateChild(child); } };
 }
 
 function sendCodexEvent(taskId: string, payload: Record<string, unknown>) {
@@ -173,6 +266,7 @@ function createClaudeClient(taskId: string, projectPath: string, resumeId?: stri
   let buffer = "";
   const resultWaiters: Array<{ resolve(text: string): void; reject(error: Error): void }> = [];
   let sessionId = resumeId ?? "";
+  let cancelled = false;
   child.stdout.on("data", (chunk: Buffer) => {
     buffer += chunk.toString();
     const lines = buffer.split(/\r?\n/);
@@ -185,11 +279,20 @@ function createClaudeClient(taskId: string, projectPath: string, resumeId?: stri
       if (event.type === "stream_event") {
         const delta = event.event?.delta?.text;
         if (typeof delta === "string") sendClaudeEvent(taskId, { type: "delta", text: delta });
+        const block = event.event?.content_block;
+        if (event.event?.type === "content_block_start" && block?.type === "tool_use") {
+          sendClaudeEvent(taskId, { type: "tool", id: block.id, name: block.name, status: "running" });
+        }
+        if (event.event?.type === "content_block_stop") {
+          sendClaudeEvent(taskId, { type: "tool/stop" });
+        }
       }
       if (event.type === "result") {
-        if (event.is_error) resultWaiters.shift()?.reject(new Error(event.result ?? "Claude Code turn failed"));
-        else resultWaiters.shift()?.resolve(String(event.result ?? ""));
-        sendClaudeEvent(taskId, { type: "turn/completed", sessionId, text: event.result ?? "" });
+        const text = cancelled ? "" : String(event.result ?? "");
+        if (!cancelled && event.is_error) resultWaiters.shift()?.reject(new Error(event.result ?? "Claude Code turn failed"));
+        else resultWaiters.shift()?.resolve(text);
+        cancelled = false;
+        sendClaudeEvent(taskId, { type: "turn/completed", sessionId, text });
       }
       if (event.type === "system" && event.subtype === "init") {
         sessionId = event.session_id ?? sessionId;
@@ -198,20 +301,38 @@ function createClaudeClient(taskId: string, projectPath: string, resumeId?: stri
     }
   });
   child.stderr.on("data", (data: Buffer) => sendClaudeEvent(taskId, { type: "stderr", text: data.toString().slice(-1000) }));
+  child.on("error", (error) => {
+    sendClaudeEvent(taskId, { type: "process/error", message: error.message });
+    for (const waiter of resultWaiters.splice(0)) waiter.reject(error);
+  });
   child.on("exit", (code) => {
     claudeProcesses.delete(taskId);
     sendClaudeEvent(taskId, { type: "process/exit", code });
-    for (const waiter of resultWaiters.splice(0)) waiter.reject(new Error("Claude Code process exited"));
+    // On a user cancel the turn ends with the process exit, not with a `result` event.
+    for (const waiter of resultWaiters.splice(0)) {
+      if (cancelled) waiter.resolve("");
+      else waiter.reject(new Error("Claude Code process exited"));
+    }
+    cancelled = false;
   });
+  function run(prompt: string) {
+    return new Promise<string>((resolve, reject) => {
+      resultWaiters.push({ resolve, reject });
+      child.stdin.write(JSON.stringify({ type: "user", message: { role: "user", content: prompt } }) + "\n");
+    });
+  }
+  // Claude Code stream-json has no in-band interrupt. Terminating the CLI is the
+  // documented way to stop a turn; the next turn starts a fresh process resuming
+  // `sessionId`.
+  async function interrupt() {
+    cancelled = true;
+    await terminateChild(child);
+  }
   return {
-    run(prompt: string) {
-      return new Promise<string>((resolve, reject) => {
-        resultWaiters.push({ resolve, reject });
-        child.stdin.write(JSON.stringify({ type: "user", message: { role: "user", content: prompt } }) + "\n");
-      });
-    },
+    run,
+    interrupt,
     get sessionId() { return sessionId; },
-    dispose() { child.kill(); },
+    dispose() { void terminateChild(child); },
   };
 }
 
@@ -228,6 +349,8 @@ function createDshClient(taskId: string, projectPath: string) {
   let sessionId = "";
   let answer = "";
   const pending = new Map<number, { resolve(value: any): void; reject(error: Error): void }>();
+  const pendingPermissions = new Map<number, { options: Array<{ optionId: string; name: string; kind: string }> }>();
+  let lastStopReason: string | undefined;
 
   child.stdout.on("data", (chunk: Buffer) => {
     buffer += chunk.toString();
@@ -237,31 +360,45 @@ function createDshClient(taskId: string, projectPath: string) {
       if (!line) continue;
       let message: any;
       try { message = JSON.parse(line); } catch { continue; }
+      if (typeof message.method === "string") {
+        if (message.method === "session/update") {
+          const update = message.params?.update;
+          if (update?.sessionUpdate === "agent_message_chunk" && typeof update.content?.text === "string") {
+            answer += update.content.text;
+            sendDshEvent(taskId, { type: "delta", text: update.content.text });
+          }
+          sendDshEvent(taskId, { type: "session/update", update });
+        } else if (message.method === "session/request_permission") {
+          const options: Array<{ optionId: string; name: string; kind: string }> = Array.isArray(message.params?.options) ? message.params.options : [];
+          sendDshEvent(taskId, { type: "permission/request", requestId: message.id, params: message.params });
+          if (typeof message.id === "number" && options.length) pendingPermissions.set(message.id, { options });
+          else if (typeof message.id === "number") {
+            child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: message.id, result: { outcome: { outcome: "cancelled" } } }) + "\n");
+          }
+        } else {
+          sendDshEvent(taskId, { type: message.method, params: message.params });
+        }
+        continue;
+      }
       if (typeof message.id === "number" && pending.has(message.id)) {
         const waiter = pending.get(message.id)!;
         pending.delete(message.id);
         if (message.error) waiter.reject(new Error(message.error.message ?? "DSH request failed"));
         else waiter.resolve(message.result);
-      } else if (typeof message.method === "string") {
-        if (message.method === "session/update") {
-          const update = message.params?.update;
-          const text = update?.content?.text ?? update?.text;
-          if (typeof text === "string") {
-            answer += text;
-            sendDshEvent(taskId, { type: "delta", text });
-          }
-          sendDshEvent(taskId, { type: "session/update", update });
-        } else {
-          sendDshEvent(taskId, { type: message.method, params: message.params });
-        }
       }
     }
   });
   child.stderr.on("data", () => {});
+  child.on("error", (error) => {
+    sendDshEvent(taskId, { type: "process/error", message: error.message });
+    for (const waiter of pending.values()) waiter.reject(error);
+    pending.clear();
+  });
   child.on("exit", (code) => {
     dshProcesses.delete(taskId);
     for (const waiter of pending.values()) waiter.reject(new Error("DSH ACP exited with code " + code));
     pending.clear();
+    pendingPermissions.clear();
     sendDshEvent(taskId, { type: "process/exit", code });
   });
 
@@ -286,6 +423,7 @@ function createDshClient(taskId: string, projectPath: string) {
 
   async function run(prompt: string, savedSessionId?: string) {
     answer = "";
+    lastStopReason = undefined;
     if (!sessionId) {
       const params = { cwd: projectPath };
       const session = savedSessionId
@@ -293,11 +431,38 @@ function createDshClient(taskId: string, projectPath: string) {
         : await request("session/new", { ...params, mcpServers: [] });
       sessionId = session.sessionId ?? savedSessionId ?? "";
     }
-    await request("session/prompt", { sessionId, prompt: [{ type: "text", text: prompt }] });
-    return { sessionId, answer };
+    const result = await request("session/prompt", { sessionId, prompt: [{ type: "text", text: prompt }] });
+    lastStopReason = result?.stopReason ?? "end_turn";
+    return { sessionId, answer, stopReason: lastStopReason };
   }
 
-  return { initialize, run, get sessionId() { return sessionId; }, dispose() { child.kill(); } };
+  function interrupt() {
+    if (!sessionId) return;
+    child.stdin.write(JSON.stringify({ jsonrpc: "2.0", method: "session/cancel", params: { sessionId } }) + "\n");
+  }
+
+  function respondPermission(requestId: number, optionId: string | null) {
+    const request = pendingPermissions.get(requestId);
+    if (!request) return false;
+    pendingPermissions.delete(requestId);
+    const allowed = optionId !== null && request.options.some((option) => option.optionId === optionId);
+    child.stdin.write(JSON.stringify({
+      jsonrpc: "2.0",
+      id: requestId,
+      result: allowed ? { outcome: { outcome: "selected", optionId } } : { outcome: { outcome: "cancelled" } },
+    }) + "\n");
+    return true;
+  }
+
+  return {
+    initialize,
+    run,
+    interrupt,
+    respondPermission,
+    get sessionId() { return sessionId; },
+    get lastStopReason() { return lastStopReason; },
+    dispose() { void terminateChild(child); },
+  };
 }
 
 function sendDshEvent(taskId: string, payload: Record<string, unknown>) {
@@ -315,6 +480,8 @@ function createPiClient(taskId: string, projectPath: string, sessionFile?: strin
   let restored = false;
   const pending = new Map<string, { resolve(value: any): void; reject(error: Error): void }>();
   let settled: (() => void) | undefined;
+  let aborted = false;
+  let lastAborted = false;
   child.stdout.on("data", (chunk: Buffer) => {
     buffer += chunk.toString();
     const lines = buffer.split(/\r?\n/); buffer = lines.pop() ?? "";
@@ -324,32 +491,47 @@ function createPiClient(taskId: string, projectPath: string, sessionFile?: strin
       if (message.type === "response" && typeof message.id === "string" && pending.has(message.id)) {
         const waiter = pending.get(message.id)!; pending.delete(message.id);
         message.success ? waiter.resolve(message.data) : waiter.reject(new Error(message.error ?? "Pi RPC command failed"));
+        if (message.command === "get_state" && message.success && message.data?.sessionFile) {
+          sessionPath = message.data.sessionFile;
+          sendPiEvent(taskId, { type: "session/state", sessionFile: sessionPath });
+        }
       } else if (message.type === "message_update") {
         const update = message.assistantMessageEvent;
         if (update?.type === "text_delta") {
           answer += update.delta ?? "";
           sendPiEvent(taskId, { type: "delta", text: update.delta ?? "" });
+        } else if (update?.type === "error") {
+          sendPiEvent(taskId, { type: "agent_error", reason: update.reason ?? "error" });
         } else sendPiEvent(taskId, { type: "message_update", event: update });
-      } else if (message.type === "agent_settled") {
-        sendPiEvent(taskId, { type: "agent_settled", aborted: message.aborted });
+      } else if (message.type === "agent_end") {
+        sendPiEvent(taskId, { type: "agent_end", aborted });
+        aborted = false;
         settled?.();
         settled = undefined;
+      } else if (message.type === "tool_execution_start") {
+        sendPiEvent(taskId, { type: "tool", id: message.toolCallId, name: message.toolName, status: "running" });
+      } else if (message.type === "tool_execution_end") {
+        sendPiEvent(taskId, { type: "tool", id: message.toolCallId, name: message.toolName, status: message.isError ? "error" : "done" });
       } else if (message.type === "extension_ui_request") {
         sendPiEvent(taskId, { type: "extension_ui_request", request: message });
-      } else if (message.type === "response" && message.command === "get_state" && message.success) {
-        sessionPath = message.data?.sessionFile ?? sessionPath;
-        sendPiEvent(taskId, { type: "session/state", sessionFile: sessionPath });
       }
     }
   });
   child.stderr.on("data", (data: Buffer) => sendPiEvent(taskId, { type: "stderr", text: data.toString().slice(-1000) }));
+  child.on("error", (error) => {
+    sendPiEvent(taskId, { type: "process/error", message: error.message });
+    for (const waiter of pending.values()) waiter.reject(error);
+    pending.clear();
+    settled?.();
+    settled = undefined;
+  });
   child.on("exit", (code) => {
     piProcesses.delete(taskId);
     for (const waiter of pending.values()) waiter.reject(new Error("Pi process exited with code " + code));
     pending.clear();
+    sendPiEvent(taskId, { type: "process/exit", code });
     settled?.();
     settled = undefined;
-    sendPiEvent(taskId, { type: "process/exit", code });
   });
   function command(name: string, params: Record<string, unknown> = {}) {
     return new Promise<any>((resolve, reject) => {
@@ -358,24 +540,49 @@ function createPiClient(taskId: string, projectPath: string, sessionFile?: strin
       child.stdin.write(JSON.stringify({ type: name, id, ...params }) + "\n");
     });
   }
+  async function restore() {
+    if (!sessionPath || restored) return;
+    const result = await command("switch_session", { sessionPath });
+    if (result?.cancelled) throw new Error("Pi refused to resume the saved session");
+    restored = true;
+  }
   async function run(prompt: string) {
     answer = "";
-    if (sessionPath && !restored) {
-      await command("switch_session", { sessionPath });
-      restored = true;
-    }
+    aborted = false;
+    await restore();
     const idle = new Promise<void>((resolve) => { settled = resolve; });
+    // `agent_end` is emitted when the agent goes idle after the prompt, including tool turns.
+    if (sessionPath) sendPiEvent(taskId, { type: "session/state", sessionFile: sessionPath });
     await command("prompt", { message: prompt });
     await idle;
+    lastAborted = aborted;
     const state = await command("get_state");
     sessionPath = state?.sessionFile ?? sessionPath;
-    return { sessionFile: sessionPath, answer };
+    return { sessionFile: sessionPath, answer, aborted: lastAborted };
   }
-  return { run, dispose() { child.kill(); } };
+  async function interrupt() {
+    aborted = true;
+    await command("abort");
+  }
+  return { restore, run, interrupt, dispose() { void terminateChild(child); } };
 }
 
 function sendPiEvent(taskId: string, payload: Record<string, unknown>) {
   if (!mainWindow?.isDestroyed()) mainWindow?.webContents.send("pi:event", taskId, payload);
+}
+
+// Windows 上 Claude / DSH / Pi 是通过 cmd.exe 启动的，kill 外壳会留下真正的 Agent 进程。
+// 用 taskkill /T 结束整棵进程树，失败时退回 child.kill()。
+async function terminateChild(child: import("node:child_process").ChildProcess) {
+  if (process.platform === "win32" && child.pid) {
+    try {
+      await execFileAsync("taskkill", ["/pid", String(child.pid), "/t", "/f"], { windowsHide: true });
+      return;
+    } catch {
+      // 进程可能已经退出，继续走 kill 兜底
+    }
+  }
+  child.kill();
 }
 
 const agents = [
@@ -411,6 +618,29 @@ async function inspectAgent(agent: (typeof agents)[number]) {
   }
 }
 
+// Magpie 是一个本地模型路由网关；Tango 不复制它的配置，只报告它是否在机器上，
+// 具体模型仍由各 Agent 自己的配置决定（Magpie 改的正是那份配置）。
+async function inspectMagpie() {
+  try {
+    const result = await execFileAsync(
+      process.platform === "win32" ? "cmd.exe" : "magpie",
+      process.platform === "win32" ? ["/d", "/s", "/c", "magpie --version"] : ["--version"],
+      { timeout: 3000, windowsHide: true },
+    );
+    return { available: true, version: firstLine(result.stdout) };
+  } catch (error) {
+    const stdout = firstLine((error as { stdout?: string }).stdout);
+    return stdout ? { available: true, version: stdout } : { available: false, version: null };
+  }
+}
+
+function firstLine(text: string | undefined): string | null {
+  const raw = (text ?? "").split(String.fromCharCode(10))[0] ?? "";
+  const line = raw.endsWith(String.fromCharCode(13)) ? raw.slice(0, -1) : raw;
+  return line.trim() || null;
+}
+
+
 async function readLastWorkspace(): Promise<string | null> {
   try {
     const contents = await readFile(workspaceFile(), "utf8");
@@ -422,25 +652,92 @@ async function readLastWorkspace(): Promise<string | null> {
 }
 
 function registerIpc() {
-  ipcMain.handle("workspace:get", (event: IpcMainInvokeEvent) => {
+  ipcMain.handle("workspace:get", async (event: IpcMainInvokeEvent) => {
     assertTrustedSender(event);
-    return readLastWorkspace();
+    if (!currentProjectPath) currentProjectPath = await readLastWorkspace();
+    return currentProjectPath;
   });
   ipcMain.handle("workspace:open", async (event: IpcMainInvokeEvent) => {
     assertTrustedSender(event);
-    const result = await dialog.showOpenDialog({
+    const options: Electron.OpenDialogOptions = {
       title: "Open project folder",
       properties: ["openDirectory", "createDirectory"],
-    });
+    };
+    // 绑定到主窗口，否则对话框可能出现在窗口后面，看起来像“点了没反应”。
+    const result = mainWindow
+      ? await dialog.showOpenDialog(mainWindow, options)
+      : await dialog.showOpenDialog(options);
     const projectPath = result.filePaths[0];
     if (result.canceled || !projectPath) return null;
 
-    await writeFile(workspaceFile(), JSON.stringify({ projectPath }, null, 2), "utf8");
+    currentProjectPath = projectPath;
+    // 记住路径是增强项。写盘失败时仍然切换项目，只记录一次警告，
+    // 否则用户会看到「change project 报错」并以为功能坏了。
+    try {
+      await writeJsonAtomic(workspaceFile(), { projectPath });
+    } catch (error) {
+      console.warn("Could not persist the selected project:", error);
+    }
     return projectPath;
   });
   ipcMain.handle("agents:detect", (event: IpcMainInvokeEvent) => {
     assertTrustedSender(event);
     return Promise.all(agents.map(inspectAgent));
+  });
+  ipcMain.handle("tools:magpie", (event: IpcMainInvokeEvent) => {
+    assertTrustedSender(event);
+    return inspectMagpie();
+  });
+  ipcMain.handle("app:action", async (event: IpcMainInvokeEvent, action: string) => {
+    assertTrustedSender(event);
+    if (typeof action !== "string") throw new Error("Invalid action");
+    if (action === "quit") { app.quit(); return; }
+    if (action === "about") {
+      if (!mainWindow) return;
+      await dialog.showMessageBox(mainWindow, {
+        type: "info",
+        title: "About Tango",
+        message: `Tango ${app.getVersion()}`,
+        detail: "A local workspace for existing coding agents. Each agent keeps its own session, login and model.",
+        buttons: ["OK"],
+      });
+      return;
+    }
+    const contents = mainWindow?.webContents;
+    if (!contents) return;
+    const edit: Record<string, () => void> = {
+      "edit:undo": () => contents.undo(),
+      "edit:redo": () => contents.redo(),
+      "edit:cut": () => contents.cut(),
+      "edit:copy": () => contents.copy(),
+      "edit:paste": () => contents.paste(),
+      "edit:selectAll": () => contents.selectAll(),
+      "view:reload": () => contents.reload(),
+      "view:devtools": () => contents.toggleDevTools(),
+      "view:zoomIn": () => contents.setZoomLevel(contents.getZoomLevel() + 0.5),
+      "view:zoomOut": () => contents.setZoomLevel(contents.getZoomLevel() - 0.5),
+      "view:resetZoom": () => contents.setZoomLevel(0),
+      "view:fullscreen": () => mainWindow?.setFullScreen(!mainWindow.isFullScreen()),
+    };
+    const run = edit[action];
+    if (!run) throw new Error("Unknown action: " + action);
+    run();
+  });
+  ipcMain.handle("settings:get", async (event: IpcMainInvokeEvent) => {
+    assertTrustedSender(event);
+    return readSettings();
+  });
+  ipcMain.handle("settings:save", async (event: IpcMainInvokeEvent, next: Partial<AppSettings>) => {
+    assertTrustedSender(event);
+    if (!next || typeof next !== "object") throw new Error("Invalid settings");
+    const settings = sanitizeSettings({ ...(await readSettings()), ...next });
+    cachedSettings = settings;
+    try {
+      await writeJsonAtomic(settingsFile(), settings);
+    } catch (error) {
+      console.warn("Could not persist settings:", error);
+    }
+    return settings;
   });
   ipcMain.handle("tasks:list", async (event: IpcMainInvokeEvent) => {
     assertTrustedSender(event);
@@ -467,8 +764,12 @@ function registerIpc() {
       !paneIds.includes(layout.activePaneId)) {
       throw new Error("Invalid terminal layout");
     }
-    await mkdir(app.getPath("userData"), { recursive: true });
-    await writeFile(layoutFile(), JSON.stringify(layout), "utf8");
+    // 布局是增强项；保存失败不应该让每个布局变更都在 UI 里报错。
+    try {
+      await writeJsonAtomic(layoutFile(), layout);
+    } catch (error) {
+      console.warn("Could not persist the terminal layout:", error);
+    }
   });
   ipcMain.handle("tasks:create", async (event: IpcMainInvokeEvent, title: string, projectPath: string) => {
     assertTrustedSender(event);
@@ -477,23 +778,85 @@ function registerIpc() {
     await saveTasks([task, ...(await readTasks())]);
     return task;
   });
+  ipcMain.handle("tasks:pin", async (event: IpcMainInvokeEvent, taskId: string, pinned: boolean) => {
+    assertTrustedSender(event);
+    const tasks = await readTasks();
+    const task = tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Task not found");
+    if (pinned) task.pinned = true;
+    else delete task.pinned;
+    await saveTasks(tasks);
+    return task;
+  });
+  ipcMain.handle("tasks:reorder", async (event: IpcMainInvokeEvent, taskIds: string[]) => {
+    assertTrustedSender(event);
+    if (!Array.isArray(taskIds) || taskIds.some((id) => typeof id !== "string")) throw new Error("Invalid task order");
+    const tasks = await readTasks();
+    const byId = new Map(tasks.map((task) => [task.id, task]));
+    const ordered = taskIds.map((id) => byId.get(id)).filter((task): task is TaskRecord => Boolean(task));
+    const rest = tasks.filter((task) => !taskIds.includes(task.id));
+    await saveTasks([...ordered, ...rest]);
+    return [...ordered, ...rest];
+  });
+  ipcMain.handle("tasks:rename", async (event: IpcMainInvokeEvent, taskId: string, title: string) => {
+    assertTrustedSender(event);
+    if (typeof title !== "string" || !title.trim()) throw new Error("Task title is required");
+    const tasks = await readTasks();
+    const task = tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Task not found");
+    task.title = title.trim().slice(0, 200);
+    await saveTasks(tasks);
+    return task;
+  });
+  ipcMain.handle("tasks:archive", async (event: IpcMainInvokeEvent, taskId: string, archived: boolean) => {
+    assertTrustedSender(event);
+    const tasks = await readTasks();
+    const task = tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Task not found");
+    if (archived) task.archived = true;
+    else delete task.archived;
+    await saveTasks(tasks);
+    return task;
+  });
+  ipcMain.handle("tasks:delete", async (event: IpcMainInvokeEvent, taskId: string) => {
+    assertTrustedSender(event);
+    const tasks = await readTasks();
+    if (!tasks.some((item) => item.id === taskId)) throw new Error("Task not found");
+    await saveTasks(tasks.filter((item) => item.id !== taskId));
+    // 任务消失后，属于它的 Agent 进程和布局都不能继续留在内存里。
+    for (const map of [codexProcesses, claudeProcesses, dshProcesses, piProcesses]) {
+      const client = map.get(taskId);
+      if (client) {
+        client.dispose();
+        map.delete(taskId);
+      }
+    }
+    return { deleted: taskId };
+  });
+  // 任务在磁盘上可能带着 threadId，但进程只活在内存里：应用重启、Codex 崩溃或
+  // 子进程退出后都必须重建并 resume，否则第二次发消息就会报「未连接」。
+  async function ensureCodexClient(task: TaskRecord) {
+    let client = codexProcesses.get(task.id);
+    if (client) return client;
+    client = createCodexClient(task.id, task.projectPath);
+    codexProcesses.set(task.id, client);
+    try {
+      await client.initialize();
+      if (task.threadId) await client.resume(task.threadId);
+    } catch (error) {
+      client.dispose();
+      codexProcesses.delete(task.id);
+      throw error;
+    }
+    return client;
+  }
+
   ipcMain.handle("codex:start", async (event: IpcMainInvokeEvent, taskId: string, projectPath: string, prompt: string) => {
     assertTrustedSender(event);
     const tasks = await readTasks();
     const task = tasks.find((item) => item.id === taskId);
     if (!task || task.projectPath !== await realpath(projectPath)) throw new Error("Task does not belong to this project");
-    let client = codexProcesses.get(taskId);
-    if (!client) {
-      client = createCodexClient(taskId);
-      codexProcesses.set(taskId, client);
-      try {
-        await client.initialize();
-        if (task.threadId) await client.resume(task.threadId);
-      } catch (error) {
-        client.dispose();
-        throw error;
-      }
-    }
+    const client = await ensureCodexClient(task);
     task.messages.push({ role: "user", text: prompt, agent: "codex", createdAt: new Date().toISOString() });
     await saveTasks(tasks);
     const result = await client.start(task.projectPath, prompt);
@@ -505,8 +868,9 @@ function registerIpc() {
     assertTrustedSender(event);
     const tasks = await readTasks();
     const task = tasks.find((item) => item.id === taskId);
-    const client = codexProcesses.get(taskId);
-    if (!task || !client) throw new Error("Codex task session is not connected");
+    if (!task) throw new Error("Codex task session is not connected");
+    const client = await ensureCodexClient(task);
+    if (!client.threadId) throw new Error("Codex conversation could not be resumed");
     task.messages.push({ role: "user", text: prompt, agent: "codex", createdAt: new Date().toISOString() });
     await saveTasks(tasks);
     await client.send(prompt);
@@ -529,9 +893,26 @@ function registerIpc() {
     await saveTasks(tasks);
     const answer = await client.run(prompt);
     task.claudeSessionId = client.sessionId;
-    task.messages.push({ role: "assistant", text: answer, agent: "claude", createdAt: new Date().toISOString() });
-    await saveTasks(tasks);
+    if (answer) {
+      task.messages.push({ role: "assistant", text: answer, agent: "claude", createdAt: new Date().toISOString() });
+      await saveTasks(tasks);
+    }
     return { sessionId: client.sessionId, answer };
+  });
+  ipcMain.handle("claude:interrupt", async (event: IpcMainInvokeEvent, taskId: string) => {
+    assertTrustedSender(event);
+    const client = claudeProcesses.get(taskId);
+    if (!client) return;
+    // Keep the native session so the next turn can resume after the CLI is killed.
+    if (client.sessionId) {
+      const tasks = await readTasks();
+      const task = tasks.find((item) => item.id === taskId);
+      if (task) {
+        task.claudeSessionId = client.sessionId;
+        await saveTasks(tasks);
+      }
+    }
+    await client.interrupt();
   });
   ipcMain.handle("dsh:run", async (event: IpcMainInvokeEvent, taskId: string, projectPath: string, prompt: string) => {
     assertTrustedSender(event);
@@ -553,9 +934,22 @@ function registerIpc() {
     await saveTasks(tasks);
     const result = await client.run(prompt, task.dshSessionId);
     task.dshSessionId = result.sessionId;
-    task.messages.push({ role: "assistant", text: result.answer, agent: "dsh", createdAt: new Date().toISOString() });
-    await saveTasks(tasks);
+    if (result.answer) {
+      task.messages.push({ role: "assistant", text: result.answer, agent: "dsh", createdAt: new Date().toISOString() });
+      await saveTasks(tasks);
+    }
     return result;
+  });
+  ipcMain.handle("dsh:interrupt", async (event: IpcMainInvokeEvent, taskId: string) => {
+    assertTrustedSender(event);
+    dshProcesses.get(taskId)?.interrupt();
+  });
+  ipcMain.handle("dsh:permission", async (event: IpcMainInvokeEvent, taskId: string, requestId: number, optionId: string | null) => {
+    assertTrustedSender(event);
+    if (!Number.isInteger(requestId)) throw new Error("Invalid permission request");
+    if (optionId !== null && typeof optionId !== "string") throw new Error("Invalid permission option");
+    const handled = dshProcesses.get(taskId)?.respondPermission(requestId, optionId) ?? false;
+    if (!handled) throw new Error("Permission request is no longer pending");
   });
   ipcMain.handle("pi:run", async (event: IpcMainInvokeEvent, taskId: string, projectPath: string, prompt: string) => {
     assertTrustedSender(event);
@@ -566,14 +960,27 @@ function registerIpc() {
     if (!client) {
       client = createPiClient(taskId, task.projectPath, task.piSessionFile);
       piProcesses.set(taskId, client);
+      try {
+        await client.restore();
+      } catch (error) {
+        client.dispose();
+        piProcesses.delete(taskId);
+        throw error;
+      }
     }
     task.messages.push({ role: "user", text: prompt, agent: "pi", createdAt: new Date().toISOString() });
     await saveTasks(tasks);
     const result = await client.run(prompt);
     task.piSessionFile = result.sessionFile;
-    task.messages.push({ role: "assistant", text: result.answer, agent: "pi", createdAt: new Date().toISOString() });
-    await saveTasks(tasks);
+    if (result.answer) {
+      task.messages.push({ role: "assistant", text: result.answer, agent: "pi", createdAt: new Date().toISOString() });
+      await saveTasks(tasks);
+    }
     return result;
+  });
+  ipcMain.handle("pi:interrupt", async (event: IpcMainInvokeEvent, taskId: string) => {
+    assertTrustedSender(event);
+    await piProcesses.get(taskId)?.interrupt();
   });
   ipcMain.handle("terminal:start", async (event: IpcMainInvokeEvent, requestedPath: string, terminalId: string) => {
     assertTrustedSender(event);
@@ -581,36 +988,45 @@ function registerIpc() {
       throw new Error("Invalid terminal identifier");
     }
     const existingTerminal = terminals.get(terminalId);
-    if (existingTerminal) {
+    if (existingTerminal && existingTerminal.cwd === requestedPath) {
       if (existingTerminal.closeTimer) clearTimeout(existingTerminal.closeTimer);
       existingTerminal.closeTimer = undefined;
       return;
     }
-    const savedPath = await readLastWorkspace();
-    if (!savedPath) throw new Error("Open a project folder before starting a terminal");
+    // 换了项目后同一个 pane id 会被复用；旧进程还在原目录里，必须换掉。
+    if (existingTerminal) {
+      if (existingTerminal.closeTimer) clearTimeout(existingTerminal.closeTimer);
+      existingTerminal.process.kill();
+      terminals.delete(terminalId);
+    }
+    if (!currentProjectPath) currentProjectPath = await readLastWorkspace();
+    if (!currentProjectPath) throw new Error("Open a project folder before starting a terminal");
 
-    const root = await realpath(savedPath);
-    const requested = await realpath(requestedPath);
+    const root = await realpath(currentProjectPath);
+    // 界面传入的路径可能已被删除、换过大小写或含短名（8.3），解析失败时退回工作区根目录，
+    // 而不是把终端整个启动失败。
+    const requested = await realpath(requestedPath).catch(() => root);
     const relative = path.relative(root, requested);
     if (relative.startsWith("..") || path.isAbsolute(relative)) {
-      throw new Error("Terminal directory must be inside the selected project");
+      throw new Error(`Terminal directory must be inside the selected project: ${requestedPath} is outside ${root}`);
     }
     if (!(await stat(requested)).isDirectory()) throw new Error("Terminal path is not a directory");
 
-    const shell = path.join(
-      process.env.SystemRoot || "C:\\Windows",
-      "System32",
-      "WindowsPowerShell",
-      "v1.0",
-      "powershell.exe",
-    );
+    const settings = await readSettings();
+    const gitBash = "C:\\Program Files\\Git\\bin\\bash.exe";
+    const shell = settings.terminalShell === "cmd"
+      ? path.join(process.env.SystemRoot || "C:\\Windows", "System32", "cmd.exe")
+      : settings.terminalShell === "gitbash"
+        ? gitBash
+        : path.join(process.env.SystemRoot || "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+    const shellArgs = settings.terminalShell === "powershell" ? ["-NoLogo", "-NoExit"] : [];
     const terminalEnvironment: NodeJS.ProcessEnv = {
       ...process.env,
       TERM: "xterm-256color",
       COLORTERM: "truecolor",
     };
     delete terminalEnvironment.NO_COLOR;
-    const terminal = spawn(shell, ["-NoLogo", "-NoExit"], {
+    const terminal = spawn(shell, shellArgs, {
       name: "xterm-256color",
       cols: 100,
       rows: 30,
@@ -619,7 +1035,7 @@ function registerIpc() {
       useConpty: true,
       conptyInheritCursor: true,
     });
-    terminals.set(terminalId, { process: terminal });
+    terminals.set(terminalId, { process: terminal, cwd: requestedPath });
     terminal.onData((data) => {
       if (!mainWindow?.isDestroyed()) mainWindow?.webContents.send("terminal:data", terminalId, data);
     });
@@ -662,8 +1078,13 @@ function createWindow() {
     minWidth: 980,
     minHeight: 640,
     icon: path.join(app.getAppPath(), "assets", "tango-icon.png"),
-    backgroundColor: "#f4f0e7",
+    backgroundColor: "#ffffff",
     title: "Tango",
+    // T3 和 Codex 都是无边框窗口：顶部由网页自己画，窗口按钮走原生 overlay。
+    titleBarStyle: "hidden",
+    ...(process.platform === "win32"
+      ? { titleBarOverlay: { color: "#fafafa", symbolColor: "#18181b", height: 44 } }
+      : {}),
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -681,8 +1102,27 @@ function createWindow() {
   mainWindow.on("closed", () => { mainWindow = null; });
 }
 
+// 菜单栏现在画在应用内（见 titlebar），这里只保留一个隐藏的菜单，
+// 因为 Windows 上的 Ctrl+C / Ctrl+V / Ctrl+A 依赖 Edit 角色注册快捷键。
+function buildApplicationMenu() {
+  return Menu.buildFromTemplate([
+    {
+      label: "Edit",
+      submenu: [
+        { role: "undo" },
+        { role: "redo" },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
+        { role: "paste" },
+        { role: "selectAll" },
+      ],
+    },
+  ]);
+}
+
 app.whenReady().then(() => {
-  Menu.setApplicationMenu(null);
+  Menu.setApplicationMenu(buildApplicationMenu());
   if (process.argv.includes("--pty-smoke")) {
     runPtySmoke().then(() => {
       console.log("Electron ConPTY smoke test passed");
@@ -745,8 +1185,6 @@ app.on("window-all-closed", () => {
   claudeProcesses.clear();
   for (const client of dshProcesses.values()) client.dispose();
   dshProcesses.clear();
-  for (const client of piProcesses.values()) client.dispose();
-  piProcesses.clear();
   for (const client of piProcesses.values()) client.dispose();
   piProcesses.clear();
   for (const terminal of terminals.values()) {
