@@ -1694,7 +1694,7 @@ function App() {
                       if (event.key === "ArrowDown" && browsing) { event.preventDefault(); recallPrompt(-1); return; }
                     }
                     if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submitPrompt(); }
-                  }} placeholder={"Ask " + activeAgent + " to work in this project…  (/ for commands)"} />
+                  }} placeholder={"Ask " + (agents.find((agent) => agent.id === activeAgent)?.name ?? "an agent") + " to work in this project…  (/ for commands)"} />
                   {running && (
                     <button type="button" className="subtle-button" onClick={() => void stopTurn(runningTaskRef.current ?? activeTask)} disabled={stopping}>
                       {stopping ? "Stopping…" : "Stop"}
