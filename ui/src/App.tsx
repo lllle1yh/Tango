@@ -2638,6 +2638,12 @@ function App() {
             <section className="settings-group">
               <h3>Workspace</h3>
               <div className="settings-row">
+                <span>Tasks</span>
+                <span className="settings-status">
+                  {tasks.filter((task) => !task.archived).length} active · {tasks.filter((task) => task.archived).length} archived
+                </span>
+              </div>
+              <div className="settings-row">
                 <span>Project</span>
                 <span className="settings-status" title={project ?? undefined}>{project ?? "none"}</span>
               </div>
@@ -2674,7 +2680,7 @@ function App() {
             </section>
 
             <section className="settings-group">
-              <h3>Keyboard</h3>
+              <h3>About</h3>
               <div className="settings-row">
                 <span>Version</span>
                 <span className="settings-status">
@@ -2685,7 +2691,11 @@ function App() {
                 <span>Platform</span>
                 <span className="settings-status">{appInfo?.platform ?? "…"}</span>
               </div>
-              <div className="settings-row">
+            </section>
+
+            <section className="settings-group">
+              <h3>Keyboard</h3>
+            <div className="settings-row">
                 <span>Shortcut reference</span>
                 <button className="subtle-button" onClick={() => { setSettingsOpen(false); setShortcutsOpen(true); }}>Show shortcuts</button>
               </div>
