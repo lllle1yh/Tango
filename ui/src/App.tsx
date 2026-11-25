@@ -480,8 +480,8 @@ function App() {
   };
   const [permission, setPermission] = useState<{
     taskId: string;
-    agent: "codex" | "dsh";
-    requestId: number;
+    agent: "codex" | "dsh" | "pi";
+    requestId: number | string;
     title: string;
     detail?: string;
     options: Array<{ optionId: string; name: string; kind?: string }>;
@@ -603,6 +603,20 @@ function App() {
     if (taskId !== activeTask) return;
     if (event.type === "delta" && typeof event.text === "string") setAssistantText((text) => text + event.text);
     if (event.type === "tool") recordTool(taskId, event as { id?: string; name?: string; status?: string });
+    if (event.type === "permission/request") {
+      const options = Array.isArray(event.options)
+        ? (event.options as Array<{ optionId: string; label?: string; kind?: string }>)
+          .map((option) => ({ optionId: option.optionId, name: option.label ?? option.optionId, kind: option.kind }))
+        : [];
+      setPermission({
+        taskId,
+        agent: "pi",
+        requestId: String(event.requestId),
+        title: String(event.title ?? "Pi is asking for input."),
+        detail: typeof event.detail === "string" ? event.detail : undefined,
+        options,
+      });
+    }
     if (event.type === "agent_end" || event.type === "process/exit" || event.type === "process/error") {
       setRunning(false);
       setRunningAgent(null);
@@ -615,9 +629,11 @@ function App() {
     setPermission(null);
     try {
       if (current.agent === "codex") {
-        await window.tango.codexRespondPermission(current.taskId, current.requestId, optionId);
+        await window.tango.codexRespondPermission(current.taskId, Number(current.requestId), optionId);
+      } else if (current.agent === "pi") {
+        await window.tango.piRespondUi(current.taskId, String(current.requestId), optionId);
       } else {
-        await window.tango.dshRespondPermission(current.taskId, current.requestId, optionId);
+        await window.tango.dshRespondPermission(current.taskId, Number(current.requestId), optionId);
       }
     } catch (error) {
       setAssistantText(error instanceof Error ? error.message : "Could not answer the permission request");

@@ -104,6 +104,8 @@ contextBridge.exposeInMainWorld("tango", {
     ipcRenderer.invoke("pi:run", taskId, projectPath, prompt),
   piInterrupt: (taskId: string): Promise<void> =>
     ipcRenderer.invoke("pi:interrupt", taskId),
+  piRespondUi: (taskId: string, requestId: string, optionId: string | null): Promise<void> =>
+    ipcRenderer.invoke("pi:ui-response", taskId, requestId, optionId),
   onPiEvent: (listener: AgentEventListener): (() => void) => {
     const handle = (_event: Electron.IpcRendererEvent, taskId: string, payload: Record<string, unknown>) =>
       listener(taskId, payload);
@@ -190,6 +192,7 @@ export interface TangoApi {
   getPiCommands(projectPath: string): Promise<Array<{ name: string; description?: string }>>;
   runPi(taskId: string, projectPath: string, prompt: string): Promise<{ sessionFile: string; answer: string; aborted: boolean }>;
   piInterrupt(taskId: string): Promise<void>;
+  piRespondUi(taskId: string, requestId: string, optionId: string | null): Promise<void>;
   onPiEvent(listener: (taskId: string, event: Record<string, unknown>) => void): () => void;
   getLayout(): Promise<WorkspaceLayout | null>;
   saveLayout(layout: WorkspaceLayout): Promise<void>;

@@ -560,6 +560,7 @@ function createPiClient(taskId: string, projectPath: string, sessionFile?: strin
   let sessionPath = sessionFile ?? "";
   let restored = false;
   const pending = new Map<string, { resolve(value: any): void; reject(error: Error): void }>();
+  const pendingUi = new Map<string, { method: string; options?: string[] }>();
   let settled: (() => void) | undefined;
   let aborted = false;
   let lastAborted = false;
@@ -594,13 +595,31 @@ function createPiClient(taskId: string, projectPath: string, sessionFile?: strin
       } else if (message.type === "tool_execution_end") {
         sendPiEvent(taskId, { type: "tool", id: message.toolCallId, name: message.toolName, status: message.isError ? "error" : "done" });
       } else if (message.type === "extension_ui_request") {
-        sendPiEvent(taskId, { type: "extension_ui_request", request: message });
+        const method = String(message.method ?? "");
+        if (["select", "confirm", "input", "editor"].includes(method) && typeof message.id === "string") {
+          pendingUi.set(message.id, { method, options: Array.isArray(message.options) ? message.options.map(String) : undefined });
+          const options = method === "select"
+            ? (message.options ?? []).map((option: unknown, index: number) => ({ optionId: String(index), label: String(option) }))
+            : method === "confirm"
+              ? [{ optionId: "yes", label: "Allow" }, { optionId: "no", label: "Decline" }]
+              : [{ optionId: "cancel", label: "Dismiss" }];
+          sendPiEvent(taskId, {
+            type: "permission/request",
+            requestId: message.id,
+            title: String(message.title ?? message.message ?? "Pi is asking for input."),
+            detail: typeof message.message === "string" ? message.message : undefined,
+            options,
+          });
+        } else {
+          sendPiEvent(taskId, { type: "extension_ui_request", request: message });
+        }
       }
     }
   });
   child.stderr.on("data", (data: Buffer) => sendPiEvent(taskId, { type: "stderr", text: data.toString().slice(-1000) }));
   child.on("error", (error) => {
     sendPiEvent(taskId, { type: "process/error", message: error.message });
+    pendingUi.clear();
     for (const waiter of pending.values()) waiter.reject(error);
     pending.clear();
     settled?.();
@@ -610,6 +629,7 @@ function createPiClient(taskId: string, projectPath: string, sessionFile?: strin
     piProcesses.delete(taskId);
     for (const waiter of pending.values()) waiter.reject(new Error("Pi process exited with code " + code));
     pending.clear();
+    pendingUi.clear();
     sendPiEvent(taskId, { type: "process/exit", code });
     settled?.();
     settled = undefined;
@@ -645,7 +665,20 @@ function createPiClient(taskId: string, projectPath: string, sessionFile?: strin
     aborted = true;
     await command("abort");
   }
-  return { restore, run, interrupt, dispose() { void terminateChild(child); } };
+  function respondUi(requestId: string, optionId: string | null) {
+    const request = pendingUi.get(requestId);
+    if (!request) return false;
+    pendingUi.delete(requestId);
+    let payload: Record<string, unknown>;
+    if (!optionId) payload = { cancelled: true };
+    else if (request.method === "select") payload = { value: request.options?.[Number(optionId)] ?? optionId };
+    else if (request.method === "confirm") payload = { confirmed: optionId === "yes" };
+    else payload = { cancelled: true };
+    child.stdin.write(JSON.stringify({ type: "extension_ui_response", id: requestId, ...payload }) + String.fromCharCode(10));
+    return true;
+  }
+
+  return { restore, run, interrupt, respondUi, dispose() { void terminateChild(child); } };
 }
 
 function sendPiEvent(taskId: string, payload: Record<string, unknown>) {
@@ -1179,6 +1212,13 @@ function registerIpc() {
     return result;
   });
   ipcMain.handle("pi:interrupt", async (event: IpcMainInvokeEvent, taskId: string) => {
+  ipcMain.handle("pi:ui-response", async (event: IpcMainInvokeEvent, taskId: string, requestId: string, optionId: string | null) => {
+    assertTrustedSender(event);
+    if (typeof requestId !== "string") throw new Error("Invalid UI request");
+    if (optionId !== null && typeof optionId !== "string") throw new Error("Invalid option");
+    const handled = piProcesses.get(taskId)?.respondUi(requestId, optionId) ?? false;
+    if (!handled) throw new Error("PI UI request is no longer pending");
+  });
     assertTrustedSender(event);
     await piProcesses.get(taskId)?.interrupt();
   });
