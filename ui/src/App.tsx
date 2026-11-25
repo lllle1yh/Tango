@@ -556,6 +556,7 @@ function App() {
     input?: { placeholder: string; prefill: string };
   } | null>(null);
   const [permissionText, setPermissionText] = useState("");
+  const [atBottom, setAtBottom] = useState(true);
   const scrollTaskRef = useRef<string | null>(null);
 
   const refreshAgents = useCallback(async () => {
@@ -1339,7 +1340,15 @@ function App() {
                     </button>
                   </div>
                 )}
-                <div className="conversation-messages" ref={messagesRef}>
+                <div
+                  className="conversation-messages"
+                  ref={messagesRef}
+                  onScroll={(event) => {
+                    const element = event.currentTarget;
+                    const distance = element.scrollHeight - element.scrollTop - element.clientHeight;
+                    setAtBottom(distance < 140);
+                  }}
+                >
                   {chatVirtualizer.getTotalSize() > 0 && (
                     <div className="chat-virtual" style={{ height: chatVirtualizer.getTotalSize() }}>
                       {virtualRows.map((virtualRow) => {
@@ -1411,6 +1420,19 @@ function App() {
                     </div>
                   )}
                 </div>
+                {!atBottom && (
+                  <button
+                    className="jump-latest"
+                    onClick={() => {
+                      const element = messagesRef.current;
+                      if (element) element.scrollTop = element.scrollHeight;
+                      setAtBottom(true);
+                    }}
+                  >
+                    <ChevronDown size={13} />
+                    Latest
+                  </button>
+                )}
                 {permission && permission.taskId === activeTask && (
                   <div className="permission-request" role="alertdialog" aria-label="Agent permission request">
                     <p className="permission-title">{permission.title}</p>
