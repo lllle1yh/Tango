@@ -202,7 +202,9 @@ button { color: inherit; font: inherit; }
 @media (max-width: 1050px) {
   .app-shell { grid-template-columns: 244px 1fr; }
   .panel-tab { min-width: 126px; }
-  .conversation-messages { padding: 26px max(26px, calc((100% - 960px) / 2)); }
+  /* The copy button hangs 34px outside the message; at this width it needs a gutter of its own,
+     or the transcript grows a horizontal scrollbar. */
+  .conversation-messages { padding: 26px max(26px, calc((100% - 960px) / 2)); padding-right: 56px; }
   .agent-state { font-size: 0; }
   .agent-state i { width: 6px; height: 6px; }
 }
