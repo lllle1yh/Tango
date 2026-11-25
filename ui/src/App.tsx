@@ -1524,6 +1524,14 @@ function App() {
     });
   }
 
+  // A fresh start for the canvas: one shell, no split tree and no remembered names.
+  function resetTerminals() {
+    const id = "terminal-" + crypto.randomUUID();
+    setLayoutRoot({ type: "pane", id });
+    setActiveTerminal(id);
+    setPaneLabels({});
+  }
+
   function closePane(id: string) {
     if (!layoutRoot) return;
     const remaining = paneIds(layoutRoot).filter((paneId) => paneId !== id);
@@ -2611,6 +2619,10 @@ function App() {
                   {({ powershell: "PowerShell", gitbash: "Git Bash", cmd: "Command Prompt" } as Record<string, string>)[settings?.terminalShell ?? "powershell"] ?? "PowerShell"}
                   {" · "}{(layoutRoot ? paneIds(layoutRoot) : []).length} open
                 </span>
+              </div>
+              <div className="settings-row">
+                <span>Shell layout</span>
+                <button className="subtle-button" onClick={() => resetTerminals()}>Reset to one shell</button>
               </div>
               <div className="settings-row">
                 <span>Data folder</span>
