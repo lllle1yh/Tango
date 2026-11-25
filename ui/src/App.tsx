@@ -758,11 +758,12 @@ function App() {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
 
-  function endTurn(taskId: string) {
+  // Tool activity stays under the answer it belongs to, so a finished turn can still be
+  // read; it is cleared when the next turn starts instead.
+  function endTurn(_taskId: string) {
     setRunning(false);
     setRunningAgent(null);
     setStopping(false);
-    setToolActivity((current) => (current[taskId]?.length ? { ...current, [taskId]: [] } : current));
   }
 
   // Streamed answer text is appended to the turn's assistant message as it arrives.
@@ -874,6 +875,7 @@ function App() {
   async function startTurn(agent: AgentStatus["id"], task: TaskRecord, text: string) {
     setPrompt("");
     setAssistantText("");
+    setToolActivity((current) => (current[task.id]?.length ? { ...current, [task.id]: [] } : current));
     setRunning(true);
     setStopping(false);
     setRunningAgent(agent);
