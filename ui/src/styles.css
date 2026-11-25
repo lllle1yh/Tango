@@ -534,7 +534,9 @@ button { color: inherit; font: inherit; }
 .run-stale .subtle-button { flex: none; height: 26px; font-size: 12px; }
 
 /* Virtualised chat rows */
-.chat-virtual { position: relative; width: 100%; max-width: 868px; margin: 0 auto; }
+/* The list is a flex child; without flex: none the spacer shrinks to the viewport and a long
+   transcript can never be scrolled past what has been measured. */
+.chat-virtual { position: relative; flex: none; width: 100%; max-width: 868px; margin: 0 auto; }
 .chat-row { position: absolute; top: 0; left: 0; width: 100%; padding-bottom: 20px; }
 .message { content-visibility: visible; }
 
