@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import type { AgentStatus, LayoutNode, TaskRecord } from "../../electron/preload";
+import type { AgentStatus, AppSettings, LayoutNode, TaskRecord } from "../../electron/preload";
+import { Archive, ChevronDown, ChevronRight, Columns2, MoreHorizontal, Pencil, Plus, RefreshCw, Rows2, Terminal as TerminalIcon, Trash2, X } from "lucide-react";
+import { Markdown } from "./Markdown";
+import { CommandPalette, type PaletteItem } from "./CommandPalette";
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { GripVertical, Pin, Search } from "lucide-react";
 import "./layout.css";
 import "./agent-icons.css";
 
@@ -75,6 +82,36 @@ function TerminalView({ projectPath, terminalId }: { projectPath: string; termin
     terminal.open(hostRef.current);
     terminalRef.current = terminal;
 
+    // Windows Terminal / VS Code 的习惯：有选区时 Ctrl+C 复制，没有选区时才把 ^C 发给 shell。
+    // Ctrl+Shift+C / Ctrl+Shift+V 始终是复制 / 粘贴。
+    terminal.attachCustomKeyEventHandler((event) => {
+      if (event.type !== "keydown" || !event.ctrlKey) return true;
+      const copy = () => {
+        const selection = terminal.getSelection();
+        if (!selection) return false;
+        void navigator.clipboard.writeText(selection);
+        return true;
+      };
+      const paste = () => {
+        void navigator.clipboard.readText().then((text) => {
+          if (text) window.tango.writeTerminal(terminalId, text);
+        });
+        return true;
+      };
+      if (event.code === "KeyC") {
+        if (event.shiftKey || terminal.hasSelection()) {
+          copy();
+          return false;
+        }
+        return true;
+      }
+      if (event.code === "KeyV" && event.shiftKey) {
+        paste();
+        return false;
+      }
+      return true;
+    });
+
     const removeDataListener = window.tango.onTerminalData((id, data) => {
       if (id === terminalId) terminal.write(data);
     });
@@ -122,7 +159,7 @@ function TerminalView({ projectPath, terminalId }: { projectPath: string; termin
           onClick={() => terminalRef.current?.focus()}
           aria-label="Focus terminal"
           title="Focus terminal"
-        >⌁</button>
+        ><TerminalIcon size={14} /></button>
       </div>
       {error ? (
         <div className="terminal-error" role="alert">
@@ -140,6 +177,7 @@ function PaneTree({
   node,
   projectPath,
   activePaneId,
+  labels,
   onActivate,
   onSplit,
   onClose,
@@ -147,9 +185,10 @@ function PaneTree({
 }: {
   node: LayoutNode;
   projectPath: string;
-  activePaneId: string;
+  activePaneId: string | null;
+  labels: Record<string, string>;
   onActivate(id: string): void;
-  onSplit(id: string, direction: "horizontal" | "vertical"): void;
+  onSplit(id: string | null, direction: "horizontal" | "vertical"): void;
   onClose(id: string): void;
   onResize(id: string, ratio: number): void;
 }) {
@@ -157,11 +196,11 @@ function PaneTree({
     return (
       <section className={"layout-pane " + (activePaneId === node.id ? "focused" : "")} onMouseDown={() => onActivate(node.id)}>
         <header className="layout-pane-header">
-          <span className="pane-title"><i />Terminal</span>
+          <span className="pane-title"><i />{labels[node.id] ?? "Shell"}</span>
           <div className="pane-actions">
-            <button onClick={() => onSplit(node.id, "horizontal")} title="Split left or right" aria-label="Split left or right">◧</button>
-            <button onClick={() => onSplit(node.id, "vertical")} title="Split above or below" aria-label="Split above or below">◩</button>
-            <button onClick={() => onClose(node.id)} title="Close pane" aria-label="Close pane">×</button>
+            <button onClick={() => onSplit(node.id, "horizontal")} title="Split this shell left or right" aria-label="Split this shell left or right"><Columns2 size={14} /></button>
+            <button onClick={() => onSplit(node.id, "vertical")} title="Split this shell above or below" aria-label="Split this shell above or below"><Rows2 size={14} /></button>
+            <button onClick={() => onClose(node.id)} title="Close this shell" aria-label="Close this shell"><X size={14} /></button>
           </div>
         </header>
         <TerminalView projectPath={projectPath} terminalId={node.id} />
@@ -175,7 +214,7 @@ function PaneTree({
     <div className={"split-tree " + node.direction} style={node.direction === "horizontal"
       ? { gridTemplateColumns: gridTemplate }
       : { gridTemplateRows: gridTemplate }}>
-      <PaneTree node={node.first} projectPath={projectPath} activePaneId={activePaneId} onActivate={onActivate} onSplit={onSplit} onClose={onClose} onResize={onResize} />
+      <PaneTree node={node.first} projectPath={projectPath} activePaneId={activePaneId} labels={labels} onActivate={onActivate} onSplit={onSplit} onClose={onClose} onResize={onResize} />
       <div
         className="splitter"
         role="separator"
@@ -199,7 +238,122 @@ function PaneTree({
           window.addEventListener("pointerup", end, { once: true });
         }}
       />
-      <PaneTree node={node.second} projectPath={projectPath} activePaneId={activePaneId} onActivate={onActivate} onSplit={onSplit} onClose={onClose} onResize={onResize} />
+      <PaneTree node={node.second} projectPath={projectPath} activePaneId={activePaneId} labels={labels} onActivate={onActivate} onSplit={onSplit} onClose={onClose} onResize={onResize} />
+    </div>
+  );
+}
+
+type MenuItem = { label: string; shortcut?: string; run(): void; danger?: boolean } | { divider: true };
+
+function TitlebarMenu({ label, items, open, onOpen, onClose }: {
+  label: string;
+  items: MenuItem[];
+  open: boolean;
+  onOpen(): void;
+  onClose(): void;
+}) {
+  return (
+    <div className="titlebar-menu">
+      <button
+        className={"titlebar-menu-button " + (open ? "open" : "")}
+        onClick={() => (open ? onClose() : onOpen())}
+        onMouseEnter={() => { if (open) onOpen(); }}
+      >
+        {label}
+      </button>
+      {open && (
+        <div className="titlebar-dropdown" role="menu" onMouseLeave={onClose}>
+          {items.map((item, index) =>
+            "divider" in item
+              ? <div className="menu-divider" key={"divider" + index} />
+              : (
+                <button
+                  key={item.label}
+                  role="menuitem"
+                  className={"titlebar-dropdown-item " + (item.danger ? "danger" : "")}
+                  onClick={() => { onClose(); item.run(); }}
+                >
+                  <span>{item.label}</span>
+                  {item.shortcut && <span className="menu-shortcut">{item.shortcut}</span>}
+                </button>
+              ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SortableTaskRow({
+  task,
+  selected,
+  renamingId,
+  renamingTitle,
+  setRenamingTitle,
+  onOpen,
+  onStartRename,
+  onCommitRename,
+  onCancelRename,
+  onMenu,
+  onContextMenu,
+}: {
+  task: TaskRecord;
+  selected: boolean;
+  renamingId: string | null;
+  renamingTitle: string;
+  setRenamingTitle(value: string): void;
+  onOpen(id: string): void;
+  onStartRename(task: TaskRecord): void;
+  onCommitRename(id: string): void;
+  onCancelRename(): void;
+  onMenu(id: string, x: number, y: number): void;
+  onContextMenu(id: string, x: number, y: number): void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+  return (
+    <div ref={setNodeRef} style={style} className={"task-row " + (selected ? "selected" : "")}>
+      <span className="task-drag" {...attributes} {...listeners} aria-label="Reorder task" title="Reorder task">
+        <GripVertical size={12} />
+      </span>
+      {renamingId === task.id ? (
+        <input
+          className="task-rename"
+          autoFocus
+          value={renamingTitle}
+          onChange={(event) => setRenamingTitle(event.target.value)}
+          onBlur={() => onCommitRename(task.id)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") onCommitRename(task.id);
+            if (event.key === "Escape") onCancelRename();
+          }}
+        />
+      ) : (
+        <button
+          className="task-link"
+          onClick={() => onOpen(task.id)}
+          onDoubleClick={() => onStartRename(task)}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            onContextMenu(task.id, event.clientX, event.clientY);
+          }}
+        >
+          <span className="task-title">{task.pinned && <Pin size={11} className="task-pin" />}{task.title}</span>
+        </button>
+      )}
+      {renamingId !== task.id && (
+        <button
+          className="task-more"
+          aria-label="Task actions"
+          title="Task actions"
+          onClick={(event) => {
+            event.stopPropagation();
+            const rect = event.currentTarget.getBoundingClientRect();
+            onMenu(task.id, rect.right - 150, rect.bottom + 4);
+          }}
+        >
+          <MoreHorizontal size={14} />
+        </button>
+      )}
     </div>
   );
 }
@@ -209,17 +363,92 @@ function App() {
   const [agents, setAgents] = useState<AgentStatus[]>([]);
   const [detecting, setDetecting] = useState(false);
   const [activeAgent, setActiveAgent] = useState<AgentStatus["id"] | null>(null);
-  const [layoutRoot, setLayoutRoot] = useState<LayoutNode>({ type: "pane", id: "terminal-1" });
-  const [activeTerminal, setActiveTerminal] = useState("terminal-1");
+  const [layoutRoot, setLayoutRoot] = useState<LayoutNode | null>({ type: "pane", id: "terminal-1" });
+  const [activeTerminal, setActiveTerminal] = useState<string | null>("terminal-1");
   const [layoutLoaded, setLayoutLoaded] = useState(false);
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [activeTask, setActiveTask] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
   const [assistantText, setAssistantText] = useState("");
   const [running, setRunning] = useState(false);
-  const [claudeMode, setClaudeMode] = useState(false);
-  const [dshMode, setDshMode] = useState(false);
-  const [piMode, setPiMode] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  const [runningAgent, setRunningAgent] = useState<AgentStatus["id"] | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [slashIndex, setSlashIndex] = useState(0);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [toolActivity, setToolActivity] = useState<Record<string, Array<{ id: string; name: string; status: string }>>>({});
+  const [magpie, setMagpie] = useState<{ available: boolean; version: string | null } | null>(null);
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renamingTitle, setRenamingTitle] = useState("");
+  const [taskMenu, setTaskMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [archivedOpen, setArchivedOpen] = useState(false);
+  const [taskQuery, setTaskQuery] = useState("");
+
+  useEffect(() => {
+    void window.tango.getSettings().then(setSettings);
+  }, []);
+
+  // 菜单栏是主入口；这里保留同样的快捷键，窗口焦点在渲染层时也能用。
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      if (event.key === ",") { event.preventDefault(); setSettingsOpen(true); }
+      if (event.key.toLowerCase() === "n" && !event.shiftKey) { event.preventDefault(); void createTask(); }
+      if (event.key.toLowerCase() === "k") { event.preventDefault(); setPaletteOpen(true); }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  });
+
+  // 点击空白处或按 Esc 关掉标题栏菜单。
+  useEffect(() => {
+    if (!openMenu) return;
+    const close = () => setOpenMenu(null);
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") close(); };
+    // 菜单内部的点击不能被这次 mousedown 先关掉，否则 item 的 onClick 永远收不到。
+    const onPointerDown = (event: MouseEvent) => {
+      if (event.target instanceof Element && event.target.closest(".titlebar")) return;
+      close();
+    };
+    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [openMenu]);
+
+  useEffect(() => window.tango.onAppCommand((command) => {
+    if (command === "open-settings") setSettingsOpen(true);
+    if (command === "new-task") void createTask();
+    if (command === "open-project") void openProject();
+    if (command === "show-shortcuts") setShortcutsOpen(true);
+  }), [settings, project]);
+
+  useEffect(() => {
+    if (!settings) return;
+    const root = document.documentElement;
+    root.dataset.theme = settings.theme;
+    root.dataset.width = settings.chatWidth;
+    root.style.setProperty("--primary", settings.accent);
+    root.style.setProperty("--coral", settings.accent);
+  }, [settings]);
+
+  const updateSettings = (patch: Partial<AppSettings>) => {
+    setSettings((current) => (current ? { ...current, ...patch } : current));
+    void window.tango.saveSettings(patch).then(setSettings);
+  };
+  const [permission, setPermission] = useState<{
+    taskId: string;
+    requestId: number;
+    title: string;
+    options: Array<{ optionId: string; name: string; kind?: string }>;
+  } | null>(null);
 
   const refreshAgents = useCallback(async () => {
     setDetecting(true);
@@ -232,6 +461,7 @@ function App() {
 
   useEffect(() => {
     void window.tango.getWorkspace().then(setProject);
+    void window.tango.detectMagpie().then(setMagpie).catch(() => setMagpie({ available: false, version: null }));
     void refreshAgents();
     void window.tango.listTasks().then(setTasks);
     void window.tango.getLayout().then((layout) => {
@@ -244,14 +474,24 @@ function App() {
   }, [refreshAgents]);
 
   useEffect(() => {
-    if (layoutLoaded) void window.tango.saveLayout({ root: layoutRoot, activePaneId: activeTerminal });
+    if (!layoutLoaded || !layoutRoot || !activeTerminal) return;
+    void window.tango.saveLayout({ root: layoutRoot, activePaneId: activeTerminal });
   }, [layoutRoot, activeTerminal, layoutLoaded]);
+
+  // 切换任务时清掉上一个任务的流式状态，避免把它的输出显示在另一个任务里。
+  useEffect(() => {
+    setAssistantText("");
+    setRunning(false);
+    setRunningAgent(null);
+    setStopping(false);
+    setPermission(null);
+  }, [activeTask]);
 
   useEffect(() => window.tango.onCodexEvent((taskId, event) => {
     if (taskId !== activeTask) return;
     if (event.type === "delta" && typeof event.text === "string") setAssistantText((text) => text + event.text);
     if (event.type === "turn/completed") {
-      setRunning(false);
+      setRunning(false); setRunningAgent(null);
       setAssistantText((text) => {
         if (text.trim()) {
           setTasks((current) => current.map((task) => task.id === taskId
@@ -261,31 +501,165 @@ function App() {
         return "";
       });
     }
-    if (event.type === "process/exit") setRunning(false);
+    if (event.type === "tool") recordTool(taskId, event as { id?: string; name?: string; status?: string });
+    if (event.type === "process/exit" || event.type === "process/error") {
+      setRunning(false);
+      setRunningAgent(null);
+      if (event.type === "process/error") setAssistantText(String(event.message ?? "The agent process could not start"));
+    }
   }), [activeTask]);
 
   useEffect(() => window.tango.onClaudeEvent((taskId, event) => {
     if (taskId !== activeTask) return;
     if (event.type === "delta" && typeof event.text === "string") setAssistantText((text) => text + event.text);
-    if (event.type === "turn/completed") setRunning(false);
+    if (event.type === "tool") recordTool(taskId, event as { id?: string; name?: string; status?: string });
+    if (event.type === "turn/completed") { setRunning(false); setRunningAgent(null); }
+    if (event.type === "process/error") {
+      setRunning(false);
+      setRunningAgent(null);
+      setAssistantText(String(event.message ?? "Claude Code could not start"));
+    }
   }), [activeTask]);
   useEffect(() => window.tango.onDshEvent((taskId, event) => {
     if (taskId !== activeTask) return;
     if (event.type === "delta" && typeof event.text === "string") setAssistantText((text) => text + event.text);
+    if (event.type === "process/exit") { setRunning(false); setRunningAgent(null); }
     if (event.type === "session/update") {
-      const update = event.update as { sessionUpdate?: string } | undefined;
-      if (update?.sessionUpdate === "agent_message_chunk") setRunning(true);
+      const update = event.update as { sessionUpdate?: string; toolCallId?: string; title?: string; status?: string } | undefined;
+      if (update?.sessionUpdate === "tool_call" || update?.sessionUpdate === "tool_call_update") {
+        recordTool(taskId, {
+          id: update.toolCallId,
+          name: update.title ?? "tool",
+          status: update.status === "completed" ? "done" : update.status === "failed" ? "error" : "running",
+        });
+      }
+    }
+    if (event.type === "permission/request") {
+      const params = event.params as {
+        toolCall?: { title?: string };
+        options?: Array<{ optionId: string; name: string; kind?: string }>;
+      } | undefined;
+      setPermission({
+        taskId,
+        requestId: Number(event.requestId),
+        title: params?.toolCall?.title ?? "The agent is asking for permission.",
+        options: Array.isArray(params?.options) ? params.options : [],
+      });
     }
   }), [activeTask]);
   useEffect(() => window.tango.onPiEvent((taskId, event) => {
     if (taskId !== activeTask) return;
     if (event.type === "delta" && typeof event.text === "string") setAssistantText((text) => text + event.text);
-    if (event.type === "agent_settled") setRunning(false);
+    if (event.type === "tool") recordTool(taskId, event as { id?: string; name?: string; status?: string });
+    if (event.type === "agent_end" || event.type === "process/exit" || event.type === "process/error") {
+      setRunning(false);
+      setRunningAgent(null);
+    }
   }), [activeTask]);
 
+  async function answerPermission(optionId: string | null) {
+    if (!permission) return;
+    const current = permission;
+    setPermission(null);
+    try {
+      await window.tango.dshRespondPermission(current.taskId, current.requestId, optionId);
+    } catch (error) {
+      setAssistantText(error instanceof Error ? error.message : "Could not answer the permission request");
+    }
+  }
+
   async function openProject() {
-    const selected = await window.tango.openWorkspace();
-    if (selected) setProject(selected);
+    setWorkspaceError(null);
+    try {
+      const selected = await window.tango.openWorkspace();
+      if (selected) setProject(selected);
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Could not open the folder picker");
+    }
+  }
+
+  const projectTasks = tasks
+    .filter((task) => task.projectPath === project && !task.archived)
+    .filter((task) => !taskQuery.trim() || task.title.toLowerCase().includes(taskQuery.trim().toLowerCase()))
+    .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)));
+  const archivedTasks = tasks.filter((task) => task.projectPath === project && task.archived);
+
+  function recordTool(taskId: string, tool: { id?: string; name?: string; status?: string }) {
+    const id = String(tool.id ?? tool.name ?? "tool");
+    const name = String(tool.name ?? "tool");
+    const status = tool.status === "running" ? "running" : tool.status === "error" ? "error" : "done";
+    setToolActivity((current) => {
+      const list = current[taskId] ?? [];
+      const index = list.findIndex((item) => item.id === id);
+      const next = index >= 0
+        ? list.map((item, i) => (i === index ? { ...item, status } : item))
+        : [...list, { id, name, status }].slice(-12);
+      return { ...current, [taskId]: next };
+    });
+  }
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  function handleDragEnd(event: { active: { id: string | number }; over: { id: string | number } | null }) {
+    if (!event.over || event.active.id === event.over.id) return;
+    const ids = projectTasks.map((task) => task.id);
+    const from = ids.indexOf(String(event.active.id));
+    const to = ids.indexOf(String(event.over.id));
+    if (from < 0 || to < 0) return;
+    const nextIds = arrayMove(ids, from, to);
+    setTasks((current) => {
+      const ordered = nextIds.map((id) => current.find((task) => task.id === id)).filter((task): task is TaskRecord => Boolean(task));
+      const others = current.filter((task) => !nextIds.includes(task.id));
+      return [...ordered, ...others];
+    });
+    void window.tango.reorderTasks(nextIds);
+  }
+
+  function openTask(taskId: string) {
+    setActiveTask(taskId);
+    setActiveAgent(settings?.defaultAgent ?? "codex");
+  }
+
+  function startRename(task: TaskRecord) {
+    setRenamingId(task.id);
+    setRenamingTitle(task.title);
+  }
+
+  async function commitRename(taskId: string) {
+    const title = renamingTitle.trim();
+    setRenamingId(null);
+    if (!title) return;
+    const updated = await window.tango.renameTask(taskId, title);
+    setTasks((current) => current.map((task) => (task.id === taskId ? { ...task, title: updated.title } : task)));
+  }
+
+  async function pinTaskAction(taskId: string, pinned: boolean) {
+    setTaskMenu(null);
+    const updated = await window.tango.pinTask(taskId, pinned);
+    setTasks((current) => current.map((task) => (task.id === taskId ? { ...task, pinned: updated.pinned } : task)));
+  }
+
+  async function archiveTaskAction(taskId: string, archived: boolean) {
+    setTaskMenu(null);
+    const updated = await window.tango.archiveTask(taskId, archived);
+    setTasks((current) => current.map((task) => (task.id === taskId ? { ...task, archived: updated.archived } : task)));
+    if (archived && activeTask === taskId) {
+      setActiveTask(null);
+      setActiveAgent(null);
+    }
+  }
+
+  async function deleteTaskAction(taskId: string) {
+    setTaskMenu(null);
+    const target = tasks.find((task) => task.id === taskId);
+    if (!target) return;
+    if (!window.confirm(`Delete "${target.title}"? This cannot be undone.`)) return;
+    await window.tango.deleteTask(taskId);
+    setTasks((current) => current.filter((task) => task.id !== taskId));
+    if (activeTask === taskId) {
+      setActiveTask(null);
+      setActiveAgent(null);
+    }
   }
 
   async function createTask() {
@@ -293,85 +667,227 @@ function App() {
     const task = await window.tango.createTask("New task", project);
     setTasks((current) => [task, ...current]);
     setActiveTask(task.id);
-    setActiveAgent("codex");
-    setClaudeMode(false);
-    setDshMode(false);
-    setPiMode(false);
+    setActiveAgent(settings?.defaultAgent ?? "codex");
   }
 
   async function submitPrompt() {
     const text = prompt.trim();
     const task = tasks.find((item) => item.id === activeTask);
     if (!text || !task) return;
+    if (!activeAgent) return;
     setPrompt("");
     setAssistantText("");
     setRunning(true);
+    setStopping(false);
+    setRunningAgent(activeAgent);
+    const agent = activeAgent;
+    const waitsForTurnEnd = agent !== "codex";
+    const userMessage = { role: "user" as const, agent, text, createdAt: new Date().toISOString() };
+    const appendTurn = (answer: string, patch: Partial<TaskRecord>) => {
+      setTasks((current) => current.map((item) => {
+        if (item.id !== task.id) return item;
+        const messages = [...item.messages, userMessage];
+        if (answer) messages.push({ role: "assistant", agent, text: answer, createdAt: new Date().toISOString() });
+        return { ...item, ...patch, messages };
+      }));
+    };
     try {
-      if (piMode) {
+      if (agent === "pi") {
         const result = await window.tango.runPi(task.id, task.projectPath, text);
-        setRunning(false);
-        setTasks((current) => current.map((item) => item.id === task.id
-          ? { ...item, messages: [...item.messages, { role: "user", agent: "pi", text, createdAt: new Date().toISOString() }, { role: "assistant", agent: "pi", text: result.answer, createdAt: new Date().toISOString() }] }
-          : item));
-      } else if (dshMode) {
+        appendTurn(result.answer, { piSessionFile: result.sessionFile });
+      } else if (agent === "dsh") {
         const result = await window.tango.runDsh(task.id, task.projectPath, text);
-        setRunning(false);
-        setTasks((current) => current.map((item) => item.id === task.id
-          ? { ...item, dshSessionId: result.sessionId, messages: [...item.messages, { role: "user", agent: "dsh", text, createdAt: new Date().toISOString() }, { role: "assistant", agent: "dsh", text: result.answer, createdAt: new Date().toISOString() }] }
-          : item));
-      } else if (claudeMode) {
+        appendTurn(result.answer, { dshSessionId: result.sessionId });
+      } else if (agent === "claude") {
         const result = await window.tango.runClaude(task.id, task.projectPath, text);
-        setTasks((current) => current.map((item) => item.id === task.id
-          ? { ...item, claudeSessionId: result.sessionId, messages: [...item.messages, { role: "user", agent: "claude", text, createdAt: new Date().toISOString() }, { role: "assistant", agent: "claude", text: result.answer, createdAt: new Date().toISOString() }] }
-          : item));
-      } else if (task.threadId) await window.tango.codexSend(task.id, text);
-      else {
+        appendTurn(result.answer, { claudeSessionId: result.sessionId });
+      } else if (task.threadId) {
+        await window.tango.codexSend(task.id, text);
+        appendTurn("", {});
+      } else {
         const threadId = await window.tango.codexStart(task.id, task.projectPath, text);
-        setTasks((current) => current.map((item) => item.id === task.id ? { ...item, threadId } : item));
-      }
-      if (!claudeMode && !dshMode && !piMode) {
-        setTasks((current) => current.map((item) => item.id === task.id
-          ? { ...item, messages: [...item.messages, { role: "user", agent: "codex", text, createdAt: new Date().toISOString() }] }
-          : item));
+        appendTurn("", { threadId });
       }
     } catch (error) {
-      setRunning(false);
-      setAssistantText(error instanceof Error ? error.message : "Could not start Codex");
+      setAssistantText(error instanceof Error ? error.message : "Could not start the agent");
+      setRunning(false); setRunningAgent(null);
+      setStopping(false);
+    } finally {
+      // Codex returns as soon as the turn is accepted; its events clear `running`.
+      if (waitsForTurnEnd) {
+        setRunning(false); setRunningAgent(null);
+        setStopping(false);
+      }
     }
   }
 
-  function splitPane(paneId: string, direction: "horizontal" | "vertical") {
+  async function stopTurn() {
+    if (!activeTask || stopping) return;
+    setStopping(true);
+    try {
+      const agent = runningAgent ?? activeAgent;
+      if (agent === "pi") await window.tango.piInterrupt(activeTask);
+      else if (agent === "dsh") await window.tango.dshInterrupt(activeTask);
+      else if (agent === "claude") await window.tango.claudeInterrupt(activeTask);
+      else await window.tango.codexInterrupt(activeTask);
+    } catch (error) {
+      setAssistantText(error instanceof Error ? error.message : "Could not stop the agent");
+      setStopping(false);
+    }
+  }
+
+  function splitPane(paneId: string | null, direction: "horizontal" | "vertical") {
     const id = "terminal-" + crypto.randomUUID();
-    setLayoutRoot((root) => replacePane(root, paneId, {
-      type: "split", id: "split-" + crypto.randomUUID(), direction, ratio: 0.5,
-      first: { type: "pane", id: paneId }, second: { type: "pane", id },
-    }));
+    setLayoutRoot((root) => root
+      ? replacePane(root, paneId ?? paneIds(root)[0], {
+          type: "split", id: "split-" + crypto.randomUUID(), direction, ratio: 0.5,
+          first: { type: "pane", id: paneId ?? paneIds(root)[0] }, second: { type: "pane", id },
+        })
+      : { type: "pane", id });
     setActiveTerminal(id);
     setActiveAgent(null);
   }
 
   function closePane(id: string) {
+    if (!layoutRoot) return;
     const remaining = paneIds(layoutRoot).filter((paneId) => paneId !== id);
-    if (!remaining.length) return;
-    const root = removePane(layoutRoot, id);
-    if (root) setLayoutRoot(root);
-    if (activeTerminal === id) setActiveTerminal(remaining[0]);
+    // 关掉最后一个 shell 是允许的：画布变空，用「新建 shell」再开一个。
+    setLayoutRoot(removePane(layoutRoot, id));
+    if (activeTerminal === id) setActiveTerminal(remaining[0] ?? null);
+  }
+
+  const activeMessages = tasks.find((task) => task.id === activeTask)?.messages ?? [];
+
+  const paletteItems: PaletteItem[] = [
+    { id: "a-new", group: "Actions", label: "New task", hint: "Ctrl N", run: () => void createTask() },
+    { id: "a-settings", group: "Actions", label: "Settings", hint: "Ctrl ,", run: () => setSettingsOpen(true) },
+    { id: "a-project", group: "Actions", label: "Open project folder", run: () => void openProject() },
+    { id: "a-shell", group: "Actions", label: "Show terminal", run: () => setActiveAgent(null) },
+    {
+      id: "a-theme", group: "Actions", label: "Toggle light / dark theme",
+      run: () => updateSettings({ theme: settings?.theme === "dark" ? "light" : "dark" }),
+    },
+    ...tasks.map((task): PaletteItem => ({
+      id: "t-" + task.id,
+      group: "Tasks",
+      label: task.title,
+      hint: task.archived ? "archived" : undefined,
+      run: () => openTask(task.id),
+    })),
+    ...agents.filter((agent) => agent.available).map((agent): PaletteItem => ({
+      id: "g-" + agent.id,
+      group: "Agents",
+      label: agent.name,
+      hint: agent.version ?? undefined,
+      run: () => { setActiveAgent(agent.id); if (!activeTask) createTask(); },
+    })),
+  ];
+
+  const appMenus: Array<{ label: string; items: MenuItem[] }> = [
+    {
+      label: "Tango",
+      items: [
+        { label: "Settings…", shortcut: "Ctrl+,", run: () => setSettingsOpen(true) },
+        { label: "New Task", shortcut: "Ctrl+N", run: () => void createTask() },
+        { label: "Open Project…", run: () => void openProject() },
+        { divider: true },
+        { label: "Quit", run: () => void window.tango.runAppAction("quit") },
+      ],
+    },
+    {
+      label: "Edit",
+      items: [
+        { label: "Undo", shortcut: "Ctrl+Z", run: () => void window.tango.runAppAction("edit:undo") },
+        { label: "Redo", shortcut: "Ctrl+Shift+Z", run: () => void window.tango.runAppAction("edit:redo") },
+        { divider: true },
+        { label: "Cut", shortcut: "Ctrl+X", run: () => void window.tango.runAppAction("edit:cut") },
+        { label: "Copy", shortcut: "Ctrl+C", run: () => void window.tango.runAppAction("edit:copy") },
+        { label: "Paste", shortcut: "Ctrl+V", run: () => void window.tango.runAppAction("edit:paste") },
+        { label: "Select All", shortcut: "Ctrl+A", run: () => void window.tango.runAppAction("edit:selectAll") },
+      ],
+    },
+    {
+      label: "View",
+      items: [
+        { label: "Reload", shortcut: "Ctrl+R", run: () => void window.tango.runAppAction("view:reload") },
+        { label: "Developer Tools", shortcut: "Ctrl+Shift+I", run: () => void window.tango.runAppAction("view:devtools") },
+        { divider: true },
+        { label: "Zoom In", run: () => void window.tango.runAppAction("view:zoomIn") },
+        { label: "Zoom Out", run: () => void window.tango.runAppAction("view:zoomOut") },
+        { label: "Reset Zoom", run: () => void window.tango.runAppAction("view:resetZoom") },
+        { divider: true },
+        { label: "Full Screen", shortcut: "F11", run: () => void window.tango.runAppAction("view:fullscreen") },
+      ],
+    },
+    {
+      label: "Help",
+      items: [
+        { label: "Command Palette", shortcut: "Ctrl+K", run: () => setPaletteOpen(true) },
+        { label: "Keyboard Shortcuts", shortcut: "Ctrl+/", run: () => setShortcutsOpen(true) },
+        { label: "About Tango", run: () => void window.tango.runAppAction("about") },
+      ],
+    },
+  ];
+  const slashCommands = [
+    { name: "new", label: "New task", run: () => void createTask() },
+    { name: "settings", label: "Open settings", run: () => setSettingsOpen(true) },
+    { name: "shell", label: "Show terminal", run: () => setActiveAgent(null) },
+    { name: "project", label: "Open project folder", run: () => void openProject() },
+    { name: "clear", label: "Clear the input", run: () => { /* handled by caller */ } },
+  ];
+  const slashQuery = prompt.startsWith("/") && !prompt.includes(" ") ? prompt.slice(1).toLowerCase() : null;
+  const slashItems = slashQuery === null
+    ? []
+    : slashCommands.filter((command) => command.name.startsWith(slashQuery));
+  const slashOpen = slashItems.length > 0;
+
+  function runSlash(index: number) {
+    const command = slashItems[index];
+    if (!command) return;
+    setPrompt("");
+    setSlashIndex(0);
+    if (command.name !== "clear") command.run();
   }
 
   const projectName = project?.split(/[\\/]/).filter(Boolean).at(-1);
+  const paneIdList = layoutRoot ? paneIds(layoutRoot) : [];
+  const terminalLabels = Object.fromEntries(paneIdList.map((id, index) => [id, "Shell " + (index + 1)]));
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand-lockup">
-          <span className="brand-mark" aria-hidden="true"><i /><i /></span>
+      <header className="titlebar">
+        <div className="titlebar-brand">
+          <span className="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" role="presentation">
+              <g transform="rotate(24 12 12)">
+                <path d="M12 2a10 10 0 1 0 0 20 5 5 0 0 1 0-10 5 5 0 0 0 0-10Z" fill="var(--fg)" />
+                <path d="M12 2a10 10 0 1 1 0 20 5 5 0 0 0 0-10 5 5 0 0 1 0-10Z" fill="var(--primary)" />
+              </g>
+            </svg>
+          </span>
           <span className="brand-name">Tango</span>
         </div>
+        <nav className="titlebar-menus">
+          {appMenus.map((menu) => (
+            <TitlebarMenu
+              key={menu.label}
+              label={menu.label}
+              items={menu.items}
+              open={openMenu === menu.label}
+              onOpen={() => setOpenMenu(menu.label)}
+              onClose={() => setOpenMenu(null)}
+            />
+          ))}
+        </nav>
+        <div className="titlebar-fill" />
+      </header>
 
+      <div className="app-body">
+      <aside className="sidebar">
         <div className="sidebar-label">PROJECT</div>
         <button className="project-button" onClick={() => void openProject()}>
           <FolderIcon />
           <span>{project ? "Change project" : "Open project"}</span>
-          <span className="plus">＋</span>
+          <span className="plus"><Plus size={15} /></span>
         </button>
 
         {project ? (
@@ -382,21 +898,75 @@ function App() {
         ) : (
           <p className="sidebar-hint">No project selected.</p>
         )}
+        {workspaceError && <p className="sidebar-hint sidebar-error" role="alert">{workspaceError}</p>}
 
-        {project && <button className="project-button create-task" onClick={() => void createTask()}>＋ New task</button>}
-        <div className="task-list">
-          {tasks.filter((task) => task.projectPath === project).map((task) => (
-            <button key={task.id} className={"task-link " + (task.id === activeTask ? "selected" : "")} onClick={() => {
-              setActiveTask(task.id);
-              setActiveAgent("codex");
-              setClaudeMode(false);
-              setDshMode(false);
-              setPiMode(false);
-            }}>
-              <span>◌</span><span>{task.title}</span>
+        {project && (
+          <button className="project-button create-task" onClick={() => void createTask()}>
+            <Plus size={14} />New task
+          </button>
+        )}
+        {project && tasks.some((task) => task.projectPath === project) && (
+          <label className="task-search">
+            <Search size={13} />
+            <input
+              value={taskQuery}
+              onChange={(event) => setTaskQuery(event.target.value)}
+              placeholder="Search tasks"
+              aria-label="Search tasks"
+            />
+          </label>
+        )}
+        {projectTasks.length === 0 && <p className="sidebar-hint">{taskQuery ? "No matching tasks." : "No tasks yet."}</p>}
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={projectTasks.map((task) => task.id)} strategy={verticalListSortingStrategy}>
+            <div className="task-list">
+              {projectTasks.map((task) => (
+                <SortableTaskRow
+                  key={task.id}
+                  task={task}
+                  selected={task.id === activeTask}
+                  renamingId={renamingId}
+                  renamingTitle={renamingTitle}
+                  setRenamingTitle={setRenamingTitle}
+                  onOpen={openTask}
+                  onStartRename={startRename}
+                  onCommitRename={(id) => void commitRename(id)}
+                  onCancelRename={() => setRenamingId(null)}
+                  onMenu={(id, x, y) => setTaskMenu({ id, x, y })}
+                  onContextMenu={(id, x, y) => setTaskMenu({ id, x, y })}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+
+        {archivedTasks.length > 0 && (
+          <div className="archived-block">
+            <button className="archived-toggle" onClick={() => setArchivedOpen((open) => !open)}>
+              archivedOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />
+              Archived
+              <span>{archivedTasks.length}</span>
             </button>
-          ))}
-        </div>
+            {archivedOpen && archivedTasks.map((task) => (
+              <div key={task.id} className={"task-row archived " + (task.id === activeTask ? "selected" : "")}>
+                <button className="task-link" onClick={() => openTask(task.id)}>
+                  <span>{task.title}</span>
+                </button>
+                <button
+                  className="task-more"
+                  aria-label="Task actions"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    const rect = event.currentTarget.getBoundingClientRect();
+                    setTaskMenu({ id: task.id, x: rect.right - 150, y: rect.bottom + 4 });
+                  }}
+                >
+                  <MoreHorizontal size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="sidebar-agents">
           <div className="sidebar-label">INSTALLED AGENTS</div>
@@ -405,7 +975,7 @@ function App() {
               key={agent.id}
               className={"sidebar-agent " + (activeAgent === agent.id ? "selected" : "") + (!agent.available ? " unavailable" : "")}
               disabled={!agent.available}
-              onClick={() => { setActiveAgent(agent.id); setClaudeMode(agent.id === "claude"); setDshMode(agent.id === "dsh"); setPiMode(agent.id === "pi"); }}
+              onClick={() => setActiveAgent(agent.id)}
               title={agent.available ? agent.version ?? agent.name : "Not installed"}
             >
               <AgentGlyph agentId={agent.id} />
@@ -432,7 +1002,7 @@ function App() {
               aria-label="Refresh agent detection"
               title="Refresh agent detection"
               disabled={detecting}
-            >↻</button>
+            ><RefreshCw size={14} /></button>
           </div>
         </header>
 
@@ -446,63 +1016,335 @@ function App() {
           </section>
         ) : (
           <section className="workbench">
-            {activeAgent && (
-              <div className="panel-tabs">
-              <div className="active-agent-tab">
+            <div className="panel-tabs">
+              <button
+                className={"panel-tab " + (!activeAgent ? "active" : "")}
+                onClick={() => setActiveAgent(null)}
+                title="Show the terminal panes"
+              >
+                <TerminalIcon size={15} />
+                <span>Shell</span>
+              </button>
+              {activeAgent && (
+                <div className="active-agent-tab">
                   <AgentGlyph agentId={activeAgent} />
                   <span>{agents.find((agent) => agent.id === activeAgent)?.name}</span>
-                {activeAgent === "codex" && <span className="connection-label">Codex App Server</span>}
+                  <span className="connection-label">{activeAgent === "codex" ? "Codex App Server" : activeAgent === "claude" ? "Stream JSON" : activeAgent === "dsh" ? "ACP" : "RPC"}</span>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
-            {!activeAgent && (
-              <div className="terminal-panel">
-                <PaneTree
-                  node={layoutRoot}
-                  projectPath={project}
-                  activePaneId={activeTerminal}
-                  onActivate={setActiveTerminal}
-                  onSplit={splitPane}
-                  onClose={closePane}
-                  onResize={(splitId, ratio) => setLayoutRoot((root) => updateRatio(root, splitId, ratio))}
-                />
+            <div className="terminal-panel" hidden={activeAgent !== null}>
+              <div className="terminal-canvas">
+                {layoutRoot ? (
+                  <PaneTree
+                    node={layoutRoot}
+                    labels={terminalLabels}
+                    projectPath={project}
+                    activePaneId={activeTerminal}
+                    onActivate={setActiveTerminal}
+                    onSplit={splitPane}
+                    onClose={closePane}
+                    onResize={(splitId, ratio) => setLayoutRoot((root) => (root ? updateRatio(root, splitId, ratio) : root))}
+                  />
+                ) : (
+                  <div className="terminal-empty">
+                    <span className="terminal-empty-mark" aria-hidden="true"><TerminalIcon size={19} /></span>
+                    <strong>No shells open</strong>
+                    <p>Open a shell to run commands in this project.</p>
+                    <button className="ghost-button" onClick={() => splitPane(null, "horizontal")}>Open a shell</button>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
 
-            {activeAgent && activeTask && ["codex", "claude", "dsh", "pi"].includes(activeAgent) && (
+            {activeAgent && activeTask && (
               <div className="conversation">
                 <div className="conversation-heading">{tasks.find((task) => task.id === activeTask)?.title}</div>
                 <div className="conversation-messages">
-                  {tasks.find((task) => task.id === activeTask)?.messages.map((message, index) => (
-                    <article className={"message " + message.role} key={index}>
-                  <span>{message.agent}</span><p>{message.text}</p>
+                  {activeMessages.map((message, index) => (
+                    <article className={"message " + message.role} key={"m-" + index}>
+                      <span>{message.agent}</span>
+                      <Markdown text={message.text} />
                     </article>
                   ))}
-                  {(assistantText || running) && <article className="message assistant"><span>{activeAgent}</span><p>{assistantText || "Working…"}</p></article>}
+                  {(assistantText || running) && (
+                    <article className="message assistant">
+                      <span>{activeAgent}</span>
+                      {assistantText ? <Markdown text={assistantText} /> : <p>Working…</p>}
+                    </article>
+                  )}
+                  {(toolActivity[activeTask ?? ""]?.length ?? 0) > 0 && (
+                    <div className="tool-activity" aria-label="Tool activity">
+                      {toolActivity[activeTask ?? ""].map((tool) => (
+                        <div key={tool.id} className={"tool-row " + tool.status}>
+                          <span className="tool-dot" />
+                          <span className="tool-name">{tool.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
+                {permission && permission.taskId === activeTask && (
+                  <div className="permission-request" role="alertdialog" aria-label="Agent permission request">
+                    <p className="permission-title">{permission.title}</p>
+                    <div className="permission-actions">
+                      {permission.options.map((option) => (
+                        <button
+                          key={option.optionId}
+                          className={"permission-option " + (option.kind ?? "")}
+                          onClick={() => void answerPermission(option.optionId)}
+                        >
+                          {option.name}
+                        </button>
+                      ))}
+                      <button className="permission-option reject" onClick={() => void answerPermission(null)}>Reject</button>
+                    </div>
+                  </div>
+                )}
                 <form className="composer" onSubmit={(event) => { event.preventDefault(); void submitPrompt(); }}>
-                  <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => {
+                  {slashOpen && (
+                    <div className="slash-menu" role="listbox" aria-label="Commands">
+                      {slashItems.map((command, index) => (
+                        <button
+                          key={command.name}
+                          role="option"
+                          aria-selected={index === slashIndex}
+                          className={"slash-item " + (index === slashIndex ? "active" : "")}
+                          onMouseEnter={() => setSlashIndex(index)}
+                          onMouseDown={(event) => { event.preventDefault(); runSlash(index); }}
+                        >
+                          <span className="slash-name">/{command.name}</span>
+                          <span className="slash-label">{command.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    className="composer-command"
+                    aria-label="Commands"
+                    title="Commands (/ )"
+                    onClick={() => { setPrompt("/"); setSlashIndex(0); composerRef.current?.focus(); }}
+                  >
+                    <Plus size={16} />
+                  </button>
+                  <textarea ref={composerRef} value={prompt} onChange={(event) => { setPrompt(event.target.value); setSlashIndex(0); }} onKeyDown={(event) => {
+                    if (slashOpen) {
+                      if (event.key === "ArrowDown") { event.preventDefault(); setSlashIndex((index) => (index + 1) % slashItems.length); return; }
+                      if (event.key === "ArrowUp") { event.preventDefault(); setSlashIndex((index) => (index - 1 + slashItems.length) % slashItems.length); return; }
+                      if (event.key === "Escape") { event.preventDefault(); setPrompt(""); return; }
+                      if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); runSlash(slashIndex); return; }
+                    }
                     if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submitPrompt(); }
-                  }} placeholder={"Ask " + activeAgent + " to work in this project…"} />
-                  {running && <button type="button" className="subtle-button" onClick={() => void window.tango.codexInterrupt(activeTask)}>Stop</button>}
+                  }} placeholder={"Ask " + activeAgent + " to work in this project…  (/ for commands)"} />
+                  {running && (
+                    <button type="button" className="subtle-button" onClick={() => void stopTurn()} disabled={stopping}>
+                      {stopping ? "Stopping…" : "Stop"}
+                    </button>
+                  )}
                   <button type="submit" className="send-button" disabled={!prompt.trim() || running}>Send</button>
                 </form>
               </div>
             )}
-            {activeAgent && (!activeTask || !["codex", "claude", "dsh", "pi"].includes(activeAgent)) && (
+            {activeAgent && !activeTask && (
               <div className="agent-placeholder">
                 <div className="agent-placeholder-icon">
                   <AgentGlyph agentId={activeAgent} />
                 </div>
-                <h1>Session connection is next.</h1>
-                <p>This agent is installed. Its native session is not connected yet.</p>
+                <h1>Select or create a task.</h1>
+                <p>Tasks keep their own conversation and native agent sessions.</p>
                 <button className="subtle-button" onClick={() => setActiveAgent(null)}>Return to terminal</button>
               </div>
             )}
           </section>
         )}
       </main>
+      </div>
+
+      <CommandPalette open={paletteOpen} items={paletteItems} onClose={() => setPaletteOpen(false)} />
+
+      {taskMenu && (
+        <>
+          <div className="menu-scrim" onClick={() => setTaskMenu(null)} onContextMenu={(event) => { event.preventDefault(); setTaskMenu(null); }} />
+          <div className="task-menu" role="menu" style={{ left: Math.max(8, taskMenu.x), top: Math.max(8, taskMenu.y) }}>
+            <button role="menuitem" onClick={() => { const task = tasks.find((item) => item.id === taskMenu.id); setTaskMenu(null); if (task) startRename(task); }}>
+              <Pencil size={14} />Rename
+            </button>
+            {(() => {
+              const task = tasks.find((item) => item.id === taskMenu.id);
+              if (!task) return null;
+              return task.pinned
+                ? <button role="menuitem" onClick={() => void pinTaskAction(task.id, false)}><Pin size={14} />Unpin</button>
+                : <button role="menuitem" onClick={() => void pinTaskAction(task.id, true)}><Pin size={14} />Pin to top</button>;
+            })()}
+            {(() => {
+              const task = tasks.find((item) => item.id === taskMenu.id);
+              return task?.archived
+                ? <button role="menuitem" onClick={() => void archiveTaskAction(taskMenu.id, false)}><Archive size={14} />Unarchive</button>
+                : <button role="menuitem" onClick={() => void archiveTaskAction(taskMenu.id, true)}><Archive size={14} />Archive</button>;
+            })()}
+            <button role="menuitem" className="danger" onClick={() => void deleteTaskAction(taskMenu.id)}>
+              <Trash2 size={14} />Delete
+            </button>
+          </div>
+        </>
+      )}
+
+      {shortcutsOpen && (
+        <div className="settings-backdrop" onClick={() => setShortcutsOpen(false)}>
+          <div className="settings-panel shortcuts-panel" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" onClick={(event) => event.stopPropagation()}>
+            <header className="settings-header">
+              <h2>Keyboard shortcuts</h2>
+              <button className="icon-button" onClick={() => setShortcutsOpen(false)} aria-label="Close shortcuts"><X size={15} /></button>
+            </header>
+            <section className="settings-group">
+              {[
+                ["New task", "Ctrl N"],
+                ["Settings", "Ctrl ,"],
+                ["Command palette", "Ctrl K"],
+                ["Rename selected task", "F2"],
+                ["Send message", "Enter"],
+                ["New line in message", "Shift Enter"],
+                ["Copy in terminal", "Ctrl Shift C"],
+                ["Paste in terminal", "Ctrl Shift V"],
+                ["Copy selection (terminal)", "Ctrl C"],
+              ].map(([label, keys]) => (
+                <div className="settings-row" key={label}>
+                  <span>{label}</span>
+                  <kbd className="shortcut-key">{keys}</kbd>
+                </div>
+              ))}
+            </section>
+          </div>
+        </div>
+      )}
+
+      {settingsOpen && (
+        <div className="settings-backdrop" onClick={() => setSettingsOpen(false)}>
+          <div className="settings-panel" role="dialog" aria-modal="true" aria-label="Settings" onClick={(event) => event.stopPropagation()}>
+            <header className="settings-header">
+              <h2>Settings</h2>
+              <button className="icon-button" onClick={() => setSettingsOpen(false)} aria-label="Close settings"><X size={15} /></button>
+            </header>
+
+            <section className="settings-group">
+              <h3>Appearance</h3>
+              <div className="settings-row">
+                <span>Theme</span>
+                <div className="segmented">
+                  <button className={settings?.theme === "light" ? "active" : ""} onClick={() => updateSettings({ theme: "light" })}>Light</button>
+                  <button className={settings?.theme === "dark" ? "active" : ""} onClick={() => updateSettings({ theme: "dark" })}>Dark</button>
+                </div>
+              </div>
+              <div className="settings-row">
+                <span>Accent color</span>
+                <div className="swatches">
+                  {["#d95d43", "#4a7bd9", "#5c9a6b", "#8d6cc9", "#c28a2b"].map((color) => (
+                    <button
+                      key={color}
+                      className={"swatch " + (settings?.accent === color ? "active" : "")}
+                      style={{ background: color }}
+                      aria-label={"Accent " + color}
+                      onClick={() => updateSettings({ accent: color })}
+                    />
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            <section className="settings-group">
+              <h3>Layout</h3>
+              <div className="settings-row">
+                <span>Chat width</span>
+                <div className="segmented">
+                  <button className={settings?.chatWidth === "comfortable" ? "active" : ""} onClick={() => updateSettings({ chatWidth: "comfortable" })}>Comfortable</button>
+                  <button className={settings?.chatWidth === "wide" ? "active" : ""} onClick={() => updateSettings({ chatWidth: "wide" })}>Wide</button>
+                </div>
+              </div>
+              <div className="settings-row">
+                <span>Terminal shell</span>
+                <select className="settings-select" value={settings?.terminalShell ?? "powershell"} onChange={(event) => updateSettings({ terminalShell: event.target.value as AppSettings["terminalShell"] })}>
+                  <option value="powershell">PowerShell</option>
+                  <option value="gitbash">Git Bash</option>
+                  <option value="cmd">Command Prompt</option>
+                </select>
+              </div>
+              <div className="settings-row">
+                <span>Default agent</span>
+                <select className="settings-select" value={settings?.defaultAgent ?? "codex"} onChange={(event) => updateSettings({ defaultAgent: event.target.value as AppSettings["defaultAgent"] })}>
+                  <option value="codex">Codex</option>
+                  <option value="claude">Claude Code</option>
+                  <option value="dsh">DSH</option>
+                  <option value="pi">Pi</option>
+                </select>
+              </div>
+            </section>
+
+            <section className="settings-group">
+              <h3>Codex</h3>
+              <div className="settings-row">
+                <span>Approval policy</span>
+                <select className="settings-select" value={settings?.codexApprovalPolicy ?? "on-request"} onChange={(event) => updateSettings({ codexApprovalPolicy: event.target.value as AppSettings["codexApprovalPolicy"] })}>
+                  <option value="on-request">Ask when needed</option>
+                  <option value="on-failure">Only on failure</option>
+                  <option value="never">Never ask</option>
+                </select>
+              </div>
+              <div className="settings-row">
+                <span>Sandbox</span>
+                <select className="settings-select" value={settings?.codexSandbox ?? "workspace-write"} onChange={(event) => updateSettings({ codexSandbox: event.target.value as AppSettings["codexSandbox"] })}>
+                  <option value="read-only">Read only</option>
+                  <option value="workspace-write">Workspace write</option>
+                  <option value="danger-full-access">Full access</option>
+                </select>
+              </div>
+              <p className="settings-hint">Applies to new Codex conversations. Existing threads keep the policy they started with.</p>
+            </section>
+
+            <section className="settings-group">
+              <h3>Agents</h3>
+              {agents.length === 0 && <p className="settings-hint">Checking installed commands…</p>}
+              {agents.map((agent) => (
+                <div className="settings-row" key={agent.id}>
+                  <span className="settings-agent">
+                    <AgentGlyph agentId={agent.id} />
+                    <span>{agent.name}</span>
+                  </span>
+                  <span className="settings-status">{agent.available ? agent.version ?? "installed" : "not installed"}</span>
+                </div>
+              ))}
+              <p className="settings-hint">Tango uses each agent's own login and configuration. Sign in with the agent's CLI.</p>
+            </section>
+
+            <section className="settings-group">
+              <h3>Workspace</h3>
+              <div className="settings-row">
+                <span>Project</span>
+                <span className="settings-status" title={project ?? undefined}>{project ?? "none"}</span>
+              </div>
+              <div className="settings-row">
+                <span>Shell</span>
+                <span className="settings-status">PowerShell · {paneIdList.length} open</span>
+              </div>
+            </section>
+
+            <section className="settings-group">
+              <h3>Magpie</h3>
+              <div className="settings-row">
+                <span>Local model gateway</span>
+                <span className="settings-status">{magpie ? (magpie.available ? magpie.version ?? "installed" : "not installed") : "checking…"}</span>
+              </div>
+              <p className="settings-hint">Magpie routes each agent to a model of your choice. Tango detects it but leaves each agent's own configuration alone.</p>
+            </section>
+
+            <section className="settings-group">
+              <h3>Plugins</h3>
+              <p className="settings-hint">Not supported yet. Tango loads its built-in adapters only.</p>
+            </section>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
