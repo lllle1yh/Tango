@@ -1039,7 +1039,9 @@ function App() {
     .filter((task) => task.projectPath === project && !task.archived)
     .filter((task) => !taskQuery.trim() || task.title.toLowerCase().includes(taskQuery.trim().toLowerCase()))
     .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)));
-  const archivedTasks = tasks.filter((task) => task.projectPath === project && task.archived);
+  const archivedTasks = tasks.filter((task) => task.projectPath === project && task.archived
+    // A busy task is not really archived, whatever a stale flag says.
+    && !runningTurnsRef.current[task.id]);
   // Running tasks float to the top so a busy agent stays visible while you read another task.
   // They come from every task in the project, not the search results: a busy agent must not
   // disappear just because the task list is filtered.
