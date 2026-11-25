@@ -533,6 +533,8 @@ function App() {
   const [renamingTitle, setRenamingTitle] = useState("");
   const [taskMenu, setTaskMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [archivedOpen, setArchivedOpen] = useState(false);
+  // The working list can be folded away when several agents run at once.
+  const [runningOpen, setRunningOpen] = useState(true);
   const [taskQuery, setTaskQuery] = useState("");
   const taskSearchRef = useRef<HTMLInputElement>(null);
   const [piCommands, setPiCommands] = useState<Array<{ name: string; description?: string }>>([]);
@@ -1711,8 +1713,17 @@ function App() {
         {projectTasks.length === 0 && <p className="sidebar-hint">{taskQuery ? "No matching tasks." : "No tasks yet."}</p>}
         {runningTasks.length > 0 && (
           <div className="running-block">
-            <span className="running-block-label">Working now</span>
-            {runningTasks.map((task) => (
+            <button
+              className="running-block-label running-block-toggle"
+              aria-expanded={runningOpen}
+              title={runningOpen ? "Hide the working list" : "Show the working list"}
+              onClick={() => setRunningOpen((open) => !open)}
+            >
+              {runningOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+              <span>Working now</span>
+              <span className="running-block-count">{runningTasks.length}</span>
+            </button>
+            {runningOpen && runningTasks.map((task) => (
               <button
                 key={task.id}
                 className={"running-row " + (task.id === activeTask ? "selected" : "")}

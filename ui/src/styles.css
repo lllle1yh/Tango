@@ -283,6 +283,11 @@ button { color: inherit; font: inherit; }
 .archived-block { margin-top: 10px; }
 .running-block { display: flex; flex-direction: column; gap: 2px; margin: 2px 8px 6px; padding: 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
 .running-block-label { padding: 0 4px 2px; color: var(--fg-subtle); font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+/* The heading is a button so the list can fold up and leave the task list room. */
+.running-block-toggle { display: flex; width: 100%; align-items: center; gap: 4px; padding: 0 4px 3px; border: 0; background: transparent; color: var(--fg-subtle); cursor: pointer; font: inherit; font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; text-align: left; }
+.running-block-toggle:hover { color: var(--fg-muted); }
+.running-block-toggle svg { flex: none; }
+.running-block-count { margin-left: auto; letter-spacing: 0; color: var(--fg-subtle); font-weight: 500; }
 .running-row { display: flex; align-items: center; gap: 7px; height: 28px; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: var(--fg); cursor: pointer; font-size: 12.5px; text-align: left; }
 .running-row:hover { background: var(--surface-3); }
 .running-row.selected { background: var(--surface); }
