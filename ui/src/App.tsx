@@ -19,6 +19,14 @@ function projectLabel(projectPath: string) {
   return projectPath.split("\\").at(-1)?.split("/").at(-1) ?? projectPath;
 }
 
+// The same folder can be spelled "C:/x" by one caller and "C:\x" by another (a task saved after a
+// picker, the workspace after realpath). Compare one normalised form so its tasks stay visible.
+function samePath(a: string | null | undefined, b: string | null | undefined) {
+  if (!a || !b) return false;
+  const normal = (value: string) => value.split("\\").join("/").replace(/\/+$/, "").toLowerCase();
+  return normal(a) === normal(b);
+}
+
 // Tool inputs across protocols share a few field names for what they act on.
 function toolInputDetail(input: unknown): string | undefined {
   if (!input || typeof input !== "object") return undefined;
@@ -1043,7 +1051,7 @@ function App() {
     return [...latest.entries()]
       .sort((a, b) => b[1].localeCompare(a[1]))
       .map(([projectPath]) => projectPath)
-      .filter((projectPath) => projectPath !== project);
+      .filter((projectPath) => !samePath(projectPath, project));
   })();
 
   async function switchProject(projectPath: string) {
@@ -1069,10 +1077,10 @@ function App() {
   }
 
   const projectTasks = tasks
-    .filter((task) => task.projectPath === project && !task.archived)
+    .filter((task) => samePath(task.projectPath, project) && !task.archived)
     .filter((task) => !taskQuery.trim() || task.title.toLowerCase().includes(taskQuery.trim().toLowerCase()))
     .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)));
-  const archivedTasks = tasks.filter((task) => task.projectPath === project && task.archived
+  const archivedTasks = tasks.filter((task) => samePath(task.projectPath, project) && task.archived
     // A busy task is not really archived, whatever a stale flag says.
     && !runningTurnsRef.current[task.id]);
   // Running tasks float to the top so a busy agent stays visible while you read another task.
@@ -1080,7 +1088,7 @@ function App() {
   // disappear just because the task list is filtered.
   // A running flag written by a previous session is stale: this window tracks the turns it
   // started. The task itself still shows the "did not finish" note when opened.
-  const runningTasks = tasks.filter((task) => task.projectPath === project && !task.archived
+  const runningTasks = tasks.filter((task) => samePath(task.projectPath, project) && !task.archived
     && task.running && runningTurnsRef.current[task.id]);
   // The composer's Stop follows this task's own state, not whichever turn was started last:
   // a background turn in another task must not disable sending here.
@@ -1858,8 +1866,8 @@ function App() {
         {project && (
           <div className="sidebar-label tasks-label">
             <span>TASKS</span>
-            {tasks.filter((task) => task.projectPath === project && !task.archived).length > 0 && (
-              <span>{tasks.filter((task) => task.projectPath === project && !task.archived).length}</span>
+            {tasks.filter((task) => samePath(task.projectPath, project) && !task.archived).length > 0 && (
+              <span>{tasks.filter((task) => samePath(task.projectPath, project) && !task.archived).length}</span>
             )}
             <button
               className="new-task-button"
@@ -1871,7 +1879,7 @@ function App() {
             </button>
           </div>
         )}
-        {project && tasks.some((task) => task.projectPath === project) && (
+        {project && tasks.some((task) => samePath(task.projectPath, project)) && (
           <label className="task-search">
             <Search size={13} />
             <input
