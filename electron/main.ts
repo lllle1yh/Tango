@@ -46,6 +46,7 @@ type AppSettings = {
   terminalShell: "powershell" | "gitbash" | "cmd";
   codexApprovalPolicy: "on-request" | "on-failure" | "never";
   codexSandbox: "read-only" | "workspace-write" | "danger-full-access";
+  sidebarCollapsed: boolean;
 };
 
 const defaultSettings: AppSettings = {
@@ -56,6 +57,7 @@ const defaultSettings: AppSettings = {
   terminalShell: "powershell",
   codexApprovalPolicy: "on-request",
   codexSandbox: "workspace-write",
+  sidebarCollapsed: false,
 };
 
 let cachedSettings: AppSettings | null = null;
@@ -93,6 +95,7 @@ function sanitizeSettings(input: Partial<AppSettings>): AppSettings {
     codexSandbox: (["read-only", "workspace-write", "danger-full-access"] as const).includes(merged.codexSandbox as never)
       ? merged.codexSandbox
       : defaultSettings.codexSandbox,
+    sidebarCollapsed: merged.sidebarCollapsed === true,
   };
 }
 

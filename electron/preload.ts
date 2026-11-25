@@ -12,6 +12,7 @@ export type AppSettings = {
   terminalShell: "powershell" | "gitbash" | "cmd";
   codexApprovalPolicy: "on-request" | "on-failure" | "never";
   codexSandbox: "read-only" | "workspace-write" | "danger-full-access";
+  sidebarCollapsed: boolean;
 };
 
 export type WorkspaceLayout = {

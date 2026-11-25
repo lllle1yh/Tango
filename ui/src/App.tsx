@@ -8,7 +8,7 @@ import { CommandPalette, type PaletteItem } from "./CommandPalette";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Check, Copy, GripVertical, Pin, Search, TerminalSquare, FileText, Globe, Wrench, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Check, Copy, GripVertical, PanelLeft, Pin, Search, TerminalSquare, FileText, Globe, Wrench, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import "./layout.css";
 import "./agent-icons.css";
 
@@ -403,6 +403,7 @@ function App() {
       if (event.key === ",") { event.preventDefault(); setSettingsOpen(true); }
       if (event.key.toLowerCase() === "n" && !event.shiftKey) { event.preventDefault(); void createTask(); }
       if (event.key.toLowerCase() === "k") { event.preventDefault(); setPaletteOpen(true); }
+      if (event.key.toLowerCase() === "b") { event.preventDefault(); updateSettings({ sidebarCollapsed: !settings?.sidebarCollapsed }); }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -833,6 +834,7 @@ function App() {
     {
       label: "View",
       items: [
+        { label: "Toggle Sidebar", shortcut: "Ctrl+B", run: () => updateSettings({ sidebarCollapsed: !settings?.sidebarCollapsed }) },
         { label: "Reload", shortcut: "Ctrl+R", run: () => void window.tango.runAppAction("view:reload") },
         { label: "Developer Tools", shortcut: "Ctrl+Shift+I", run: () => void window.tango.runAppAction("view:devtools") },
         { divider: true },
@@ -887,8 +889,16 @@ function App() {
   const paneIdList = layoutRoot ? paneIds(layoutRoot) : [];
   const terminalLabels = Object.fromEntries(paneIdList.map((id, index) => [id, "Shell " + (index + 1)]));
   return (
-    <div className="app-shell">
+    <div className={"app-shell" + (settings?.sidebarCollapsed ? " sidebar-collapsed" : "")}>
       <header className="titlebar">
+        <button
+          className="titlebar-icon"
+          aria-label={settings?.sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+          title="Toggle sidebar (Ctrl+B)"
+          onClick={() => updateSettings({ sidebarCollapsed: !settings?.sidebarCollapsed })}
+        >
+          <PanelLeft size={15} />
+        </button>
         <div className="titlebar-brand">
           <span className="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 24 24" role="presentation">
