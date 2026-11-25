@@ -547,3 +547,6 @@ button { color: inherit; font: inherit; }
 
 /* A busy task shows its spinner in the task row too, so folding the working list hides nothing. */
 .task-running-mark { flex: none; color: var(--accent); }
+
+/* The matched part of a task name while searching. */
+.task-match { border-radius: 2px; background: color-mix(in srgb, var(--accent) 24%, transparent); color: var(--fg); }

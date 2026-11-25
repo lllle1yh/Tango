@@ -18,6 +18,21 @@ function projectLabel(projectPath: string) {
   return projectPath.split("\\").at(-1)?.split("/").at(-1) ?? projectPath;
 }
 
+// Task search marks the matched part of the name instead of only filtering rows.
+function highlightMatch(text: string, query: string) {
+  const needle = query.trim();
+  if (!needle) return text;
+  const at = text.toLowerCase().indexOf(needle.toLowerCase());
+  if (at < 0) return text;
+  return (
+    <>
+      {text.slice(0, at)}
+      <mark className="task-match">{text.slice(at, at + needle.length)}</mark>
+      {text.slice(at + needle.length)}
+    </>
+  );
+}
+
 function FolderIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -330,6 +345,7 @@ function SortableTaskRow({
   selected,
   unread,
   runningHere,
+  query,
   renamingId,
   renamingTitle,
   setRenamingTitle,
@@ -347,6 +363,7 @@ function SortableTaskRow({
   selected: boolean;
   unread: boolean;
   runningHere: boolean;
+  query: string;
   renamingId: string | null;
   renamingTitle: string;
   setRenamingTitle(value: string): void;
@@ -392,7 +409,7 @@ function SortableTaskRow({
           <span
             className="task-title"
             title={`${task.title} · ${task.messages.length} ${task.messages.length === 1 ? "message" : "messages"}`}
-          >{runningHere && <Loader2 size={11} className="spin task-running-mark" />}{task.pinned && <Pin size={11} className="task-pin" />}{task.title}</span>
+          >{runningHere && <Loader2 size={11} className="spin task-running-mark" />}{task.pinned && <Pin size={11} className="task-pin" />}{highlightMatch(task.title, query)}</span>
           {unread && <span className="task-unread" title="Finished while you were elsewhere" aria-label="Unread reply" />}
         </button>
       )}
@@ -1907,6 +1924,7 @@ function App() {
                   selected={task.id === activeTask}
                   unread={Boolean(unreadTasks[task.id])}
                   runningHere={Boolean(runningTurnsRef.current[task.id])}
+                  query={taskQuery}
                   renamingId={renamingId}
                   renamingTitle={renamingTitle}
                   setRenamingTitle={setRenamingTitle}
@@ -1938,7 +1956,7 @@ function App() {
               .map((task) => (
               <div key={task.id} className={"task-row archived " + (task.id === activeTask ? "selected" : "")}>
                 <button className="task-link" onClick={() => openTask(task.id)}>
-                  <span>{task.title}</span>
+                  <span>{highlightMatch(task.title, taskQuery)}</span>
                 </button>
                 <button
                   className="task-quick"
