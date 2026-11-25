@@ -404,6 +404,8 @@ function App() {
   const draftTaskRef = useRef<string | null>(null);
   // Arrow keys walk the task's earlier prompts; this remembers where the walk is and what was being typed.
   const promptHistoryRef = useRef<{ index: number; draft: string } | null>(null);
+  // Which task owns the turn that is running, so "Stop" interrupts that task and not whichever is open.
+  const runningTaskRef = useRef<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renamingTitle, setRenamingTitle] = useState("");
   const [taskMenu, setTaskMenu] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -432,7 +434,15 @@ function App() {
       target instanceof HTMLElement && !!target.closest(".composer");
     const onKeyDown = (event: KeyboardEvent) => {
       // Plain typing in a field keeps its own shortcuts; keys below intentionally skip that.
-      if (inField(event.target) && event.key !== "Escape") return;
+      // Escape closes popups from anywhere, and Ctrl+K works from the task search too.
+      if (inField(event.target) && event.key !== "Escape" && !((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k")) return;
+      // Esc interrupts the turn this task is running, unless a dialog or menu is open to close first.
+      if (event.key === "Escape" && running && !stopping && runningTaskRef.current === activeTask
+        && !settingsOpen && !shortcutsOpen && !handoffOpen && !paletteOpen && !taskMenu && !openMenu) {
+        event.preventDefault();
+        void stopTurn();
+        return;
+      }
       if (event.key === "F2" && !event.ctrlKey && !event.metaKey && !event.altKey) {
         event.preventDefault();
         renameActiveTask();
@@ -784,6 +794,7 @@ function App() {
   // Tool activity stays under the answer it belongs to, so a finished turn can still be
   // read; it is cleared when the next turn starts instead.
   function endTurn(_taskId: string) {
+    runningTaskRef.current = null;
     setRunning(false);
     setRunningAgent(null);
     setStopping(false);
@@ -952,6 +963,7 @@ function App() {
     setRunning(true);
     setStopping(false);
     setRunningAgent(agent);
+    runningTaskRef.current = task.id;
     const waitsForTurnEnd = agent !== "codex";
     const baseMessages = task.messages;
     // The prompt is also the turn's name until the task is renamed by hand.
@@ -1037,15 +1049,15 @@ function App() {
     await startTurn(target, task, context);
   }
 
-  async function stopTurn() {
-    if (!activeTask || stopping) return;
+  async function stopTurn(taskId = activeTask) {
+    if (!taskId || stopping) return;
     setStopping(true);
     try {
       const agent = runningAgent ?? activeAgent;
-      if (agent === "pi") await window.tango.piInterrupt(activeTask);
-      else if (agent === "dsh") await window.tango.dshInterrupt(activeTask);
-      else if (agent === "claude") await window.tango.claudeInterrupt(activeTask);
-      else await window.tango.codexInterrupt(activeTask);
+      if (agent === "pi") await window.tango.piInterrupt(taskId);
+      else if (agent === "dsh") await window.tango.dshInterrupt(taskId);
+      else if (agent === "claude") await window.tango.claudeInterrupt(taskId);
+      else await window.tango.codexInterrupt(taskId);
     } catch (error) {
       setAssistantText(error instanceof Error ? error.message : "Could not stop the agent");
       setStopping(false);
@@ -1684,7 +1696,7 @@ function App() {
                     if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submitPrompt(); }
                   }} placeholder={"Ask " + activeAgent + " to work in this project…  (/ for commands)"} />
                   {running && (
-                    <button type="button" className="subtle-button" onClick={() => void stopTurn()} disabled={stopping}>
+                    <button type="button" className="subtle-button" onClick={() => void stopTurn(runningTaskRef.current ?? activeTask)} disabled={stopping}>
                       {stopping ? "Stopping…" : "Stop"}
                     </button>
                   )}
@@ -1752,6 +1764,7 @@ function App() {
                 ["Settings", "Ctrl ,"],
                 ["Command palette", "Ctrl K"],
                 ["Send message", "Enter"],
+                ["Stop the running turn", "Esc"],
                 ["New line in message", "Shift Enter"],
                 ["Earlier prompts", "Up Down"],
                 ["Copy in terminal", "Ctrl Shift C"],
