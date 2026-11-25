@@ -394,6 +394,7 @@ function App() {
   const [stopping, setStopping] = useState(false);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [runningAgent, setRunningAgent] = useState<AgentStatus["id"] | null>(null);
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -806,10 +807,27 @@ function App() {
   // disappear just because the task list is filtered.
   const runningTasks = tasks.filter((task) => task.projectPath === project && !task.archived && task.running);
 
+  // The elapsed-time labels only need a tick while something is actually running.
+  useEffect(() => {
+    if (runningTasks.length === 0) return;
+    setNowTick(Date.now());
+    const timer = window.setInterval(() => setNowTick(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [runningTasks.length]);
+
   function formatClock(value: string) {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "";
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  // A running turn shows how long it has been going, so a slow turn is visible at a glance.
+  function formatElapsed(startedAt: string | undefined, now: number) {
+    const started = startedAt ? new Date(startedAt).getTime() : NaN;
+    if (Number.isNaN(started)) return "";
+    const seconds = Math.max(0, Math.floor((now - started) / 1000));
+    const minutes = Math.floor(seconds / 60);
+    return minutes > 0 ? `${minutes}m ${String(seconds % 60).padStart(2, "0")}s` : `${seconds}s`;
   }
 
   // Tool activity stays under the answer it belongs to, so a finished turn can still be
@@ -1352,6 +1370,7 @@ function App() {
               >
                 <Loader2 size={12} className="spin" />
                 <span className="running-row-title">{task.title}</span>
+                <span className="running-row-elapsed">{formatElapsed(task.running?.startedAt, nowTick)}</span>
                 <span className="running-row-agent">
                   {agents.find((agent) => agent.id === task.running?.agent)?.name ?? task.running?.agent}
                 </span>
