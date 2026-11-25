@@ -618,8 +618,47 @@ async function inspectAgent(agent: (typeof agents)[number]) {
   }
 }
 
-// Magpie 是一个本地模型路由网关；Tango 不复制它的配置，只报告它是否在机器上，
-// 具体模型仍由各 Agent 自己的配置决定（Magpie 改的正是那份配置）。
+// Pi exposes the agent's own slash commands (skills, templates) over RPC.
+// Ask a short-lived process so Tango never guesses what the agent supports.
+async function readPiCommands(projectPath: string): Promise<Array<{ name: string; description?: string }>> {
+  const child = require("node:child_process").spawn("cmd.exe", ["/d", "/s", "/c", "pi --mode rpc"], {
+    cwd: projectPath, stdio: ["pipe", "pipe", "pipe"], windowsHide: true,
+  }) as import("node:child_process").ChildProcessWithoutNullStreams;
+  return await new Promise((resolve) => {
+    let buffer = "";
+    let settled = false;
+    const finish = (commands: Array<{ name: string; description?: string }>) => {
+      if (settled) return;
+      settled = true;
+      void terminateChild(child);
+      resolve(commands);
+    };
+    const timer = setTimeout(() => finish([]), 8000);
+    child.on("error", () => { clearTimeout(timer); finish([]); });
+    child.stdout.on("data", (chunk: Buffer) => {
+      buffer += chunk.toString();
+      const lines = buffer.split(String.fromCharCode(10));
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line) continue;
+        let message: any;
+        try { message = JSON.parse(line); } catch { continue; }
+        if (message.type === "response" && message.command === "get_commands") {
+          clearTimeout(timer);
+          const raw = Array.isArray(message.data?.commands) ? message.data.commands : [];
+          finish(raw.map((command: any) => ({
+            name: String(command.name ?? ""),
+            description: typeof command.description === "string" ? command.description : undefined,
+          })).filter((command: { name: string }) => command.name));
+          return;
+        }
+      }
+    });
+    child.stdin.write(JSON.stringify({ type: "get_commands", id: "tango-commands" }) + String.fromCharCode(10));
+  });
+}
+
+// Magpie 是本地模型路由网关；Tango 不复制它的配置，只报告它是否安装。
 async function inspectMagpie() {
   try {
     const result = await execFileAsync(
@@ -722,6 +761,11 @@ function registerIpc() {
     const run = edit[action];
     if (!run) throw new Error("Unknown action: " + action);
     run();
+  });
+  ipcMain.handle("pi:commands", async (event: IpcMainInvokeEvent, projectPath: string) => {
+    assertTrustedSender(event);
+    if (typeof projectPath !== "string") throw new Error("Invalid project path");
+    return readPiCommands(projectPath);
   });
   ipcMain.handle("settings:get", async (event: IpcMainInvokeEvent) => {
     assertTrustedSender(event);

@@ -91,6 +91,8 @@ contextBridge.exposeInMainWorld("tango", {
     ipcRenderer.on("dsh:event", handle);
     return () => ipcRenderer.removeListener("dsh:event", handle);
   },
+  getPiCommands: (projectPath: string): Promise<Array<{ name: string; description?: string }>> =>
+    ipcRenderer.invoke("pi:commands", projectPath),
   runPi: (taskId: string, projectPath: string, prompt: string): Promise<{ sessionFile: string; answer: string; aborted: boolean }> =>
     ipcRenderer.invoke("pi:run", taskId, projectPath, prompt),
   piInterrupt: (taskId: string): Promise<void> =>
@@ -174,6 +176,7 @@ export interface TangoApi {
   dshInterrupt(taskId: string): Promise<void>;
   dshRespondPermission(taskId: string, requestId: number, optionId: string | null): Promise<void>;
   onDshEvent(listener: (taskId: string, event: Record<string, unknown>) => void): () => void;
+  getPiCommands(projectPath: string): Promise<Array<{ name: string; description?: string }>>;
   runPi(taskId: string, projectPath: string, prompt: string): Promise<{ sessionFile: string; answer: string; aborted: boolean }>;
   piInterrupt(taskId: string): Promise<void>;
   onPiEvent(listener: (taskId: string, event: Record<string, unknown>) => void): () => void;

@@ -388,6 +388,7 @@ function App() {
   const [taskMenu, setTaskMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [taskQuery, setTaskQuery] = useState("");
+  const [piCommands, setPiCommands] = useState<Array<{ name: string; description?: string }>>([]);
 
   useEffect(() => {
     void window.tango.getSettings().then(setSettings);
@@ -422,6 +423,19 @@ function App() {
       window.removeEventListener("keydown", onKey);
     };
   }, [openMenu]);
+
+  useEffect(() => {
+    const task = tasks.find((item) => item.id === activeTask);
+    if (activeAgent !== "pi" || !task) {
+      setPiCommands([]);
+      return;
+    }
+    let alive = true;
+    void window.tango.getPiCommands(task.projectPath)
+      .then((commands) => { if (alive) setPiCommands(commands); })
+      .catch(() => { if (alive) setPiCommands([]); });
+    return () => { alive = false; };
+  }, [activeAgent, activeTask, tasks]);
 
   useEffect(() => window.tango.onAppCommand((command) => {
     if (command === "open-settings") setSettingsOpen(true);
@@ -828,25 +842,35 @@ function App() {
       ],
     },
   ];
-  const slashCommands = [
+  const slashCommands: Array<{ name: string; label: string; insert?: string; run?: () => void }> = [
     { name: "new", label: "New task", run: () => void createTask() },
     { name: "settings", label: "Open settings", run: () => setSettingsOpen(true) },
     { name: "shell", label: "Show terminal", run: () => setActiveAgent(null) },
     { name: "project", label: "Open project folder", run: () => void openProject() },
     { name: "clear", label: "Clear the input", run: () => { /* handled by caller */ } },
+    ...piCommands.map((command) => ({
+      name: command.name,
+      label: command.description?.split(/\n/)[0].slice(0, 72) ?? "Pi command",
+      insert: "/" + command.name,
+    })),
   ];
   const slashQuery = prompt.startsWith("/") && !prompt.includes(" ") ? prompt.slice(1).toLowerCase() : null;
   const slashItems = slashQuery === null
     ? []
-    : slashCommands.filter((command) => command.name.startsWith(slashQuery));
+    : slashCommands.filter((command) => command.name.toLowerCase().startsWith(slashQuery));
   const slashOpen = slashItems.length > 0;
 
   function runSlash(index: number) {
     const command = slashItems[index];
     if (!command) return;
-    setPrompt("");
     setSlashIndex(0);
-    if (command.name !== "clear") command.run();
+    if (command.insert) {
+      setPrompt(command.insert + " ");
+      composerRef.current?.focus();
+      return;
+    }
+    setPrompt("");
+    if (command.name !== "clear") command.run?.();
   }
 
   const projectName = project?.split(/[\\/]/).filter(Boolean).at(-1);
