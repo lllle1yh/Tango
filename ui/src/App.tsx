@@ -1342,9 +1342,20 @@ function App() {
         {workspaceError && <p className="sidebar-hint sidebar-error" role="alert">{workspaceError}</p>}
 
         {project && (
-          <button className="project-button create-task" onClick={() => void createTask()}>
-            <Plus size={14} />New task
-          </button>
+          <div className="sidebar-label tasks-label">
+            <span>TASKS</span>
+            {tasks.filter((task) => task.projectPath === project && !task.archived).length > 0 && (
+              <span>{tasks.filter((task) => task.projectPath === project && !task.archived).length}</span>
+            )}
+            <button
+              className="new-task-button"
+              onClick={() => void createTask()}
+              title="New task (Ctrl N)"
+              aria-label="New task"
+            >
+              <Plus size={13} />
+            </button>
+          </div>
         )}
         {project && tasks.some((task) => task.projectPath === project) && (
           <label className="task-search">
