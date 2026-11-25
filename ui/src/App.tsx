@@ -1184,9 +1184,9 @@ function App() {
   }
 
   // The composer's status line for a finished turn: what ran, and how it went.
-  function turnSummary(agent: AgentStatus["id"], tools: Array<{ name: string; status: string }> | undefined): string {
-    const name = agents.find((item) => item.id === agent)?.name ?? agent;
-    return tools?.length ? `${name} finished · ${toolSummary(tools)}` : `${name} finished`;
+  function turnSummary(tools: Array<{ name: string; status: string }> | undefined): string {
+    // The line itself names the agent; repeating it here read as "Claude Code Claude Code finished".
+    return tools?.length ? `finished · ${toolSummary(tools)}` : "finished";
   }
 
   // A finished turn folds its tools into the reply, so they stay visible after the task is
@@ -1461,7 +1461,10 @@ function App() {
       }));
       liveTaskRef.current = null;
       resetStreamText(task.id);
-      setTurnLine({ taskId: task.id, agent, text: turnSummary(agent, tools) });
+      // A turn the reader stopped did not "finish"; say what it left behind instead.
+      setTurnLine({ taskId: task.id, agent, text: stoppedByUserRef.current
+        ? (tools?.length ? `stopped · ${toolSummary(tools)}` : "stopped")
+        : turnSummary(tools) });
       if (task.id !== activeTaskRef.current) setUnreadTasks((current) => ({ ...current, [task.id]: true }));
     };
     try {
@@ -1495,7 +1498,10 @@ function App() {
             }],
           }
         : item));
-      setTurnLine({ taskId: task.id, agent, text: `could not run · ${reason.slice(0, 120)}` });
+      // The line already names the agent; an error that opens with the same name repeats it.
+      const agentName = agents.find((item) => item.id === agent)?.name ?? agent;
+      const shortReason = reason.startsWith(agentName + " ") ? reason.slice(agentName.length + 1) : reason;
+      setTurnLine({ taskId: task.id, agent, text: `could not run · ${shortReason.slice(0, 120)}` });
       if (task.id !== activeTaskRef.current) setUnreadTasks((current) => ({ ...current, [task.id]: true }));
       endTurn(task.id);
     } finally {
