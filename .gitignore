@@ -11,3 +11,6 @@ Thumbs.db
 .idea/
 .vscode/
 *.tmp
+
+# Portable dev data directory
+.tango-data/
