@@ -829,6 +829,9 @@ function App() {
     setRunning(false);
     setRunningAgent(null);
     setStopping(false);
+    // A query belongs to the conversation it was typed in, not the next one.
+    setChatSearchOpen(false);
+    setChatQuery("");
     // A pending permission stays with its task: switching away hides it, coming back shows it.
   }, [activeTask]);
 
