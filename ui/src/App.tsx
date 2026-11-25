@@ -407,6 +407,7 @@ function App() {
   const [taskMenu, setTaskMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [taskQuery, setTaskQuery] = useState("");
+  const taskSearchRef = useRef<HTMLInputElement>(null);
   const [piCommands, setPiCommands] = useState<Array<{ name: string; description?: string }>>([]);
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
   const [handoffOpen, setHandoffOpen] = useState(false);
@@ -425,6 +426,8 @@ function App() {
   useEffect(() => {
     const inField = (target: EventTarget | null) =>
       target instanceof HTMLElement && !!target.closest("input, textarea, [contenteditable='true']");
+    const inComposer = (target: EventTarget | null) =>
+      target instanceof HTMLElement && !!target.closest(".composer");
     const onKeyDown = (event: KeyboardEvent) => {
       // Plain typing in a field keeps its own shortcuts; keys below intentionally skip that.
       if (inField(event.target) && event.key !== "Escape") return;
@@ -434,6 +437,13 @@ function App() {
         return;
       }
       if (!(event.ctrlKey || event.metaKey)) return;
+      // Ctrl+F searches tasks unless the caret is in the composer.
+      if (event.key.toLowerCase() === "f" && !inComposer(event.target)) {
+        event.preventDefault();
+        taskSearchRef.current?.focus();
+        taskSearchRef.current?.select();
+        return;
+      }
       if (event.key === ",") { event.preventDefault(); setSettingsOpen(true); }
       if (event.key.toLowerCase() === "n" && event.shiftKey) { event.preventDefault(); renameActiveTask(); return; }
       if (event.key.toLowerCase() === "n") { event.preventDefault(); void createTask(); }
@@ -1236,6 +1246,7 @@ function App() {
           <label className="task-search">
             <Search size={13} />
             <input
+              ref={taskSearchRef}
               value={taskQuery}
               onChange={(event) => setTaskQuery(event.target.value)}
               placeholder="Search tasks"
@@ -1694,6 +1705,7 @@ function App() {
               {[
                 ["New task", "Ctrl N"],
                 ["Rename task", "F2"],
+                ["Search tasks", "Ctrl F"],
                 ["Archive task", "Ctrl Shift E"],
                 ["Settings", "Ctrl ,"],
                 ["Command palette", "Ctrl K"],
