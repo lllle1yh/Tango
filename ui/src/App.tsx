@@ -1792,7 +1792,10 @@ function App() {
               <span>Archived</span>
               <span>{archivedTasks.length}</span>
             </button>
-            {archivedOpen && archivedTasks.map((task) => (
+            {archivedOpen && [...archivedTasks]
+              .filter((task) => !taskQuery.trim() || task.title.toLowerCase().includes(taskQuery.trim().toLowerCase()))
+              .sort((a, b) => (b.messages.at(-1)?.createdAt ?? "").localeCompare(a.messages.at(-1)?.createdAt ?? ""))
+              .map((task) => (
               <div key={task.id} className={"task-row archived " + (task.id === activeTask ? "selected" : "")}>
                 <button className="task-link" onClick={() => openTask(task.id)}>
                   <span>{task.title}</span>
