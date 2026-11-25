@@ -40,6 +40,18 @@ contextBridge.exposeInMainWorld("tango", {
     ipcRenderer.on("dsh:event", handle);
     return () => ipcRenderer.removeListener("dsh:event", handle);
   },
+  runPi: (taskId: string, projectPath: string, prompt: string): Promise<{ sessionFile: string; answer: string }> =>
+    ipcRenderer.invoke("pi:run", taskId, projectPath, prompt),
+  onPiEvent: (listener: AgentEventListener): (() => void) => {
+    const handle = (_event: Electron.IpcRendererEvent, taskId: string, payload: Record<string, unknown>) =>
+      listener(taskId, payload);
+    ipcRenderer.on("pi:event", handle);
+    return () => ipcRenderer.removeListener("pi:event", handle);
+  },
+  getLayout: (): Promise<{ terminalTabs: string[]; activeTerminal: string } | null> =>
+    ipcRenderer.invoke("layout:get"),
+  saveLayout: (layout: { terminalTabs: string[]; activeTerminal: string }): Promise<void> =>
+    ipcRenderer.invoke("layout:save", layout),
   startTerminal: (projectPath: string, terminalId: string): Promise<void> =>
     ipcRenderer.invoke("terminal:start", projectPath, terminalId),
   writeTerminal: (terminalId: string, data: string): void =>
@@ -74,6 +86,9 @@ export interface TaskRecord {
   title: string;
   projectPath: string;
   threadId?: string;
+  claudeSessionId?: string;
+  dshSessionId?: string;
+  piSessionFile?: string;
   messages: Array<{ role: "user" | "assistant"; text: string; agent: string; createdAt: string }>;
 }
 
@@ -91,6 +106,10 @@ export interface TangoApi {
   onClaudeEvent(listener: (taskId: string, event: Record<string, unknown>) => void): () => void;
   runDsh(taskId: string, projectPath: string, prompt: string): Promise<{ sessionId: string; answer: string }>;
   onDshEvent(listener: (taskId: string, event: Record<string, unknown>) => void): () => void;
+  runPi(taskId: string, projectPath: string, prompt: string): Promise<{ sessionFile: string; answer: string }>;
+  onPiEvent(listener: (taskId: string, event: Record<string, unknown>) => void): () => void;
+  getLayout(): Promise<{ terminalTabs: string[]; activeTerminal: string } | null>;
+  saveLayout(layout: { terminalTabs: string[]; activeTerminal: string }): Promise<void>;
   startTerminal(projectPath: string, terminalId: string): Promise<void>;
   writeTerminal(terminalId: string, data: string): void;
   resizeTerminal(terminalId: string, cols: number, rows: number): void;

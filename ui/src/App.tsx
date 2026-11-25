@@ -17,11 +17,10 @@ function AgentGlyph({ agentId }: { agentId: AgentStatus["id"] }) {
   return <span className={"agent-mark " + agentId + "-mark"}>{marks[agentId]}</span>;
 }
 
-function TerminalView({ projectPath }: { projectPath: string }) {
+function TerminalView({ projectPath, terminalId }: { projectPath: string; terminalId: string }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [terminalId] = useState(() => crypto.randomUUID());
 
   useEffect(() => {
     if (!hostRef.current) return;
@@ -67,23 +66,25 @@ function TerminalView({ projectPath }: { projectPath: string }) {
     });
     const input = terminal.onData((data) => window.tango.writeTerminal(terminalId, data));
     const resize = () => {
+      if (!hostRef.current?.clientWidth || !hostRef.current.clientHeight) return;
       fit.fit();
       window.tango.resizeTerminal(terminalId, terminal.cols, terminal.rows);
     };
-    const observer = new ResizeObserver(resize);
+    let resizeFrame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(resizeFrame);
+      resizeFrame = requestAnimationFrame(resize);
+    });
     observer.observe(hostRef.current);
     resize();
     terminal.focus();
 
-    let cancelled = false;
-    void window.tango.startTerminal(projectPath, terminalId).then(() => {
-      if (cancelled) window.tango.closeTerminal(terminalId);
-    }).catch((reason: unknown) => {
+    void window.tango.startTerminal(projectPath, terminalId).catch((reason: unknown) => {
       setError(reason instanceof Error ? reason.message : "Could not start terminal");
     });
 
     return () => {
-      cancelled = true;
+      cancelAnimationFrame(resizeFrame);
       observer.disconnect();
       input.dispose();
       removeDataListener();
@@ -125,6 +126,7 @@ function App() {
   const [activeAgent, setActiveAgent] = useState<AgentStatus["id"] | null>(null);
   const [tabs, setTabs] = useState<string[]>(["terminal-1"]);
   const [activeTerminal, setActiveTerminal] = useState("terminal-1");
+  const [layoutLoaded, setLayoutLoaded] = useState(false);
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [activeTask, setActiveTask] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -132,6 +134,7 @@ function App() {
   const [running, setRunning] = useState(false);
   const [claudeMode, setClaudeMode] = useState(false);
   const [dshMode, setDshMode] = useState(false);
+  const [piMode, setPiMode] = useState(false);
 
   const refreshAgents = useCallback(async () => {
     setDetecting(true);
@@ -146,7 +149,18 @@ function App() {
     void window.tango.getWorkspace().then(setProject);
     void refreshAgents();
     void window.tango.listTasks().then(setTasks);
+    void window.tango.getLayout().then((layout) => {
+      if (layout?.terminalTabs.length) {
+        setTabs(layout.terminalTabs);
+        setActiveTerminal(layout.activeTerminal);
+      }
+      setLayoutLoaded(true);
+    });
   }, [refreshAgents]);
+
+  useEffect(() => {
+    if (layoutLoaded) void window.tango.saveLayout({ terminalTabs: tabs, activeTerminal });
+  }, [tabs, activeTerminal, layoutLoaded]);
 
   useEffect(() => window.tango.onCodexEvent((taskId, event) => {
     if (taskId !== activeTask) return;
@@ -178,6 +192,11 @@ function App() {
       if (update?.sessionUpdate === "agent_message_chunk") setRunning(true);
     }
   }), [activeTask]);
+  useEffect(() => window.tango.onPiEvent((taskId, event) => {
+    if (taskId !== activeTask) return;
+    if (event.type === "delta" && typeof event.text === "string") setAssistantText((text) => text + event.text);
+    if (event.type === "agent_settled") setRunning(false);
+  }), [activeTask]);
 
   async function openProject() {
     const selected = await window.tango.openWorkspace();
@@ -190,6 +209,9 @@ function App() {
     setTasks((current) => [task, ...current]);
     setActiveTask(task.id);
     setActiveAgent("codex");
+    setClaudeMode(false);
+    setDshMode(false);
+    setPiMode(false);
   }
 
   async function submitPrompt() {
@@ -200,7 +222,13 @@ function App() {
     setAssistantText("");
     setRunning(true);
     try {
-      if (dshMode) {
+      if (piMode) {
+        const result = await window.tango.runPi(task.id, task.projectPath, text);
+        setRunning(false);
+        setTasks((current) => current.map((item) => item.id === task.id
+          ? { ...item, messages: [...item.messages, { role: "user", agent: "pi", text, createdAt: new Date().toISOString() }, { role: "assistant", agent: "pi", text: result.answer, createdAt: new Date().toISOString() }] }
+          : item));
+      } else if (dshMode) {
         const result = await window.tango.runDsh(task.id, task.projectPath, text);
         setRunning(false);
         setTasks((current) => current.map((item) => item.id === task.id
@@ -284,7 +312,7 @@ function App() {
               key={agent.id}
               className={"sidebar-agent " + (activeAgent === agent.id ? "selected" : "") + (!agent.available ? " unavailable" : "")}
               disabled={!agent.available}
-              onClick={() => { setActiveAgent(agent.id); setClaudeMode(agent.id === "claude"); setDshMode(agent.id === "dsh"); }}
+              onClick={() => { setActiveAgent(agent.id); setClaudeMode(agent.id === "claude"); setDshMode(agent.id === "dsh"); setPiMode(agent.id === "pi"); }}
               title={agent.available ? agent.version ?? agent.name : "Not installed"}
             >
               <AgentGlyph agentId={agent.id} />
@@ -356,13 +384,13 @@ function App() {
               <div className="terminal-panel">
                 {tabs.map((tab) => (
                   <div className="terminal-instance" key={tab} hidden={activeTab !== tab}>
-                    <TerminalView projectPath={project} />
+                    <TerminalView projectPath={project} terminalId={tab} />
                   </div>
                 ))}
               </div>
             )}
 
-            {activeAgent && activeTask && ["codex", "claude", "dsh"].includes(activeAgent) && (
+            {activeAgent && activeTask && ["codex", "claude", "dsh", "pi"].includes(activeAgent) && (
               <div className="conversation">
                 <div className="conversation-heading">{tasks.find((task) => task.id === activeTask)?.title}</div>
                 <div className="conversation-messages">
@@ -382,7 +410,7 @@ function App() {
                 </form>
               </div>
             )}
-            {activeAgent && (!activeTask || activeAgent !== "codex") && (
+            {activeAgent && (!activeTask || !["codex", "claude", "dsh", "pi"].includes(activeAgent)) && (
               <div className="agent-placeholder">
                 <div className="agent-placeholder-icon">
                   <AgentGlyph agentId={activeAgent} />

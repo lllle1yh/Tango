@@ -9,10 +9,11 @@ import { spawn, type IPty } from "@homebridge/node-pty-prebuilt-multiarch";
 const execFileAsync = promisify(execFile);
 const workspaceFile = () => path.join(app.getPath("userData"), "workspace.json");
 let mainWindow: BrowserWindow | null = null;
-const terminals = new Map<string, IPty>();
+const terminals = new Map<string, { process: IPty; closeTimer?: NodeJS.Timeout }>();
 const codexProcesses = new Map<string, ReturnType<typeof createCodexClient>>();
 const claudeProcesses = new Map<string, ReturnType<typeof createClaudeClient>>();
 const dshProcesses = new Map<string, ReturnType<typeof createDshClient>>();
+const piProcesses = new Map<string, ReturnType<typeof createPiClient>>();
 
 type TaskRecord = {
   id: string;
@@ -21,11 +22,15 @@ type TaskRecord = {
   threadId?: string;
   claudeSessionId?: string;
   dshSessionId?: string;
+  piSessionFile?: string;
   messages: Array<{ role: "user" | "assistant"; text: string; agent: string; createdAt: string }>;
 };
 
 function tasksFile() {
   return path.join(app.getPath("userData"), "tasks.json");
+}
+function layoutFile() {
+  return path.join(app.getPath("userData"), "layout.json");
 }
 
 async function readTasks(): Promise<TaskRecord[]> {
@@ -298,6 +303,80 @@ function sendDshEvent(taskId: string, payload: Record<string, unknown>) {
   if (!mainWindow?.isDestroyed()) mainWindow?.webContents.send("dsh:event", taskId, payload);
 }
 
+function createPiClient(taskId: string, projectPath: string, sessionFile?: string) {
+  const args = ["--mode", "rpc"];
+  const child = require("node:child_process").spawn("cmd.exe", ["/d", "/s", "/c", "pi " + args.join(" ")], {
+    cwd: projectPath, stdio: ["pipe", "pipe", "pipe"], windowsHide: true,
+  }) as import("node:child_process").ChildProcessWithoutNullStreams;
+  let buffer = "";
+  let answer = "";
+  let sessionPath = sessionFile ?? "";
+  let restored = false;
+  const pending = new Map<string, { resolve(value: any): void; reject(error: Error): void }>();
+  let settled: (() => void) | undefined;
+  child.stdout.on("data", (chunk: Buffer) => {
+    buffer += chunk.toString();
+    const lines = buffer.split(/\r?\n/); buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line) continue;
+      let message: any; try { message = JSON.parse(line); } catch { continue; }
+      if (message.type === "response" && typeof message.id === "string" && pending.has(message.id)) {
+        const waiter = pending.get(message.id)!; pending.delete(message.id);
+        message.success ? waiter.resolve(message.data) : waiter.reject(new Error(message.error ?? "Pi RPC command failed"));
+      } else if (message.type === "message_update") {
+        const update = message.assistantMessageEvent;
+        if (update?.type === "text_delta") {
+          answer += update.delta ?? "";
+          sendPiEvent(taskId, { type: "delta", text: update.delta ?? "" });
+        } else sendPiEvent(taskId, { type: "message_update", event: update });
+      } else if (message.type === "agent_settled") {
+        sendPiEvent(taskId, { type: "agent_settled", aborted: message.aborted });
+        settled?.();
+        settled = undefined;
+      } else if (message.type === "extension_ui_request") {
+        sendPiEvent(taskId, { type: "extension_ui_request", request: message });
+      } else if (message.type === "response" && message.command === "get_state" && message.success) {
+        sessionPath = message.data?.sessionFile ?? sessionPath;
+        sendPiEvent(taskId, { type: "session/state", sessionFile: sessionPath });
+      }
+    }
+  });
+  child.stderr.on("data", (data: Buffer) => sendPiEvent(taskId, { type: "stderr", text: data.toString().slice(-1000) }));
+  child.on("exit", (code) => {
+    piProcesses.delete(taskId);
+    for (const waiter of pending.values()) waiter.reject(new Error("Pi process exited with code " + code));
+    pending.clear();
+    settled?.();
+    settled = undefined;
+    sendPiEvent(taskId, { type: "process/exit", code });
+  });
+  function command(name: string, params: Record<string, unknown> = {}) {
+    return new Promise<any>((resolve, reject) => {
+      const id = randomUUID();
+      pending.set(id, { resolve, reject });
+      child.stdin.write(JSON.stringify({ type: name, id, ...params }) + "\n");
+    });
+  }
+  async function run(prompt: string) {
+    answer = "";
+    if (sessionPath && !restored) {
+      await command("switch_session", { sessionPath });
+      restored = true;
+    }
+    const idle = new Promise<void>((resolve) => { settled = resolve; });
+    await command("prompt", { message: prompt });
+    await idle;
+    const state = await command("get_state");
+    sessionPath = state?.sessionFile ?? sessionPath;
+    return { sessionFile: sessionPath, answer };
+  }
+  return { run, dispose() { child.kill(); } };
+}
+
+function sendPiEvent(taskId: string, payload: Record<string, unknown>) {
+  if (!mainWindow?.isDestroyed()) mainWindow?.webContents.send("pi:event", taskId, payload);
+}
+
 const agents = [
   { id: "codex", name: "Codex", command: "codex", args: ["--version"] },
   { id: "claude", name: "Claude Code", command: "claude", args: ["--version"] },
@@ -365,6 +444,20 @@ function registerIpc() {
   ipcMain.handle("tasks:list", async (event: IpcMainInvokeEvent) => {
     assertTrustedSender(event);
     return readTasks();
+  });
+  ipcMain.handle("layout:get", async (event: IpcMainInvokeEvent) => {
+    assertTrustedSender(event);
+    try { return JSON.parse(await readFile(layoutFile(), "utf8")); } catch { return null; }
+  });
+  ipcMain.handle("layout:save", async (event: IpcMainInvokeEvent, layout: { terminalTabs: string[]; activeTerminal: string }) => {
+    assertTrustedSender(event);
+    if (!Array.isArray(layout?.terminalTabs) || layout.terminalTabs.length < 1 || layout.terminalTabs.length > 32 ||
+      layout.terminalTabs.some((id) => typeof id !== "string" || !/^[a-zA-Z0-9-]{1,80}$/.test(id)) ||
+      typeof layout.activeTerminal !== "string" || !layout.terminalTabs.includes(layout.activeTerminal)) {
+      throw new Error("Invalid terminal layout");
+    }
+    await mkdir(app.getPath("userData"), { recursive: true });
+    await writeFile(layoutFile(), JSON.stringify(layout), "utf8");
   });
   ipcMain.handle("tasks:create", async (event: IpcMainInvokeEvent, title: string, projectPath: string) => {
     assertTrustedSender(event);
@@ -453,12 +546,35 @@ function registerIpc() {
     await saveTasks(tasks);
     return result;
   });
+  ipcMain.handle("pi:run", async (event: IpcMainInvokeEvent, taskId: string, projectPath: string, prompt: string) => {
+    assertTrustedSender(event);
+    const tasks = await readTasks();
+    const task = tasks.find((item) => item.id === taskId);
+    if (!task || task.projectPath !== await realpath(projectPath)) throw new Error("Task does not belong to this project");
+    let client = piProcesses.get(taskId);
+    if (!client) {
+      client = createPiClient(taskId, task.projectPath, task.piSessionFile);
+      piProcesses.set(taskId, client);
+    }
+    task.messages.push({ role: "user", text: prompt, agent: "pi", createdAt: new Date().toISOString() });
+    await saveTasks(tasks);
+    const result = await client.run(prompt);
+    task.piSessionFile = result.sessionFile;
+    task.messages.push({ role: "assistant", text: result.answer, agent: "pi", createdAt: new Date().toISOString() });
+    await saveTasks(tasks);
+    return result;
+  });
   ipcMain.handle("terminal:start", async (event: IpcMainInvokeEvent, requestedPath: string, terminalId: string) => {
     assertTrustedSender(event);
     if (typeof terminalId !== "string" || !/^[a-zA-Z0-9-]{1,80}$/.test(terminalId)) {
       throw new Error("Invalid terminal identifier");
     }
-    if (terminals.has(terminalId)) throw new Error("Terminal already exists");
+    const existingTerminal = terminals.get(terminalId);
+    if (existingTerminal) {
+      if (existingTerminal.closeTimer) clearTimeout(existingTerminal.closeTimer);
+      existingTerminal.closeTimer = undefined;
+      return;
+    }
     const savedPath = await readLastWorkspace();
     if (!savedPath) throw new Error("Open a project folder before starting a terminal");
 
@@ -477,7 +593,7 @@ function registerIpc() {
       "v1.0",
       "powershell.exe",
     );
-    const terminal = spawn(shell, [], {
+    const terminal = spawn(shell, ["-NoLogo", "-NoExit"], {
       name: "xterm-256color",
       cols: 100,
       rows: 30,
@@ -486,7 +602,7 @@ function registerIpc() {
       useConpty: true,
       conptyInheritCursor: true,
     });
-    terminals.set(terminalId, terminal);
+    terminals.set(terminalId, { process: terminal });
     terminal.onData((data) => {
       if (!mainWindow?.isDestroyed()) mainWindow?.webContents.send("terminal:data", terminalId, data);
     });
@@ -497,17 +613,22 @@ function registerIpc() {
   });
   ipcMain.on("terminal:write", (event, terminalId: string, data: string) => {
     assertTrustedSender(event);
-    if (typeof data === "string" && data.length <= 32768) terminals.get(terminalId)?.write(data);
+    if (typeof data === "string" && data.length <= 32768) terminals.get(terminalId)?.process.write(data);
   });
   ipcMain.on("terminal:resize", (event, terminalId: string, cols: number, rows: number) => {
     assertTrustedSender(event);
     if (Number.isInteger(cols) && Number.isInteger(rows) && cols >= 2 && rows >= 1 && cols <= 500 && rows <= 300) {
-      terminals.get(terminalId)?.resize(cols, rows);
+      terminals.get(terminalId)?.process.resize(cols, rows);
     }
   });
   ipcMain.on("terminal:close", (event, terminalId: string) => {
     assertTrustedSender(event);
-    terminals.get(terminalId)?.kill();
+    const terminal = terminals.get(terminalId);
+    if (terminal) {
+      terminal.closeTimer = setTimeout(() => {
+        if (terminals.get(terminalId) === terminal) terminal.process.kill();
+      }, 120);
+    }
   });
 }
 
@@ -607,7 +728,14 @@ app.on("window-all-closed", () => {
   claudeProcesses.clear();
   for (const client of dshProcesses.values()) client.dispose();
   dshProcesses.clear();
-  for (const terminal of terminals.values()) terminal.kill();
+  for (const client of piProcesses.values()) client.dispose();
+  piProcesses.clear();
+  for (const client of piProcesses.values()) client.dispose();
+  piProcesses.clear();
+  for (const terminal of terminals.values()) {
+    if (terminal.closeTimer) clearTimeout(terminal.closeTimer);
+    terminal.process.kill();
+  }
   terminals.clear();
   if (process.platform !== "darwin") app.quit();
 });
