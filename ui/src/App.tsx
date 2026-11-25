@@ -839,6 +839,7 @@ function App() {
   function openTask(taskId: string) {
     setActiveTask(taskId);
     setActiveAgent(settings?.defaultAgent ?? "codex");
+    window.requestAnimationFrame(() => composerRef.current?.focus());
   }
 
   function startRename(task: TaskRecord) {
@@ -908,6 +909,7 @@ function App() {
     setTasks((current) => [task, ...current]);
     setActiveTask(task.id);
     setActiveAgent(settings?.defaultAgent ?? "codex");
+    window.requestAnimationFrame(() => composerRef.current?.focus());
   }
   async function startTurn(agent: AgentStatus["id"], task: TaskRecord, text: string) {
     setPrompt("");
