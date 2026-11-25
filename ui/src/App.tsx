@@ -1627,6 +1627,8 @@ function App() {
   const paletteItems: PaletteItem[] = [
     { id: "a-new", group: "Actions", label: "New task", hint: "Ctrl N", run: () => void createTask() },
     { id: "a-settings", group: "Actions", label: "Settings", hint: "Ctrl ,", run: () => setSettingsOpen(true) },
+    { id: "a-shortcuts", group: "Actions", label: "Keyboard shortcuts", run: () => setShortcutsOpen(true) },
+    { id: "a-data", group: "Actions", label: "Reveal data folder", run: () => void window.tango.revealDataFolder() },
     { id: "a-rename", group: "Actions", label: "Rename task", hint: "Ctrl Shift N", run: () => renameActiveTask() },
     { id: "a-archive", group: "Actions", label: "Archive task", hint: "Ctrl Shift E", run: () => { if (activeTask) void archiveTaskAction(activeTask, true); } },
     { id: "a-project", group: "Actions", label: "Open project folder", run: () => void openProject() },
