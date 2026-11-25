@@ -51,6 +51,8 @@ contextBridge.exposeInMainWorld("tango", {
     ipcRenderer.invoke("tasks:create", title, projectPath),
   pinTask: (taskId: string, pinned: boolean): Promise<TaskRecord> =>
     ipcRenderer.invoke("tasks:pin", taskId, pinned),
+  clearTaskRunning: (taskId: string): Promise<TaskRecord | null> =>
+    ipcRenderer.invoke("tasks:clear-running", taskId),
   reorderTasks: (taskIds: string[]): Promise<TaskRecord[]> =>
     ipcRenderer.invoke("tasks:reorder", taskIds),
   renameTask: (taskId: string, title: string): Promise<TaskRecord> =>
@@ -146,6 +148,7 @@ export interface TaskRecord {
   projectPath: string;
   archived?: boolean;
   pinned?: boolean;
+  running?: { agent: string; startedAt: string };
   threadId?: string;
   claudeSessionId?: string;
   dshSessionId?: string;
@@ -166,6 +169,7 @@ export interface TangoApi {
   listTasks(): Promise<TaskRecord[]>;
   createTask(title: string, projectPath: string): Promise<TaskRecord>;
   pinTask(taskId: string, pinned: boolean): Promise<TaskRecord>;
+  clearTaskRunning(taskId: string): Promise<TaskRecord | null>;
   reorderTasks(taskIds: string[]): Promise<TaskRecord[]>;
   renameTask(taskId: string, title: string): Promise<TaskRecord>;
   archiveTask(taskId: string, archived: boolean): Promise<TaskRecord>;

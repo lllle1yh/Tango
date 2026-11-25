@@ -31,6 +31,7 @@ type TaskRecord = {
   projectPath: string;
   archived?: boolean;
   pinned?: boolean;
+  running?: { agent: string; startedAt: string };
   threadId?: string;
   claudeSessionId?: string;
   dshSessionId?: string;
@@ -227,6 +228,7 @@ function createCodexClient(taskId: string, projectPath: string) {
           }
           sendCodexEvent(taskId, { type: "turn/completed", turn });
           turnId = undefined;
+          void clearRunning(taskId);
         } else if (message.method === "serverRequest/resolved") {
           sendCodexEvent(taskId, { type: message.method, params: message.params });
         } else {
@@ -238,6 +240,7 @@ function createCodexClient(taskId: string, projectPath: string) {
   child.stderr.on("data", () => {});
   child.on("exit", (code) => {
     codexProcesses.delete(taskId);
+    void clearRunning(taskId);
     sendCodexEvent(taskId, { type: "process/exit", code });
     for (const waiter of pending.values()) waiter.reject(new Error("Codex app server exited"));
     pending.clear();
@@ -656,6 +659,35 @@ async function terminateChild(child: import("node:child_process").ChildProcess) 
   child.kill();
 }
 
+// One turn per task: a second agent must not start while the first is working.
+const activeRuns = new Map<string, string>();
+
+function assertTaskIdle(taskId: string) {
+  const agent = activeRuns.get(taskId);
+  if (agent) throw new Error(`Another agent (${agent}) is still working in this task`);
+}
+
+async function markRunning(taskId: string, agent: string) {
+  assertTaskIdle(taskId);
+  activeRuns.set(taskId, agent);
+  const tasks = await readTasks();
+  const task = tasks.find((item) => item.id === taskId);
+  if (task) {
+    task.running = { agent, startedAt: new Date().toISOString() };
+    await saveTasks(tasks);
+  }
+}
+
+async function clearRunning(taskId: string) {
+  activeRuns.delete(taskId);
+  const tasks = await readTasks();
+  const task = tasks.find((item) => item.id === taskId);
+  if (task?.running) {
+    delete task.running;
+    await saveTasks(tasks);
+  }
+}
+
 const agents = [
   { id: "codex", name: "Codex", command: "codex", args: ["--version"] },
   { id: "claude", name: "Claude Code", command: "claude", args: ["--version"] },
@@ -916,6 +948,12 @@ function registerIpc() {
     await saveTasks(tasks);
     return task;
   });
+  ipcMain.handle("tasks:clear-running", async (event: IpcMainInvokeEvent, taskId: string) => {
+    assertTrustedSender(event);
+    await clearRunning(taskId);
+    const tasks = await readTasks();
+    return tasks.find((item) => item.id === taskId) ?? null;
+  });
   ipcMain.handle("tasks:reorder", async (event: IpcMainInvokeEvent, taskIds: string[]) => {
     assertTrustedSender(event);
     if (!Array.isArray(taskIds) || taskIds.some((id) => typeof id !== "string")) throw new Error("Invalid task order");
@@ -984,6 +1022,7 @@ function registerIpc() {
     const tasks = await readTasks();
     const task = tasks.find((item) => item.id === taskId);
     if (!task || task.projectPath !== await realpath(projectPath)) throw new Error("Task does not belong to this project");
+    await markRunning(task.id, "codex");
     const client = await ensureCodexClient(task);
     task.messages.push({ role: "user", text: prompt, agent: "codex", createdAt: new Date().toISOString() });
     await saveTasks(tasks);
@@ -997,6 +1036,7 @@ function registerIpc() {
     const tasks = await readTasks();
     const task = tasks.find((item) => item.id === taskId);
     if (!task) throw new Error("Codex task session is not connected");
+    await markRunning(task.id, "codex");
     const client = await ensureCodexClient(task);
     if (!client.threadId) throw new Error("Codex conversation could not be resumed");
     task.messages.push({ role: "user", text: prompt, agent: "codex", createdAt: new Date().toISOString() });
@@ -1024,9 +1064,15 @@ function registerIpc() {
       client = createClaudeClient(taskId, task.projectPath, task.claudeSessionId);
       claudeProcesses.set(taskId, client);
     }
+    await markRunning(task.id, "claude");
     task.messages.push({ role: "user", text: prompt, agent: "claude", createdAt: new Date().toISOString() });
     await saveTasks(tasks);
-    const answer = await client.run(prompt);
+    let answer: string;
+    try {
+      answer = await client.run(prompt);
+    } finally {
+      void clearRunning(task.id);
+    }
     task.claudeSessionId = client.sessionId;
     if (answer) {
       task.messages.push({ role: "assistant", text: answer, agent: "claude", createdAt: new Date().toISOString() });
@@ -1065,9 +1111,15 @@ function registerIpc() {
         throw error;
       }
     }
+    await markRunning(task.id, "dsh");
     task.messages.push({ role: "user", text: prompt, agent: "dsh", createdAt: new Date().toISOString() });
     await saveTasks(tasks);
-    const result = await client.run(prompt, task.dshSessionId);
+    let result;
+    try {
+      result = await client.run(prompt, task.dshSessionId);
+    } finally {
+      void clearRunning(task.id);
+    }
     task.dshSessionId = result.sessionId;
     if (result.answer) {
       task.messages.push({ role: "assistant", text: result.answer, agent: "dsh", createdAt: new Date().toISOString() });
@@ -1103,9 +1155,15 @@ function registerIpc() {
         throw error;
       }
     }
+    await markRunning(task.id, "pi");
     task.messages.push({ role: "user", text: prompt, agent: "pi", createdAt: new Date().toISOString() });
     await saveTasks(tasks);
-    const result = await client.run(prompt);
+    let result;
+    try {
+      result = await client.run(prompt);
+    } finally {
+      void clearRunning(task.id);
+    }
     task.piSessionFile = result.sessionFile;
     if (result.answer) {
       task.messages.push({ role: "assistant", text: result.answer, agent: "pi", createdAt: new Date().toISOString() });

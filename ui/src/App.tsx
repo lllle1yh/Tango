@@ -1134,6 +1134,22 @@ function App() {
             {activeAgent && activeTask && (
               <div className="conversation">
                 <div className="conversation-heading">{tasks.find((task) => task.id === activeTask)?.title}</div>
+                {tasks.find((task) => task.id === activeTask)?.running && !running && (
+                  <div className="run-stale" role="status">
+                    <span>
+                      The last turn ({tasks.find((task) => task.id === activeTask)?.running?.agent}) did not finish. It may have been interrupted by a restart.
+                    </span>
+                    <button
+                      className="subtle-button"
+                      onClick={async () => {
+                        const updated = await window.tango.clearTaskRunning(activeTask!);
+                        if (updated) setTasks((current) => current.map((task) => (task.id === updated.id ? { ...task, running: undefined } : task)));
+                      }}
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                )}
                 <div className="conversation-messages" ref={messagesRef}>
                   {activeMessages.map((message, index) => {
                     const rowId = "m-" + index;

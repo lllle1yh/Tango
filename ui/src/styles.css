@@ -442,3 +442,8 @@ button { color: inherit; font: inherit; }
 .code-copy:hover { color: var(--fg); border-color: var(--line-strong); }
 
 .permission-detail { margin: 0; padding: 8px 10px; overflow: auto; border-radius: 6px; background: var(--surface); color: var(--fg); font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; white-space: pre-wrap; }
+
+/* Interrupted turn notice */
+.run-stale { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 10px auto 0; padding: 9px 12px; width: min(820px, calc(100% - 48px)); border: 1px solid #f0c674; border-radius: var(--radius-sm); background: #fff8e6; color: #6b4e16; font-size: 12.5px; }
+:root[data-theme="dark"] .run-stale { border-color: #5c4a1e; background: #241d0d; color: #e6c98a; }
+.run-stale .subtle-button { flex: none; height: 26px; font-size: 12px; }
