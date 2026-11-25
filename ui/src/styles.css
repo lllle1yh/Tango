@@ -433,3 +433,10 @@ button { color: inherit; font: inherit; }
 .composer textarea { overflow-y: auto; }
 /* Skip layout and paint for messages far off screen. */
 .message { content-visibility: auto; contain-intrinsic-size: auto 140px; }
+
+/* Code blocks: copy action */
+.code-block { position: relative; }
+.code-block pre { margin: 10px 0; }
+.code-copy { position: absolute; top: 16px; right: 8px; height: 22px; padding: 0 8px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface-3); color: var(--fg-muted); cursor: pointer; font-size: 11px; opacity: 0; transition: opacity .12s ease; }
+.code-block:hover .code-copy, .code-copy:focus-visible { opacity: 1; }
+.code-copy:hover { color: var(--fg); border-color: var(--line-strong); }
