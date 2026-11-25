@@ -415,3 +415,10 @@ button { color: inherit; font: inherit; }
 .tool-row.running .tool-status { color: var(--primary); }
 .spin { animation: tool-spin 1s linear infinite; }
 @keyframes tool-spin { to { transform: rotate(360deg); } }
+
+/* Per-message copy action */
+.message { position: relative; }
+.message-copy { position: absolute; top: -2px; right: -34px; display: grid; width: 26px; height: 26px; place-items: center; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-3); color: var(--fg-muted); cursor: pointer; opacity: 0; transition: opacity .12s ease; }
+.message:hover .message-copy, .message-copy:focus-visible { opacity: 1; }
+.message-copy:hover { color: var(--fg); border-color: var(--line-strong); }
+.message.user .message-copy { right: auto; left: -34px; }

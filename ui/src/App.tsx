@@ -8,7 +8,7 @@ import { CommandPalette, type PaletteItem } from "./CommandPalette";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Pin, Search, TerminalSquare, FileText, Globe, Wrench, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Check, Copy, GripVertical, Pin, Search, TerminalSquare, FileText, Globe, Wrench, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import "./layout.css";
 import "./agent-icons.css";
 
@@ -390,6 +390,7 @@ function App() {
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [taskQuery, setTaskQuery] = useState("");
   const [piCommands, setPiCommands] = useState<Array<{ name: string; description?: string }>>([]);
+  const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
 
   useEffect(() => {
     void window.tango.getSettings().then(setSettings);
@@ -1095,12 +1096,28 @@ function App() {
               <div className="conversation">
                 <div className="conversation-heading">{tasks.find((task) => task.id === activeTask)?.title}</div>
                 <div className="conversation-messages" ref={messagesRef}>
-                  {activeMessages.map((message, index) => (
-                    <article className={"message " + message.role} key={"m-" + index}>
-                      <span>{message.agent}</span>
-                      <Markdown text={message.text} />
-                    </article>
-                  ))}
+                  {activeMessages.map((message, index) => {
+                    const rowId = "m-" + index;
+                    return (
+                      <article className={"message " + message.role} key={rowId}>
+                        <span>{message.agent}</span>
+                        <Markdown text={message.text} />
+                        <button
+                          className="message-copy"
+                          aria-label="Copy message"
+                          title="Copy message"
+                          onClick={() => {
+                            void navigator.clipboard.writeText(message.text).then(() => {
+                              setCopiedIndex(rowId);
+                              window.setTimeout(() => setCopiedIndex((current) => (current === rowId ? null : current)), 1200);
+                            });
+                          }}
+                        >
+                          {copiedIndex === rowId ? <Check size={13} /> : <Copy size={13} />}
+                        </button>
+                      </article>
+                    );
+                  })}
                   {(assistantText || running) && (
                     <article className="message assistant">
                       <span>{activeAgent}</span>
