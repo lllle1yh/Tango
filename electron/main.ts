@@ -149,6 +149,26 @@ async function saveTasks(tasks: TaskRecord[]) {
   await writeJsonAtomic(tasksFile(), tasks);
 }
 
+// The protocol item carries the command or file it acted on; the UI shows it beside the tool.
+function codexToolDetail(item: any): string | undefined {
+  if (!item) return undefined;
+  const text = (value: unknown) => (typeof value === "string" && value.trim() ? value.trim().slice(0, 200) : undefined);
+  if (item.type === "commandExecution") {
+    const command = Array.isArray(item.command) ? item.command.join(" ") : item.command;
+    return text(command);
+  }
+  if (item.type === "fileChange" && Array.isArray(item.changes)) {
+    const paths = item.changes
+      .map((change: any) => change?.path?.path ?? change?.path)
+      .filter((value: unknown) => typeof value === "string")
+      .slice(0, 3);
+    return paths.length ? text(paths.join(", ")) : undefined;
+  }
+  if (item.type === "mcpToolCall") return text([item.server, item.tool].filter(Boolean).join("/"));
+  if (item.type === "webSearch") return text(item.query);
+  return undefined;
+}
+
 // Tools the running turn has used so far. The renderer sees every tool event live; the
 // main process keeps the same list so the finished reply can carry its tools to disk.
 type TurnTool = { id: string; name: string; status: string; detail?: string };
@@ -320,8 +340,9 @@ function createCodexClient(taskId: string, projectPath: string) {
             sendCodexEvent(taskId, {
               type: "tool",
               id: item.id,
-              name: item.command ?? item.tool ?? item.type,
+              name: Array.isArray(item.command) ? item.command[0] ?? item.type : item.command ?? item.tool ?? item.type,
               status: message.method === "item/started" && item.status === undefined ? "running" : status,
+              detail: codexToolDetail(item),
             });
           }
           sendCodexEvent(taskId, { type: message.method, item });
@@ -450,7 +471,7 @@ function createClaudeClient(taskId: string, projectPath: string, resumeId: strin
   const resultWaiters: Array<{ resolve(text: string): void; reject(error: Error): void }> = [];
   let sessionId = resumeId ?? "";
   let cancelled = false;
-  let lastClaudeTool: { id: string; name: string } | null = null;
+  let lastClaudeTool: { id: string; name: string; detail?: string } | null = null;
   child.stdout.on("data", (chunk: Buffer) => {
     buffer += chunk.toString();
     const lines = buffer.split(/\r?\n/);
@@ -465,11 +486,11 @@ function createClaudeClient(taskId: string, projectPath: string, resumeId: strin
         if (typeof delta === "string") sendClaudeEvent(taskId, { type: "delta", text: delta });
         const block = event.event?.content_block;
         if (event.event?.type === "content_block_start" && block?.type === "tool_use") {
-          lastClaudeTool = { id: block.id, name: block.name };
-          sendClaudeEvent(taskId, { type: "tool", id: block.id, name: block.name, status: "running" });
+          lastClaudeTool = { id: block.id, name: block.name, detail: claudeToolDetail(block) };
+          sendClaudeEvent(taskId, { type: "tool", id: block.id, name: block.name, status: "running", detail: lastClaudeTool.detail });
         }
         if (event.event?.type === "content_block_stop" && lastClaudeTool) {
-          sendClaudeEvent(taskId, { type: "tool", id: lastClaudeTool.id, name: lastClaudeTool.name, status: "done" });
+          sendClaudeEvent(taskId, { type: "tool", id: lastClaudeTool.id, name: lastClaudeTool.name, status: "done", detail: lastClaudeTool.detail });
           lastClaudeTool = null;
         }
       }
@@ -520,6 +541,17 @@ function createClaudeClient(taskId: string, projectPath: string, resumeId: strin
     get sessionId() { return sessionId; },
     dispose() { void terminateChild(child); },
   };
+}
+
+// Claude's tool_use block carries an input object whose first useful field names the target.
+function claudeToolDetail(block: any): string | undefined {
+  const input = block?.input;
+  if (!input || typeof input !== "object") return undefined;
+  for (const key of ["command", "file_path", "path", "pattern", "query", "url", "description"]) {
+    const value = (input as Record<string, unknown>)[key];
+    if (typeof value === "string" && value.trim()) return value.trim().slice(0, 200);
+  }
+  return undefined;
 }
 
 function sendClaudeEvent(taskId: string, payload: Record<string, unknown>) {
