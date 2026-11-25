@@ -139,7 +139,56 @@ const CODEX_APPROVAL_METHODS = new Set([
   "item/fileChange/requestApproval",
   "applyPatchApproval",
   "execCommandApproval",
+  "item/permissions/requestApproval",
 ]);
+
+// 审批请求参数 → { 标题, 详情 }. 只读取协议里声明的字段，字段缺失时退回通用文案。
+function describeCodexApproval(method: string, params: any): { title: string; detail: string } {
+  if (method === "item/permissions/requestApproval") {
+    const profile = params?.permissions ?? {};
+    const parts: string[] = [];
+    const entries = [
+      ...(Array.isArray(profile.fileSystem?.entries) ? profile.fileSystem.entries : []),
+      ...(Array.isArray(profile.fileSystem?.read) ? profile.fileSystem.read.map((path: any) => ({ access: "read", path: { type: "path", path } })) : []),
+      ...(Array.isArray(profile.fileSystem?.write) ? profile.fileSystem.write.map((path: any) => ({ access: "write", path: { type: "path", path } })) : []),
+    ];
+    for (const entry of entries.slice(0, 6)) {
+      const path = entry?.path ?? {};
+      const label = path.type === "path" ? path.path
+        : path.type === "glob_pattern" ? path.pattern
+        : path.type === "special" ? (path.value?.subpath ? String(path.value.kind) + "/" + path.value.subpath : String(path.value?.kind ?? "special"))
+        : path.field === "cwd" ? "the working directory"
+        : "a path";
+      parts.push(`${entry?.access ?? "access"}: ${label}`);
+    }
+    if (profile.network?.enabled) parts.push("network access");
+    const reason = typeof params?.reason === "string" ? params.reason : "";
+    return { title: "Grant extra permissions", detail: [reason, ...parts].filter(Boolean).join(String.fromCharCode(10)) };
+  }
+  const legacy = method === "applyPatchApproval" || method === "execCommandApproval";
+  const command = Array.isArray(params?.command) ? params.command.join(" ") : params?.command;
+  const files = params?.fileChanges && typeof params.fileChanges === "object"
+    ? Object.keys(params.fileChanges).slice(0, 6).join(", ")
+    : undefined;
+  const title = method === "item/fileChange/requestApproval" || legacy ? "Apply file changes" : "Run a command";
+  return { title, detail: command || files || params?.reason || params?.cwd || "" };
+}
+
+// 审批响应体. 新式请求回 { decision }; 权限请求回 GrantedPermissionProfile + scope.
+// 同意权限请求时原样回传请求的参数，拒绝时回空档案。
+function codexApprovalResult(method: string, optionId: string | null, requested: unknown) {
+  if (method === "item/permissions/requestApproval") {
+    const granted = optionId === "accept" || optionId === "acceptForSession";
+    return {
+      permissions: granted && requested && typeof requested === "object"
+        ? requested
+        : { fileSystem: null, network: null },
+      scope: optionId === "acceptForSession" ? "session" : "turn",
+    };
+  }
+  const legacy = method === "applyPatchApproval" || method === "execCommandApproval";
+  return { decision: optionId ?? (legacy ? "abort" : "decline") };
+}
 
 function createCodexClient(taskId: string, projectPath: string) {
   // Windows 上全局 npm 安装的 codex 是 .cmd 包装，直接 spawn("codex") 会 ENOENT。
@@ -159,7 +208,7 @@ function createCodexClient(taskId: string, projectPath: string) {
   let buffer = "";
   let threadId: string | undefined;
   let turnId: string | undefined;
-  const serverRequests = new Map<number, { method: string }>();
+  const serverRequests = new Map<number, { method: string; params: any }>();
 
   child.stdout.on("data", (chunk: Buffer) => {
     buffer += chunk.toString();
@@ -171,17 +220,10 @@ function createCodexClient(taskId: string, projectPath: string) {
       try { message = JSON.parse(line); } catch { continue; }
       if (typeof message.method === "string" && !pending.has(message.id) && message.id !== undefined
         && CODEX_APPROVAL_METHODS.has(message.method)) {
-        serverRequests.set(message.id, { method: message.method });
         const params = message.params ?? {};
+        serverRequests.set(message.id, { method: message.method, params });
         const legacy = message.method === "applyPatchApproval" || message.method === "execCommandApproval";
-        const command = Array.isArray(params.command) ? params.command.join(" ") : params.command;
-        const files = params.fileChanges && typeof params.fileChanges === "object"
-          ? Object.keys(params.fileChanges).slice(0, 6).join(", ")
-          : undefined;
-        const title = message.method === "item/fileChange/requestApproval" || message.method === "applyPatchApproval"
-          ? "Apply file changes"
-          : "Run a command";
-        const detail = command || files || params.reason || params.cwd || "";
+        const { title, detail } = describeCodexApproval(message.method, params);
         sendCodexEvent(taskId, {
           type: "permission/request",
           requestId: message.id,
@@ -237,6 +279,7 @@ function createCodexClient(taskId: string, projectPath: string) {
           void clearRunning(taskId);
         } else if (message.method === "serverRequest/resolved") {
           sendCodexEvent(taskId, { type: message.method, params: message.params });
+          if (message.params?.requestId !== undefined) serverRequests.delete(message.params.requestId);
         } else {
           sendCodexEvent(taskId, { type: message.method, params: message.params });
         }
@@ -250,6 +293,7 @@ function createCodexClient(taskId: string, projectPath: string) {
     sendCodexEvent(taskId, { type: "process/exit", code });
     for (const waiter of pending.values()) waiter.reject(new Error("Codex app server exited"));
     pending.clear();
+    serverRequests.clear();
   });
 
   function request(method: string, params: unknown) {
@@ -303,9 +347,8 @@ function createCodexClient(taskId: string, projectPath: string) {
     const request = serverRequests.get(requestId);
     if (!request) return false;
     serverRequests.delete(requestId);
-    const legacy = request.method === "applyPatchApproval" || request.method === "execCommandApproval";
-    const fallback = legacy ? "abort" : "decline";
-    child.stdin.write(JSON.stringify({ id: requestId, result: { decision: optionId ?? fallback } }) + String.fromCharCode(10));
+    const result = codexApprovalResult(request.method, optionId, request.params?.permissions);
+    child.stdin.write(JSON.stringify({ id: requestId, result }) + String.fromCharCode(10));
     return true;
   }
 
