@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, screen, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import type { WorkspaceLayout, LayoutNode } from "./preload";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -1311,10 +1311,44 @@ function assertTrustedSender(event: IpcMainEvent | IpcMainInvokeEvent) {
   }
 }
 
-function createWindow() {
+type WindowState = { x?: number; y?: number; width: number; height: number; maximized?: boolean };
+
+function windowStateFile() {
+  return path.join(app.getPath("userData"), "window.json");
+}
+
+async function readWindowState(): Promise<WindowState | null> {
+  try {
+    const state = JSON.parse(await readFile(windowStateFile(), "utf8")) as WindowState;
+    if (!Number.isFinite(state.width) || !Number.isFinite(state.height)) return null;
+    return state;
+  } catch {
+    return null;
+  }
+}
+
+// Keep restored bounds on a connected display; monitors change between runs.
+function clampToDisplay(state: WindowState): WindowState {
+  const displays = screen.getAllDisplays();
+  const visible = displays.some((display) => {
+    const area = display.workArea;
+    const x = state.x ?? area.x;
+    const y = state.y ?? area.y;
+    return x + 80 < area.x + area.width && x + state.width - 80 > area.x
+      && y + 40 < area.y + area.height && y + 40 > area.y;
+  });
+  if (visible) return state;
+  const area = screen.getPrimaryDisplay().workArea;
+  return { width: state.width, height: state.height, maximized: state.maximized, x: area.x + 40, y: area.y + 40 };
+}
+
+async function createWindow() {
+  const saved = await readWindowState();
+  const bounds = saved ? clampToDisplay(saved) : null;
   mainWindow = new BrowserWindow({
-    width: 1420,
-    height: 920,
+    width: bounds?.width ?? 1420,
+    height: bounds?.height ?? 920,
+    ...(bounds?.x !== undefined && bounds?.y !== undefined ? { x: bounds.x, y: bounds.y } : {}),
     minWidth: 980,
     minHeight: 640,
     icon: path.join(app.getAppPath(), "assets", "tango-icon.png"),
@@ -1339,6 +1373,27 @@ function createWindow() {
   } else {
     void mainWindow.loadURL("http://127.0.0.1:5173");
   }
+  if (bounds?.maximized) mainWindow.maximize();
+
+  let saveTimer: NodeJS.Timeout | undefined;
+  const persistBounds = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const value: WindowState = mainWindow.isMaximized()
+      ? { ...mainWindow.getNormalBounds(), maximized: true }
+      : { ...mainWindow.getBounds(), maximized: false };
+    void writeJsonAtomic(windowStateFile(), value).catch(() => {});
+  };
+  const schedule = () => {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(persistBounds, 400);
+  };
+  mainWindow.on("resize", schedule);
+  mainWindow.on("move", schedule);
+  mainWindow.on("maximize", schedule);
+  mainWindow.on("unmaximize", schedule);
+  mainWindow.on("close", () => { if (saveTimer) clearTimeout(saveTimer); persistBounds(); });
+  // Record the first launch too, not only later moves.
+  setTimeout(persistBounds, 1500);
   mainWindow.on("closed", () => { mainWindow = null; });
 }
 
@@ -1374,9 +1429,9 @@ app.whenReady().then(() => {
     return;
   }
   registerIpc();
-  createWindow();
+  void createWindow();
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) void createWindow();
   });
 });
 
