@@ -9,7 +9,7 @@ import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from 
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Check, Copy, GripVertical, PanelLeft, Pin, Search, Square, TerminalSquare, FileText, Globe, Wrench, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Check, Copy, GripVertical, PanelLeft, Pin, RotateCcw, Search, Square, TerminalSquare, FileText, Globe, Wrench, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import "./layout.css";
 import "./agent-icons.css";
 import { formatElapsed } from "./time";
@@ -19,7 +19,7 @@ function projectLabel(projectPath: string) {
   return projectPath.split("\\").at(-1)?.split("/").at(-1) ?? projectPath;
 }
 
-// The same folder can be spelled "C:/x" by one caller and "C:\x" by another (a task saved after a
+// The same folder can be spelled "C:/x" by one caller and "C:\\x" by another (a task saved after a
 // picker, the workspace after realpath). Compare one normalised form so its tasks stay visible.
 function samePath(a: string | null | undefined, b: string | null | undefined) {
   if (!a || !b) return false;
@@ -1452,6 +1452,28 @@ function App() {
     }
   }
 
+  // Re-running a prompt is what a failed turn needs: edit it, or send it again as it was.
+  function resendFrom(index: number) {
+    const message = activeMessages[index];
+    if (!message) return;
+    setPrompt(message.text);
+    window.requestAnimationFrame(() => {
+      composerRef.current?.focus();
+      composerRef.current?.setSelectionRange(message.text.length, message.text.length);
+    });
+  }
+
+  // The turn that broke: the prompt is the user message just before it, for that same agent.
+  function promptIndexBefore(index: number): number | null {
+    const message = activeMessages[index];
+    if (!message) return null;
+    for (let before = index - 1; before >= 0; before -= 1) {
+      const candidate = activeMessages[before];
+      if (candidate.role === "user" && candidate.agent === message.agent) return before;
+    }
+    return null;
+  }
+
   async function submitPrompt() {
     const text = prompt.trim();
     const task = tasks.find((item) => item.id === activeTask);
@@ -1596,7 +1618,7 @@ function App() {
 
   type ToolItem = { id: string; name: string; status: string; detail?: string };
   type ChatRow =
-    | { kind: "message"; id: string; message: TaskRecord["messages"][number] }
+    | { kind: "message"; id: string; index: number; message: TaskRecord["messages"][number] }
     | { kind: "stream"; id: string }
     | { kind: "tools"; id: string; tools: ToolItem[]; live: boolean }
     | { kind: "divider"; id: string; title: string; detail: string };
@@ -1640,7 +1662,7 @@ function App() {
         chatRows.push({ kind: "divider", id: "d-" + message.createdAt + "-" + index, title, detail });
       }
     }
-    chatRows.push({ kind: "message", id: "m-" + message.createdAt + "-" + index, message });
+    chatRows.push({ kind: "message", id: "m-" + message.createdAt + "-" + index, index, message });
     if (message.role === "assistant" && (message.tools?.length ?? 0) > 0) {
       chatRows.push({ kind: "tools", id: "t-" + message.createdAt + "-" + index, tools: message.tools as ToolItem[], live: false });
     }
@@ -2287,7 +2309,7 @@ function App() {
                               const handoff = row.message.role === "user" && row.message.text.startsWith("Handoff from ");
                               const handoffOpen = Boolean(expandedHandoff[row.id]);
                               return (
-                              <article className={"message " + row.message.role + (handoff ? " handoff" : "")}>
+                              <article className={"message " + row.message.role + (handoff ? " handoff" : "") + (row.message.role === "assistant" && row.message.text.startsWith("The turn could not run:") ? " failed" : "")}>
                                 <span className="message-role">
                                   {handoff
                                     ? "Handoff"
@@ -2309,6 +2331,27 @@ function App() {
                                   </div>
                                 ) : (
                                   <Markdown text={row.message.text} />
+                                )}
+                                {row.message.role === "user" && !handoff && !isActiveTaskRunning && (
+                                  <button
+                                    className="message-action"
+                                    title="Put this prompt back in the composer"
+                                    onClick={() => resendFrom(row.index)}
+                                  >
+                                    <RotateCcw size={12} />
+                                    Resend
+                                  </button>
+                                )}
+                                {!handoff && row.message.role === "assistant" && row.message.text.startsWith("The turn could not run:")
+                                  && !isActiveTaskRunning && promptIndexBefore(row.index) !== null && (
+                                  <button
+                                    className="message-action retry"
+                                    title="Send the prompt that failed again"
+                                    onClick={() => resendFrom(promptIndexBefore(row.index) as number)}
+                                  >
+                                    <RotateCcw size={12} />
+                                    Retry
+                                  </button>
                                 )}
                                 {handoff && handoffOpen && (
                                   <button
