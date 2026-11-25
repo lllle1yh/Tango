@@ -383,6 +383,7 @@ function App() {
   const [magpie, setMagpie] = useState<{ available: boolean; version: string | null } | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renamingTitle, setRenamingTitle] = useState("");
   const [taskMenu, setTaskMenu] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -436,6 +437,14 @@ function App() {
       .catch(() => { if (alive) setPiCommands([]); });
     return () => { alive = false; };
   }, [activeAgent, activeTask, tasks]);
+
+  // Keep the newest output visible unless the reader scrolled up to read history.
+  useEffect(() => {
+    const element = messagesRef.current;
+    if (!element) return;
+    const distance = element.scrollHeight - element.scrollTop - element.clientHeight;
+    if (distance < 140 || running) element.scrollTop = element.scrollHeight;
+  }, [tasks, assistantText, toolActivity, running, activeTask]);
 
   useEffect(() => window.tango.onAppCommand((command) => {
     if (command === "open-settings") setSettingsOpen(true);
@@ -1085,7 +1094,7 @@ function App() {
             {activeAgent && activeTask && (
               <div className="conversation">
                 <div className="conversation-heading">{tasks.find((task) => task.id === activeTask)?.title}</div>
-                <div className="conversation-messages">
+                <div className="conversation-messages" ref={messagesRef}>
                   {activeMessages.map((message, index) => (
                     <article className={"message " + message.role} key={"m-" + index}>
                       <span>{message.agent}</span>
