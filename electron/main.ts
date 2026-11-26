@@ -1082,6 +1082,66 @@ function registerIpc() {
     }
     return projectPath;
   });
+  // Git 数据：T3 的详情卡与 diff 统计读服务端的 source control；Tango 直接跑 git，
+  // 每次调用都带工作目录，超时或非仓库都返回结构化结果而不是抛出。
+  async function runGit(projectPath: string, args: string[]): Promise<string | null> {
+    try {
+      const { stdout } = await execFileAsync("git", args, {
+        cwd: projectPath,
+        timeout: 8000,
+        windowsHide: true,
+        maxBuffer: 8 * 1024 * 1024,
+      });
+      return stdout;
+    } catch {
+      return null;
+    }
+  }
+  ipcMain.handle("git:status", async (event: IpcMainInvokeEvent, projectPath: string) => {
+    assertTrustedSender(event);
+    if (typeof projectPath !== "string" || !projectPath) throw new Error("Invalid project");
+    const inside = await runGit(projectPath, ["rev-parse", "--is-inside-work-tree"]);
+    if (inside === null || inside.trim() !== "true") {
+      return { isRepo: false, branch: null, ahead: 0, behind: 0, upstream: null, changedFiles: 0, error: null };
+    }
+    const branchOut = await runGit(projectPath, ["rev-parse", "--abbrev-ref", "HEAD"]);
+    const statusOut = await runGit(projectPath, ["status", "--porcelain=v1", "-uno"]);
+    const upstreamOut = await runGit(projectPath, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]);
+    let ahead = 0;
+    let behind = 0;
+    if (upstreamOut) {
+      const counts = await runGit(projectPath, ["rev-list", "--left-right", "--count", "@{u}...HEAD"]);
+      const [behindRaw, aheadRaw] = (counts ?? "").trim().split(/\s+/);
+      behind = Number.parseInt(behindRaw ?? "0", 10) || 0;
+      ahead = Number.parseInt(aheadRaw ?? "0", 10) || 0;
+    }
+    return {
+      isRepo: true,
+      branch: branchOut ? branchOut.trim() : null,
+      ahead,
+      behind,
+      upstream: upstreamOut ? upstreamOut.trim() : null,
+      changedFiles: statusOut ? statusOut.split(String.fromCharCode(10)).filter((line) => line.trim().length > 0).length : 0,
+      error: statusOut === null ? "git status failed" : null,
+    };
+  });
+  ipcMain.handle("git:diff-stat", async (event: IpcMainInvokeEvent, projectPath: string, scope: "working" | "staged") => {
+    assertTrustedSender(event);
+    if (typeof projectPath !== "string" || !projectPath) throw new Error("Invalid project");
+    const args = scope === "staged" ? ["diff", "--cached", "--numstat"] : ["diff", "--numstat"];
+    const out = await runGit(projectPath, args);
+    if (out === null) return { additions: 0, deletions: 0, error: "git diff failed" };
+    let additions = 0;
+    let deletions = 0;
+    for (const line of out.split(String.fromCharCode(10))) {
+      const [addRaw, delRaw] = line.split("	");
+      const add = Number.parseInt(addRaw ?? "0", 10);
+      const del = Number.parseInt(delRaw ?? "0", 10);
+      if (Number.isFinite(add)) additions += add;
+      if (Number.isFinite(del)) deletions += del;
+    }
+    return { additions, deletions, error: null };
+  });
   ipcMain.handle("agents:detect", (event: IpcMainInvokeEvent) => {
     assertTrustedSender(event);
     return Promise.all(agents.map(inspectAgent));

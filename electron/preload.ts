@@ -47,6 +47,9 @@ contextBridge.exposeInMainWorld("tango", {
   openWorkspace: (): Promise<string | null> => ipcRenderer.invoke("workspace:open"),
   setWorkspace: (projectPath: string): Promise<string> => ipcRenderer.invoke("workspace:set", projectPath),
   detectAgents: (): Promise<AgentStatus[]> => ipcRenderer.invoke("agents:detect"),
+  // T3 的 diff 统计与详情卡需要 Git 数据；Tango 用 git 命令补齐这一层。
+  gitStatus: (projectPath: string): Promise<GitStatus> => ipcRenderer.invoke("git:status", projectPath),
+  gitDiffStat: (projectPath: string, scope: "working" | "staged"): Promise<DiffStat> => ipcRenderer.invoke("git:diff-stat", projectPath, scope),
   detectMagpie: (): Promise<{ available: boolean; version: string | null }> => ipcRenderer.invoke("tools:magpie"),
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke("settings:get"),
   runAppAction: (action: string): Promise<void> => ipcRenderer.invoke("app:action", action),
@@ -156,6 +159,22 @@ contextBridge.exposeInMainWorld("tango", {
   },
 });
 
+export interface GitStatus {
+  isRepo: boolean;
+  branch: string | null;
+  ahead: number;
+  behind: number;
+  upstream: string | null;
+  changedFiles: number;
+  error: string | null;
+}
+
+export interface DiffStat {
+  additions: number;
+  deletions: number;
+  error: string | null;
+}
+
 export interface AgentStatus {
   id: "codex" | "claude" | "dsh" | "pi";
   name: string;
@@ -189,6 +208,8 @@ export interface TangoApi {
   openWorkspace(): Promise<string | null>;
   setWorkspace(projectPath: string): Promise<string>;
   detectAgents(): Promise<AgentStatus[]>;
+  gitStatus(projectPath: string): Promise<GitStatus>;
+  gitDiffStat(projectPath: string, scope: "working" | "staged"): Promise<DiffStat>;
   detectMagpie(): Promise<{ available: boolean; version: string | null }>;
   getSettings(): Promise<AppSettings>;
   runAppAction(action: string): Promise<void>;
