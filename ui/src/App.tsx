@@ -2730,7 +2730,23 @@ function App() {
                   >
                     <Plus size={16} />
                   </button>
-                  <textarea ref={composerRef} value={prompt} onChange={(event) => { setPrompt(event.target.value); setSlashIndex(0); }} onKeyDown={(event) => {
+                  <textarea ref={composerRef} value={prompt} onChange={(event) => { setPrompt(event.target.value); setSlashIndex(0); }} onPaste={(event) => {
+                    // 大段粘贴不塞进输入框：存成附件文件，消息里只留一行路径。
+                    const pasted = event.clipboardData?.getData("text/plain") ?? "";
+                    if (pasted.length < 32000) return;
+                    event.preventDefault();
+                    void window.tango.saveClip(pasted).then(({ path, bytes }) => {
+                      const note = `
+
+[Pasted text, ${Math.round(bytes / 1024)} KB, saved to ${path}]
+`;
+                      setPrompt((current) => current + note);
+                      window.requestAnimationFrame(() => composerRef.current?.focus());
+                    }).catch(() => {
+                      setAssistantText("Could not save the pasted text; it was kept in the composer.");
+                      setPrompt((current) => current + pasted);
+                    });
+                  }} onKeyDown={(event) => {
                     if (slashOpen) {
                       if (event.key === "ArrowDown") { event.preventDefault(); setSlashIndex((index) => (index + 1) % slashItems.length); return; }
                       if (event.key === "ArrowUp") { event.preventDefault(); setSlashIndex((index) => (index - 1 + slashItems.length) % slashItems.length); return; }

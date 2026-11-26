@@ -1134,6 +1134,18 @@ function registerIpc() {
     assertTrustedSender(event);
     return readSettings();
   });
+  // 粘贴超过阈值的文本先落盘成附件，消息里只留一行路径。
+  ipcMain.handle("clip:save", async (event: IpcMainInvokeEvent, text: string) => {
+    assertTrustedSender(event);
+    if (typeof text !== "string" || !text) throw new Error("Nothing to save");
+    const dir = path.join(app.getPath("userData"), "clips");
+    await mkdir(dir, { recursive: true });
+    const name = `${new Date().toISOString().replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}.txt`;
+    const file = path.join(dir, name);
+    await writeFile(file, text, "utf8");
+    return { path: file, bytes: Buffer.byteLength(text, "utf8") };
+  });
+
   ipcMain.handle("settings:reveal", async (event: IpcMainInvokeEvent) => {
     assertTrustedSender(event);
     const error = await shell.openPath(app.getPath("userData"));

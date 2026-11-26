@@ -61,6 +61,8 @@ contextBridge.exposeInMainWorld("tango", {
   },
   saveSettings: (next: Partial<AppSettings>): Promise<AppSettings> => ipcRenderer.invoke("settings:save", next),
   revealDataFolder: (): Promise<void> => ipcRenderer.invoke("settings:reveal"),
+  // 大段粘贴存成附件文件，让 Agent 按需读，而不是把整段撑进上下文。
+  saveClip: (text: string): Promise<{ path: string; bytes: number }> => ipcRenderer.invoke("clip:save", text),
   listTasks: (): Promise<TaskRecord[]> => ipcRenderer.invoke("tasks:list"),
   createTask: (title: string, projectPath: string): Promise<TaskRecord> =>
     ipcRenderer.invoke("tasks:create", title, projectPath),
@@ -193,6 +195,7 @@ export interface TangoApi {
   onAppCommand(listener: (command: "open-settings" | "new-task" | "open-project" | "show-shortcuts") => void): () => void;
   saveSettings(next: Partial<AppSettings>): Promise<AppSettings>;
   revealDataFolder(): Promise<void>;
+  saveClip(text: string): Promise<{ path: string; bytes: number }>;
   listTasks(): Promise<TaskRecord[]>;
   createTask(title: string, projectPath: string): Promise<TaskRecord>;
   duplicateTask(taskId: string): Promise<TaskRecord>;
