@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } fr
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import type { AgentStatus, AppSettings, LayoutNode, TaskRecord } from "../../electron/preload";
-import { Archive, ChevronDown, ChevronRight, Columns2, MoreHorizontal, Pencil, Plus, RefreshCw, Rows2, Terminal as TerminalIcon, Trash2, X } from "lucide-react";
+import { Archive, ArrowRightLeft, ChevronDown, ChevronRight, Columns2, MoreHorizontal, Pause, Pencil, Plus, RefreshCw, RotateCcw, Rows2, Terminal as TerminalIcon, Trash2, X } from "lucide-react";
 import { Markdown } from "./Markdown";
 import { CommandPalette, type PaletteItem } from "./CommandPalette";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
@@ -22,6 +22,7 @@ import { ToolApprovalRow } from "./components/chat/ToolApprovalRow";
 import { ThreadStatusLine } from "./components/chat/ThreadStatusLine";
 import { ThreadFindBar } from "./components/chat/ThreadFindBar";
 import { TimelineMinimap, type TimelineMinimapItem } from "./components/chat/TimelineMinimap";
+import { TimelineSystemDivider } from "./components/chat/TimelineSystemDivider";
 import {
   WorkspaceBreadcrumb,
   WorkspaceBreadcrumbItem,
@@ -2855,10 +2856,13 @@ function App() {
                               );
                             })()}
                             {row.kind === "divider" && (
-                              <div className="turn-divider" role="separator" title={row.detail}>
-                                <span className="turn-divider-line" />
-                                <span className="turn-divider-label">{row.title}</span>
-                                <span className="turn-divider-line" />
+                              <div role="separator">
+                                {/* T3 的系统分隔行：交接用箭头、失败用告警，其余中性。 */}
+                                <TimelineSystemDivider
+                                  label={row.title}
+                                  detail={row.detail}
+                                  icon={row.title.startsWith("Handed off") ? ArrowRightLeft : row.title.includes("Pause") ? Pause : RotateCcw}
+                                />
                               </div>
                             )}
                             {row.kind === "stream" && (
