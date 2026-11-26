@@ -14,3 +14,4 @@ Thumbs.db
 
 # Portable dev data directory
 .tango-data/
+.tango-fixture/
