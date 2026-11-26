@@ -287,11 +287,30 @@ function codexApprovalResult(method: string, optionId: string | null, requested:
   return { decision: optionId ?? (legacy ? "abort" : "decline") };
 }
 
+// A crashed app server exits before answering; the request in flight then fails with this.
+function codexExitMessage(code: number | null, stderrTail: string) {
+  const lines = stderrTail.trim().split(String.fromCharCode(10)).map((line) => line.trim()).filter(Boolean);
+  // Codex 启动时会先刷一堆「配置项被忽略」的提示，那几行不是崩溃原因。
+  const telling = lines.filter((line) => !/is ignored|unrecognized configuration|ignored settings|Check for typos/.test(line));
+  const reason = (telling.length ? telling : lines)
+    .slice(-3)
+    .map((line) => line.replace(/^\d{4}-\d\d-\d\dT[\d:.]+Z\s+ERROR\s+\w+:\s*/, ""))
+    .join(" / ");
+  return `Codex app server exited (code ${code ?? "unknown"})${reason ? `: ${reason}` : ""}`;
+}
+
 function createCodexClient(taskId: string, projectPath: string) {
   // Windows 上全局 npm 安装的 codex 是 .cmd 包装，直接 spawn("codex") 会 ENOENT。
   const spawnChild = require("node:child_process").spawn;
   const child = (process.platform === "win32"
-    ? spawnChild("cmd.exe", ["/d", "/s", "/c", "codex app-server"], { cwd: projectPath, stdio: ["pipe", "pipe", "pipe"], windowsHide: true })
+    ? spawnChild("cmd.exe", ["/d", "/s", "/c", "codex app-server"], {
+        cwd: projectPath,
+        stdio: ["pipe", "pipe", "pipe"],
+        windowsHide: true,
+        env: process.env.TANGO_CODEX_DEBUG
+          ? { ...process.env, RUST_LOG: "codex_app_server=debug,codex_core=debug,codex_protocol=debug" }
+          : process.env,
+      })
     : spawnChild("codex", ["app-server"], { cwd: projectPath, stdio: ["pipe", "pipe", "pipe"], windowsHide: true })
   ) as import("node:child_process").ChildProcessWithoutNullStreams;
   // 没有 error 监听时 Node 会抛未捕获异常，直接带崩主进程。
@@ -392,12 +411,21 @@ function createCodexClient(taskId: string, projectPath: string) {
       }
     }
   });
-  child.stderr.on("data", () => {});
+  // 进程崩溃时 stderr 是唯一的线索：留最后几行，退出错误里带上原因。
+  let stderrTail = "";
+  child.stderr.on("data", (chunk: Buffer) => {
+    const text = chunk.toString().replace(/\[[0-9;]*m/g, "");
+    stderrTail = (stderrTail + text).slice(-4000);
+    // 诊断用：Agent 的 stderr 落到数据目录，崩溃原因不用再猜。
+    try {
+      require("node:fs").appendFileSync(path.join(app.getPath("userData"), "agent-stderr.log"), text);
+    } catch { /* 数据目录只读时忽略 */ }
+  });
   child.on("exit", (code) => {
     codexProcesses.delete(taskId);
     void clearRunning(taskId);
-    sendCodexEvent(taskId, { type: "process/exit", code });
-    for (const waiter of pending.values()) waiter.reject(new Error("Codex app server exited"));
+    sendCodexEvent(taskId, { type: "process/exit", code, stderr: stderrTail });
+    for (const waiter of pending.values()) waiter.reject(new Error(codexExitMessage(code, stderrTail)));
     pending.clear();
     serverRequests.clear();
   });

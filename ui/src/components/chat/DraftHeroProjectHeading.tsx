@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import { observeResize } from "../../lib/observeResize";
 
+// Private-use placeholder marking where the project name goes; it never reaches the screen.
 const PROJECT_SLOT = "";
 
 // 搬自 T3 的 DraftHeroProjectHeading：空任务的大标题「在 <项目> 里做点什么？」。
@@ -15,7 +16,8 @@ export function DraftHeroProjectHeading({
   children: ReactNode;
   projectName: string;
 }) {
-  const [before, after] = "What should we build in {project}?".split(PROJECT_SLOT);
+  // 句子里的占位符换成项目名；split 不到时退回两句默认值，不能让它抛错把整页打白。
+  const [before = "", after = ""] = `What should we build in ${String.fromCodePoint(0xe000)}?`.split(PROJECT_SLOT);
   const buildIn = before.trim();
   const buildInSuffix = after.trimEnd();
   const containerRef = useRef<HTMLDivElement | null>(null);
