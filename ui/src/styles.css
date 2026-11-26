@@ -523,8 +523,8 @@ button { color: inherit; font: inherit; }
 /* 队列里还有几条等着发，写清数量和去处。 */
 .composer-queue { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 auto -4px; width: min(var(--chat-content-max-width), calc(100% - 48px)); padding: 0 2px 6px; color: var(--fg-muted); font-size: 11.5px; }
 
-.composer-command { display: grid; width: 30px; height: 30px; flex: none; place-items: center; align-self: flex-end; margin-bottom: 1px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--fg-muted); cursor: pointer; }
-.composer-command:hover { border-color: var(--line-strong); color: var(--fg); background: var(--surface-2); }
+/* T3 的 ComposerControl 自带外形；这里只留定位（贴在输入框左下）和悬停底色。 */
+.composer-command { align-self: flex-end; margin-bottom: 1px; flex: none; }
 
 /* Sidebar task search —— T3 的搜索是贴着列表的一行，无边框，聚焦时整行提亮 */
 .task-search { display: flex; height: 30px; align-items: center; gap: 7px; margin: 0 2px 6px; padding: 0 8px; border-radius: 6px; background: transparent; color: var(--fg-subtle); cursor: text; transition: background .12s ease, color .12s ease, box-shadow .12s ease; }
@@ -708,8 +708,8 @@ button { color: inherit; font: inherit; }
 .composer-context-project { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .composer-context-hint { color: var(--fg-subtle); font-size: 10.5px; }
 .composer-actions { display: flex; flex: none; align-items: center; gap: 6px; }
-.composer-stop { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 9px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--fg-muted); cursor: pointer; font-size: 12px; }
-.composer-stop:hover:not(:disabled) { border-color: var(--line-strong); color: var(--fg); }
+.composer-stop { color: var(--fg-muted); }
+.composer-stop:hover:not(:disabled) { color: var(--fg); }
 .composer .send-button { height: 28px; padding: 0 12px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 500; }
 .composer .send-button:disabled { opacity: .45; cursor: default; }
 @media (max-width: 900px) {

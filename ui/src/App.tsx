@@ -32,6 +32,7 @@ import {
 import { Badge } from "./components/ui/badge";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "./components/ui/empty";
 import { Spinner } from "./components/ui/spinner";
+import { ComposerControl, ComposerControlIcon } from "./components/chat/ComposerControl";
 import { WorkLogBlock, WorkLogButton, WorkLogDetails, WorkLogList, WorkLogRow } from "./WorkLog";
 
 // Windows paths use backslashes, other platforms slashes; the label is only the last part.
@@ -3027,15 +3028,16 @@ function App() {
                       ))}
                     </div>
                   )}
-                  <button
-                    type="button"
+                  {/* T3 的 ComposerControl：输入框左侧的小圆角控制键。 */}
+                  <ComposerControl
+                    size="xs"
                     className="composer-command"
                     aria-label="Commands"
-                    title="Commands (/ )"
+                    title="Commands (/)"
                     onClick={() => { setPrompt("/"); setSlashIndex(0); composerRef.current?.focus(); }}
                   >
-                    <Plus size={16} />
-                  </button>
+                    <ComposerControlIcon icon={Plus} size="xs" />
+                  </ComposerControl>
                   <div className="composer-field">
                   <textarea ref={composerRef} value={prompt} onChange={(event) => { setPrompt(event.target.value); setSlashIndex(0); }} onPaste={(event) => {
                     // 大段粘贴不塞进输入框：存成附件文件，消息里只留一行路径。
@@ -3085,16 +3087,16 @@ function App() {
                     </span>
                     <div className="composer-actions">
                       {isActiveTaskRunning && (
-                        <button
-                          type="button"
+                        <ComposerControl
+                          size="xs"
                           className="composer-stop"
                           title="Stop this turn (Esc)"
                           onClick={() => void stopTurn(activeTask)}
                           disabled={stopping}
                         >
-                          <Square size={12} />
+                          <ComposerControlIcon icon={Square} size="xs" />
                           {stopping ? "Stopping" : "Stop"}
-                        </button>
+                        </ComposerControl>
                       )}
                       <button type="submit" className="send-button" disabled={!prompt.trim()} title={isActiveTaskRunning ? "Send after this turn" : "Send (Enter)"}>
                         {isActiveTaskRunning ? "Queue" : "Send"}

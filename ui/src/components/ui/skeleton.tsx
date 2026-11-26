@@ -1,26 +1,24 @@
-import { cva, type VariantProps } from "class-variance-authority";
+import type * as React from "react";
 
 import { cn } from "../../lib/utils";
 
-const skeletonVariants = cva("bg-muted-foreground/15 motion-safe:animate-skeleton", {
-  variants: {
-    shape: {
-      block: "rounded-sm",
-      card: "rounded-lg",
-      pill: "rounded-full",
-    },
-  },
-  defaultVariants: { shape: "block" },
-});
+// 搬自 T3 的 Skeleton：加载占位块，方块 / 卡片 / 胶囊三种形状。
+const shapes = {
+  block: "rounded-sm",
+  card: "rounded-lg",
+  pill: "rounded-full",
+};
 
-function Skeleton({
+export function Skeleton({
   className,
-  shape,
+  shape = "block",
   ...props
-}: React.ComponentProps<"div"> & VariantProps<typeof skeletonVariants>) {
+}: React.ComponentProps<"div"> & { shape?: keyof typeof shapes }) {
   return (
-    <div className={cn(skeletonVariants({ shape }), className)} data-slot="skeleton" {...props} />
+    <div
+      data-slot="skeleton"
+      className={cn("bg-muted-foreground/15 motion-safe:animate-skeleton", shapes[shape], className)}
+      {...props}
+    />
   );
 }
-
-export { Skeleton };
