@@ -39,8 +39,9 @@
   --t-guest: #b83280;
   --t-guest-fg: #97266d;
 
-  /* T3 composer 依赖的排版与玻璃参数 */
-  --chat-content-max-width: 46rem;
+  /* T3 composer 依赖的排版与玻璃参数；宽度沿用 Tango 既有的 820px 阅读栏，
+     让状态行、消息列与输入框落在同一条中线上。 */
+  --chat-content-max-width: 820px;
   --glass-opacity: 88%;
   --glass-blur: 12px;
   --glass-saturation: 140%;

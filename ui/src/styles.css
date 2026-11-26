@@ -148,7 +148,7 @@ button { color: inherit; font: inherit; }
 .jump-latest { position: absolute; z-index: 20; right: 22px; bottom: 96px; display: inline-flex; height: 28px; align-items: center; gap: 4px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-3); color: var(--fg-muted); box-shadow: 0 4px 14px #0000001a; cursor: pointer; font-size: 12px; }
 .jump-latest:hover { color: var(--fg); background: var(--surface-2); }
 .conversation-heading { position: relative; display: flex; height: 44px; flex: none; align-items: center; padding: 0 16px; border-bottom: 1px solid var(--line); color: var(--fg); font-size: 13px; font-weight: 500; }
-.conversation-messages { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 20px; overflow: auto; padding: 24px max(24px, calc((100% - 820px) / 2)); }
+.conversation-messages { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 20px; overflow: auto; padding: 0; scrollbar-gutter: stable both-edges; }
 .conversation-empty { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--fg-subtle); text-align: center; }
 .conversation-empty .agent-mark { width: 44px; height: 44px; margin-bottom: 8px; border-radius: 11px; background: var(--surface-2); opacity: .85; }
 .conversation-empty-title { margin: 0; color: var(--fg-muted); font-size: 14px; font-weight: 600; }
@@ -166,7 +166,7 @@ button { color: inherit; font: inherit; }
 .message p { margin: 5px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .message.user { align-self: flex-end; width: fit-content; padding: 10px 14px; border-radius: 10px 10px 2px 10px; background: var(--surface-2); }
 .message.user > span { color: var(--fg-muted); }
-.permission-request { display: flex; width: min(820px, calc(100% - 48px)); flex-direction: column; gap: 8px; margin: 0 auto 10px; padding: 12px 14px; border: 1px solid var(--line); border-left: 2px solid var(--primary); border-radius: var(--radius); background: var(--primary-soft); }
+.permission-request { display: flex; width: min(var(--chat-content-max-width), calc(100% - 48px)); flex-direction: column; gap: 8px; margin: 0 auto 10px; padding: 12px 14px; border: 1px solid var(--line); border-left: 2px solid var(--primary); border-radius: var(--radius); background: var(--primary-soft); }
 .permission-input { display: flex; gap: 8px; align-items: center; }
 .permission-input input { flex: 1; height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); font: inherit; font-size: 13px; }
 .permission-input input:focus { outline: 2px solid var(--primary); outline-offset: -1px; }
@@ -512,12 +512,12 @@ button { color: inherit; font: inherit; }
 
 /* Composer command button */
 /* One quiet line: who is working on this task, and what it just did. */
-.composer-turn { display: flex; align-items: center; gap: 6px; margin: 0 auto -4px; width: min(820px, calc(100% - 48px)); padding: 0 2px 6px; color: var(--fg-subtle); font-size: 11.5px; line-height: 1.4; }
+.composer-turn { display: flex; align-items: center; gap: 6px; margin: 0 auto -4px; width: min(var(--chat-content-max-width), calc(100% - 48px)); padding: 0 2px 6px; color: var(--fg-subtle); font-size: 11.5px; line-height: 1.4; }
 .composer-turn.live { color: var(--fg-muted); }
 .composer-turn > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .composer-turn svg { flex: none; }
 /* 队列里还有几条等着发，写清数量和去处。 */
-.composer-queue { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 auto -4px; width: min(820px, calc(100% - 48px)); padding: 0 2px 6px; color: var(--fg-muted); font-size: 11.5px; }
+.composer-queue { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 auto -4px; width: min(var(--chat-content-max-width), calc(100% - 48px)); padding: 0 2px 6px; color: var(--fg-muted); font-size: 11.5px; }
 
 .composer-command { display: grid; width: 30px; height: 30px; flex: none; place-items: center; align-self: flex-end; margin-bottom: 1px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--fg-muted); cursor: pointer; }
 .composer-command:hover { border-color: var(--line-strong); color: var(--fg); background: var(--surface-2); }
@@ -599,7 +599,7 @@ button { color: inherit; font: inherit; }
 /* Virtualised chat rows */
 /* The list is a flex child; without flex: none the spacer shrinks to the viewport and a long
    transcript can never be scrolled past what has been measured. */
-.chat-virtual { position: relative; flex: none; width: 100%; max-width: 868px; margin: 0 auto; }
+.chat-virtual { position: relative; flex: none; width: 100%; }
 .chat-row { position: absolute; top: 0; left: 0; width: 100%; padding-bottom: 20px; }
 .message { content-visibility: visible; }
 
@@ -666,7 +666,7 @@ button { color: inherit; font: inherit; }
 .panel-split.active { color: var(--accent); }
 
 /* 任务页改成"标题 → 一行状态 → 对话 → 输入框"的连续结构，不再散落好几条细横线。 */
-.task-status-line { display: flex; align-items: center; gap: 7px; flex: none; margin: 0 auto; width: min(820px, calc(100% - 48px)); padding: 12px 2px 2px; color: var(--fg-muted); font-size: 11.5px; }
+.task-status-line { display: flex; align-items: center; gap: 7px; flex: none; margin: 0 auto; width: min(var(--chat-content-max-width), calc(100% - 48px)); padding: 12px 2px 2px; color: var(--fg-muted); font-size: 11.5px; }
 .task-status-line svg, .task-status-line .agent-mark { flex: none; }
 .task-status-name { color: var(--fg); font-weight: 600; font-size: 12px; }
 .task-status-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--line-strong); flex: none; }
@@ -769,3 +769,8 @@ button { color: inherit; font: inherit; }
    Tango 的 composer 仍在同一块里排版，只是外观交给 T3 的那层。 */
 .composer { border: 0; background: transparent; box-shadow: none; margin: 0; width: 100%; max-width: none; padding: 4px 6px 6px; }
 [data-slot="composer-host"] .composer textarea { background: transparent; }
+
+/* T3 的行内走廊：滚动容器占满整列，每一行在 --chat-content-max-width 内居中，
+   与状态行、输入框共用同一条中线。 */
+.chat-lane { box-sizing: border-box; width: 100%; min-width: 0; max-width: var(--chat-content-max-width); margin-inline: auto; padding-inline: 20px; }
+.conversation-empty { box-sizing: border-box; width: 100%; max-width: var(--chat-content-max-width); margin-inline: auto; padding-inline: 20px; }

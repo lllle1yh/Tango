@@ -2678,6 +2678,7 @@ function App() {
                             className="chat-row"
                             style={{ transform: `translateY(${virtualRow.start}px)` }}
                           >
+                            <div className="chat-lane">
                             {row.kind === "message" && (() => {
                               const handoff = row.message.role === "user" && row.message.text.startsWith("Handoff from ");
                               if (handoff) {
@@ -2739,6 +2740,7 @@ function App() {
                                   : setExpandedTools((open) => ({ ...open, [row.id]: !open[row.id] }))}
                               />
                             )}
+                            </div>
                           </div>
                         );
                       })}
