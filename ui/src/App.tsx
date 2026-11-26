@@ -18,6 +18,7 @@ import { AssistantTimelineRow } from "./components/chat/TimelineAssistantRow";
 import { TimelineUserRow } from "./components/chat/TimelineUserRow";
 import { ComposerSurface } from "./components/chat/ComposerSurface";
 import { QueuedRuns } from "./components/chat/QueuedRuns";
+import { ToolApprovalRow } from "./components/chat/ToolApprovalRow";
 import { WorkLogBlock, WorkLogButton, WorkLogDetails, WorkLogList, WorkLogRow } from "./WorkLog";
 
 // Windows paths use backslashes, other platforms slashes; the label is only the last part.
@@ -2761,42 +2762,38 @@ function App() {
                     Latest
                   </button>
                 )}
-                {permission && permission.taskId === activeTask && (
-                  <div className="permission-request" role="alertdialog" aria-label="Agent permission request">
-                    <p className="permission-title">{permission.title}</p>
-                    {permission.detail && <pre className="permission-detail">{permission.detail}</pre>}
-                    {permission.input && (
-                      <form
-                        className="permission-input"
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          void answerPermission(null, permissionText);
-                        }}
-                      >
-                        <input
-                          autoFocus
-                          value={permissionText}
-                          placeholder={permission.input.placeholder || "Type your answer…"}
-                          onChange={(event) => setPermissionText(event.target.value)}
+                {permission && permission.taskId === activeTask && (() => {
+                  const options = permission.options.some((option) => option.kind === "reject_once" || option.kind === "reject_always")
+                    ? permission.options
+                    : [...permission.options, { optionId: "__reject__", name: "Reject", kind: "reject_once" }];
+                  return (
+                    <div className="mx-auto flex w-full max-w-(--chat-content-max-width) flex-col gap-1.5 px-1 pb-2">
+                      <WorkLogBlock>
+                        <ToolApprovalRow
+                          request={{ title: permission.title, detail: permission.detail, options }}
+                          onRespond={(optionId) => void answerPermission(optionId === "__reject__" ? null : optionId)}
                         />
-                        <button type="submit" className="permission-option allow_once">Send</button>
-                      </form>
-                    )}
-                    <div className="permission-actions">
-                      {permission.options.map((option, index) => (
-                        <button
-                          key={option.optionId}
-                          autoFocus={!permission.input && index === 0}
-                          className={"permission-option " + (option.kind ?? "")}
-                          onClick={() => void answerPermission(option.optionId)}
+                      </WorkLogBlock>
+                      {permission.input && (
+                        <form
+                          className="permission-input approval-input"
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            void answerPermission(null, permissionText);
+                          }}
                         >
-                          {option.name}
-                        </button>
-                      ))}
-                      <button className="permission-option reject" onClick={() => void answerPermission(null)}>Reject</button>
+                          <input
+                            autoFocus
+                            value={permissionText}
+                            placeholder={permission.input.placeholder || "Type your answer…"}
+                            onChange={(event) => setPermissionText(event.target.value)}
+                          />
+                          <button type="submit" className="permission-option allow_once">Send</button>
+                        </form>
+                      )}
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
                 {(queuedCounts[activeTask ?? ""] ?? 0) > 0 && (
                   <QueuedRuns
                     items={(queuedRef.current[activeTask ?? ""] ?? []).map((item, index) => ({

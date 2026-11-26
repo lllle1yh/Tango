@@ -13,6 +13,8 @@
   --surface: #fafafa;        /* zinc-50: sidebar, topbar */
   --surface-2: #f4f4f5;      /* zinc-100: control surface */
   --surface-3: #ffffff;      /* selected rows */
+  --surface-raised: #ffffff; /* T3 组件的 card / popover / composer 玻璃底色 */
+  --card: var(--surface-raised); /* T3 的 --card，Shell/Host 的玻璃与 popover 都读它 */
   --overlay: #f4f4f5;
 
   /* Text */
@@ -166,14 +168,10 @@ button { color: inherit; font: inherit; }
 .message p { margin: 5px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .message.user { align-self: flex-end; width: fit-content; padding: 10px 14px; border-radius: 10px 10px 2px 10px; background: var(--surface-2); }
 .message.user > span { color: var(--fg-muted); }
-.permission-request { display: flex; width: min(var(--chat-content-max-width), calc(100% - 48px)); flex-direction: column; gap: 8px; margin: 0 auto 10px; padding: 12px 14px; border: 1px solid var(--line); border-left: 2px solid var(--primary); border-radius: var(--radius); background: var(--primary-soft); }
 .permission-input { display: flex; gap: 8px; align-items: center; }
 .permission-input input { flex: 1; height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); font: inherit; font-size: 13px; }
 .permission-input input:focus { outline: 2px solid var(--primary); outline-offset: -1px; }
-.permission-title { margin: 0; color: var(--fg); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
-.permission-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .permission-option { height: 33px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--surface-3); color: var(--fg); cursor: pointer; font-size: 13px; }
-.permission-option:hover { background: var(--surface-2); }
 .permission-option.allow_once, .permission-option.allow_always { border-color: var(--line-strong); color: #16a34a; }
 .permission-option.reject { color: #b91c1c; }
 .composer { display: flex; align-items: flex-end; gap: 8px; margin: 12px auto 20px; width: min(820px, calc(100% - 48px)); padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-3); box-shadow: 0 1px 2px #0000000a; }
@@ -241,6 +239,7 @@ button { color: inherit; font: inherit; }
   --surface: #0a0a0a;
   --surface-2: #141414;
   --surface-3: #0f0f0f;
+  --surface-raised: #141414;
   --overlay: #1a1a1a;
   --fg: #f4f4f5;
   --fg-muted: #a1a1aa;
@@ -589,7 +588,6 @@ button { color: inherit; font: inherit; }
 .code-block:hover .code-copy, .code-copy:focus-visible { opacity: 1; }
 .code-copy:hover { color: var(--fg); border-color: var(--line-strong); }
 
-.permission-detail { margin: 0; padding: 8px 10px; overflow: auto; border-radius: 6px; background: var(--surface); color: var(--fg); font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; white-space: pre-wrap; }
 
 /* Interrupted turn notice */
 .run-stale { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 10px auto 0; padding: 9px 12px; width: min(820px, calc(100% - 48px)); border: 1px solid #f0c674; border-radius: var(--radius-sm); background: #fff8e6; color: #6b4e16; font-size: 12.5px; }
@@ -774,3 +772,20 @@ button { color: inherit; font: inherit; }
    与状态行、输入框共用同一条中线。 */
 .chat-lane { box-sizing: border-box; width: 100%; min-width: 0; max-width: var(--chat-content-max-width); margin-inline: auto; padding-inline: 20px; }
 .conversation-empty { box-sizing: border-box; width: 100%; max-width: var(--chat-content-max-width); margin-inline: auto; padding-inline: 20px; }
+
+/* T3 的玻璃在纯白页面上几乎看不见；给输入框一层浅灰半透明玻璃，
+   深色主题再抬高一档，保证一眼能看出这是一张卡片。 */
+[data-slot="composer-shell"] {
+  --chat-composer-glass-surface: var(--surface-2);
+  --chat-composer-outline: var(--line-strong);
+}
+[data-slot="composer-host"] {
+  box-shadow: 0 12px 28px rgb(0 0 0 / 8%), 0 1px 2px rgb(0 0 0 / 6%);
+}
+:root[data-theme="dark"] [data-slot="composer-shell"] {
+  --chat-composer-glass-surface: var(--surface-3);
+  --chat-composer-outline: var(--line-strong);
+}
+:root[data-theme="dark"] [data-slot="composer-host"] {
+  box-shadow: 0 12px 28px rgb(0 0 0 / 45%), 0 1px 2px rgb(0 0 0 / 30%);
+}

@@ -66,7 +66,9 @@
 
   --color-background: var(--t-bg);
   --color-foreground: var(--t-fg);
-  --color-card: var(--t-surface-3);
+  /* T3 组件的 card/popover/composer 都读 --card；Tango 的 --surface-3 选中行用，
+     这里单独给一张更亮（深色下更亮一档）的“抬升面”。 */
+  --color-card: var(--surface-raised);
   --color-card-foreground: var(--t-fg);
   --color-popover: var(--t-surface-3);
   --color-popover-foreground: var(--t-fg);
