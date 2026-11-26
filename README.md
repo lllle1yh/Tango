@@ -18,7 +18,7 @@ Tango 面向每天和 Agent 一起写代码、查资料、跑测试的人。打�
 
 <a name="project-status"></a>
 
-**项目状态**　可用的本地原型。已接通 Codex（app-server）、Claude Code（stream-json）、DSH（ACP）和 Pi（RPC）的原生会话；支持中断、Codex 与 DSH 审批转发、任务记录与恢复、每回合工具记录与交接分隔、会话内查找、后台回合继续写入、最近项目切换、终端画布（分屏、布局恢复、shell 重命名）、Markdown 输出和明暗主题。
+**项目状态**　可用的本地原型。已接通 Codex（app-server）、Claude Code（stream-json）、DSH（ACP）和 Pi（RPC）的原生会话；支持中断、Codex 与 DSH 审批转发、任务记录与恢复、每回合工具记录与交接分隔、会话内查找、后台回合继续写入、最近项目切换、终端画布（分屏、布局恢复、shell 重命名）、Markdown 输出和明暗主题；界面按首页、任务页、终端页分开，可以边看终端边对话（Ctrl+Shift+J）。工具调用可只显示失败或 Zen 模式，命令带退出码；回合运行中新消息会排队，回合结束后自动接着发。
 
 ## Tango 如何接入 Agent
 
