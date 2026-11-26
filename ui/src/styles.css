@@ -208,8 +208,6 @@ button { color: inherit; font: inherit; }
 .chat-minimap-nav-previous { margin-bottom: 6px; }
 .chat-minimap-nav-next { margin-top: 6px; }
 
-.jump-latest { position: absolute; z-index: 20; right: 22px; bottom: 96px; display: inline-flex; height: 28px; align-items: center; gap: 4px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-3); color: var(--fg-muted); box-shadow: 0 4px 14px #0000001a; cursor: pointer; font-size: 12px; }
-.jump-latest:hover { color: var(--fg); background: var(--surface-2); }
 .conversation-heading { position: relative; display: flex; height: 44px; flex: none; align-items: center; padding: 0 16px; border-bottom: 1px solid var(--line); color: var(--fg); font-size: 13px; font-weight: 500; }
 /* 消息列与输入框同一条中线：输入框是 min(820px, 100%-48) 的玻璃卡片，
    内宽 796，消息列按 796 居中，左右两端才对得上；右侧多留一点给悬停出现的复制按钮。 */
@@ -860,3 +858,6 @@ button { color: inherit; font: inherit; }
 :root[data-theme="dark"] [data-slot="composer-host"] {
   box-shadow: 0 12px 28px rgb(0 0 0 / 45%), 0 1px 2px rgb(0 0 0 / 30%);
 }
+
+/* T3 的 ScrollToEndButton：时间线不在底部时，居中浮在输入框上方。 */
+.chat-scroll-to-bottom { inset-inline: 0; }

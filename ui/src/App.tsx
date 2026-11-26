@@ -37,6 +37,7 @@ import { DraftProjectName } from "./components/chat/DraftProjectName";
 import { DiffStatLabel } from "./components/chat/DiffStatLabel";
 import { DiffPanel } from "./components/chat/DiffPanel";
 import { ChatRightPanel } from "./components/chat/ChatRightPanel";
+import { ScrollToEndButton } from "./components/chat/ScrollToEndButton";
 import { ProviderPackageIcon } from "./components/chat/ProviderPackageIcon";
 import { DeferredComposerCommandMenuLayer } from "./components/chat/ComposerCommandMenuLayer";
 import {
@@ -3083,17 +3084,21 @@ function App() {
                   )}
                 </div>
                 {!atBottom && (
-                  <button
-                    className="jump-latest"
-                    onClick={() => {
+                  <ScrollToEndButton
+                    bottom={96}
+                    summary={(() => {
+                      const last = chatRows.at(-1);
+                      if (!last) return null;
+                      if (last.kind !== "message") return null;
+                      const text = last.message.text.replace(/\s+/g, " ").trim();
+                      return text ? text.slice(0, 80) : null;
+                    })()}
+                    onScrollToEnd={() => {
                       const element = messagesRef.current;
                       if (element) element.scrollTop = element.scrollHeight;
                       setAtBottom(true);
                     }}
-                  >
-                    <ChevronDown size={13} />
-                    Latest
-                  </button>
+                  />
                 )}
                 {permission && permission.taskId === activeTask && (() => {
                   const options = permission.options.some((option) => option.kind === "reject_once" || option.kind === "reject_always")
