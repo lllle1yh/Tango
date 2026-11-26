@@ -764,3 +764,8 @@ button { color: inherit; font: inherit; }
 .work-log-row:hover .tool-line-meta, .work-log-row:focus-within .tool-line-meta { opacity: 1; }
 .tool-failed-icon { color: #b4433f; }
 .tool-output { margin: 0; padding: 6px 8px; border-radius: var(--radius-sm); background: var(--surface-2); color: var(--fg); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+
+/* T3 的 ComposerSurface 外壳：玻璃卡片、outline 伪元素与 composer 阴影。
+   Tango 的 composer 仍在同一块里排版，只是外观交给 T3 的那层。 */
+.composer { border: 0; background: transparent; box-shadow: none; margin: 0; width: 100%; max-width: none; padding: 4px 6px 6px; }
+[data-slot="composer-host"] .composer textarea { background: transparent; }

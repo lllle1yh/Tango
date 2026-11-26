@@ -16,6 +16,7 @@ import { formatElapsed } from "./time";
 import { summarizeToolGroup } from "./toolSummary";
 import { AssistantTimelineRow } from "./components/chat/TimelineAssistantRow";
 import { TimelineUserRow } from "./components/chat/TimelineUserRow";
+import { ComposerSurface } from "./components/chat/ComposerSurface";
 import { WorkLogBlock, WorkLogButton, WorkLogDetails, WorkLogList, WorkLogRow } from "./WorkLog";
 
 // Windows paths use backslashes, other platforms slashes; the label is only the last part.
@@ -2814,6 +2815,8 @@ function App() {
                     >Edit next</button>
                   </div>
                 )}
+                <ComposerSurface.Shell className="px-3 pb-3 pt-1">
+                  <ComposerSurface.Host>
                 <form className={"composer" + (prompt.trim() ? " has-draft" : "")} onSubmit={(event) => { event.preventDefault(); void submitPrompt(); }}>
                   {slashOpen && (
                     <div className="slash-menu" role="listbox" aria-label="Commands">
@@ -2912,6 +2915,8 @@ function App() {
                     </div>
                   </div>
                 </form>
+                  </ComposerSurface.Host>
+                </ComposerSurface.Shell>
               </div>
             )}
             {view === "chat" && !activeTask && (

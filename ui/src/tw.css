@@ -38,6 +38,13 @@
   --t-diff-del-fg: #cf222e;
   --t-guest: #b83280;
   --t-guest-fg: #97266d;
+
+  /* T3 composer 依赖的排版与玻璃参数 */
+  --chat-content-max-width: 46rem;
+  --glass-opacity: 88%;
+  --glass-blur: 12px;
+  --glass-saturation: 140%;
+  --control-radius: 8px;
 }
 
 @theme {
