@@ -36,6 +36,7 @@ import { ComposerPromptLengthValidation, promptLengthMessage } from "./component
 import { DraftProjectName } from "./components/chat/DraftProjectName";
 import { DiffStatLabel } from "./components/chat/DiffStatLabel";
 import { DiffPanel } from "./components/chat/DiffPanel";
+import { ChatRightPanel } from "./components/chat/ChatRightPanel";
 import { ProviderPackageIcon } from "./components/chat/ProviderPackageIcon";
 import { DeferredComposerCommandMenuLayer } from "./components/chat/ComposerCommandMenuLayer";
 import {
@@ -790,6 +791,13 @@ function App() {
   const [dismissedErrorKey, setDismissedErrorKey] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [diffOpen, setDiffOpen] = useState(false);
+  // 右侧面板只有一个壳，两页共用；标签切换就是把两个布尔值换一下。
+  const rightPanelOpen = diffOpen || detailsOpen;
+  const rightPanelTab = diffOpen ? ("changes" as const) : ("details" as const);
+  const setRightPanelTab = (tab: "changes" | "details") => {
+    setDiffOpen(tab === "changes");
+    setDetailsOpen(tab === "details");
+  };
   // 每次按查找快捷键都换一个请求号，已经打开的查找条也会重新聚焦。
   const [chatFindTick, setChatFindTick] = useState(0);
   // A turn that finishes in a task you are not looking at leaves a dot there.
@@ -3316,73 +3324,85 @@ function App() {
                   </ComposerSurface.Host>
                 </ComposerSurface.Shell>
                 </div>
-                {diffOpen && project && <DiffPanel projectPath={project} onClose={() => setDiffOpen(false)} />}
-                <ThreadDetailsPanel open={detailsOpen} onClose={() => setDetailsOpen(false)}>
-                  <ThreadDetailsSection title="Workspace">
-                    <ThreadDetailsRow icon={<FolderCode size={16} />} label="Project" value={projectName} title={project ?? undefined} onClick={() => void openProject()} />
-                    <ThreadDetailsRow icon={<UserRound size={16} />} label="Agent" value={agents.find((agent) => agent.id === headerAgent)?.name ?? headerAgent} title="Choose another agent in the sidebar" />
-                    <ThreadDetailsRow icon={<MessagesSquare size={16} />} label="Messages" value={`${activeTaskRecord?.messages.length ?? 0}`} />
-                    <ThreadDetailsRow icon={<Clock size={16} />} label="Started" value={activeTaskRecord?.messages[0] ? new Date(activeTaskRecord.messages[0].createdAt).toLocaleString() : "—"} />
-                  </ThreadDetailsSection>
-                  {gitInfo.status?.isRepo && (
-                    <ThreadDetailsSection
-                      title="Repository"
-                      actions={
-                        <button
-                          type="button"
-                          aria-label="Refresh Git status"
-                          title="Refresh Git status"
-                          className="grid size-6 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-                          onClick={() => setGitReloadTick((tick) => tick + 1)}
+                {/* T3 的 ChatRightPanel：两页挂在同一个右侧面板里，点标签切换而不是互相关掉。 */}
+                {rightPanelOpen && project && (
+                  <ChatRightPanel
+                    active={rightPanelTab}
+                    onSelect={setRightPanelTab}
+                    onClose={() => { setDiffOpen(false); setDetailsOpen(false); }}
+                  >
+                    {rightPanelTab === "changes" ? (
+                      <DiffPanel projectPath={project} />
+                    ) : (
+                      <ThreadDetailsPanel>
+                      <ThreadDetailsSection title="Workspace">
+                        <ThreadDetailsRow icon={<FolderCode size={16} />} label="Project" value={projectName} title={project ?? undefined} onClick={() => void openProject()} />
+                        <ThreadDetailsRow icon={<UserRound size={16} />} label="Agent" value={agents.find((agent) => agent.id === headerAgent)?.name ?? headerAgent} title="Choose another agent in the sidebar" />
+                        <ThreadDetailsRow icon={<MessagesSquare size={16} />} label="Messages" value={`${activeTaskRecord?.messages.length ?? 0}`} />
+                        <ThreadDetailsRow icon={<Clock size={16} />} label="Started" value={activeTaskRecord?.messages[0] ? new Date(activeTaskRecord.messages[0].createdAt).toLocaleString() : "—"} />
+                      </ThreadDetailsSection>
+                      {gitInfo.status?.isRepo && (
+                        <ThreadDetailsSection
+                          title="Repository"
+                          actions={
+                            <button
+                              type="button"
+                              aria-label="Refresh Git status"
+                              title="Refresh Git status"
+                              className="grid size-6 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+                              onClick={() => setGitReloadTick((tick) => tick + 1)}
+                            >
+                              <RefreshCw size={12} />
+                            </button>
+                          }
                         >
-                          <RefreshCw size={12} />
-                        </button>
-                      }
-                    >
-                      <ThreadDetailsRow
-                        icon={<GitBranch size={16} />}
-                        label="Branch"
-                        value={gitInfo.status.branch ?? "detached"}
-                        title={gitInfo.status.upstream ?? undefined}
-                      />
-                      <ThreadDetailsRow
-                        icon={<ArrowRightLeft size={16} />}
-                        label="Ahead / behind"
-                        value={`${gitInfo.status.ahead} / ${gitInfo.status.behind}`}
-                        title={gitInfo.status.upstream ? `Tracking ${gitInfo.status.upstream}` : "No upstream configured"}
-                      />
-                      <ThreadDetailsRow
-                        icon={<FileDiff size={16} />}
-                        label="Changed files"
-                        value={`${gitInfo.status.changedFiles}`}
-                      />
-                      <ThreadDetailsRow
-                        icon={<FileDiff size={16} />}
-                        label="Working tree"
-                        value={
-                          gitInfo.diff && (gitInfo.diff.additions > 0 || gitInfo.diff.deletions > 0) ? (
-                            <DiffStatLabel additions={gitInfo.diff.additions} deletions={gitInfo.diff.deletions} layout="inline" />
-                          ) : gitInfo.diff ? (
-                            "clean"
-                          ) : (
-                            "—"
-                          )
-                        }
-                        title={gitInfo.diff?.error ?? undefined}
-                      />
-                    </ThreadDetailsSection>
-                  )}
-                  <ThreadDetailsSection title="Session">
-                    <ThreadDetailsRow icon={<Hash size={16} />} label="Native session" value={activeTaskRecord?.threadId ?? activeTaskRecord?.claudeSessionId ?? activeTaskRecord?.dshSessionId ?? activeTaskRecord?.piSessionFile ?? "none yet"} />
-                    <ThreadDetailsRow icon={<Wrench size={16} />} label="Tools in this task" value={`${activeTaskRecord?.messages.reduce((sum, message) => sum + (message.tools?.length ?? 0), 0) ?? 0}`} />
-                    <ThreadDetailsRow icon={<CircleX size={16} />} label="Failed turns" value={`${activeTaskRecord?.messages.filter((message) => message.role === "assistant" && message.text.startsWith("The turn could not run:")).length ?? 0}`} />
-                  </ThreadDetailsSection>
-                  <ThreadDetailsSection title="Actions">
-                    <ThreadDetailsRow icon={<Pencil size={16} />} label="Rename task" onClick={() => activeTaskRecord && startRename(activeTaskRecord)} />
-                    <ThreadDetailsRow icon={<Copy size={16} />} label="Duplicate task" onClick={() => activeTask && void duplicateTask(activeTask)} />
-                    <ThreadDetailsRow icon={<Archive size={16} />} label={activeTaskRecord?.archived ? "Restore from Archived" : "Archive task"} onClick={() => activeTask && void archiveTaskAction(activeTask, !activeTaskRecord?.archived)} />
-                  </ThreadDetailsSection>
-                </ThreadDetailsPanel>
+                          <ThreadDetailsRow
+                            icon={<GitBranch size={16} />}
+                            label="Branch"
+                            value={gitInfo.status.branch ?? "detached"}
+                            title={gitInfo.status.upstream ?? undefined}
+                          />
+                          <ThreadDetailsRow
+                            icon={<ArrowRightLeft size={16} />}
+                            label="Ahead / behind"
+                            value={`${gitInfo.status.ahead} / ${gitInfo.status.behind}`}
+                            title={gitInfo.status.upstream ? `Tracking ${gitInfo.status.upstream}` : "No upstream configured"}
+                          />
+                          <ThreadDetailsRow
+                            icon={<FileDiff size={16} />}
+                            label="Changed files"
+                            value={`${gitInfo.status.changedFiles}`}
+                          />
+                          <ThreadDetailsRow
+                            icon={<FileDiff size={16} />}
+                            label="Working tree"
+                            value={
+                              gitInfo.diff && (gitInfo.diff.additions > 0 || gitInfo.diff.deletions > 0) ? (
+                                <DiffStatLabel additions={gitInfo.diff.additions} deletions={gitInfo.diff.deletions} layout="inline" />
+                              ) : gitInfo.diff ? (
+                                "clean"
+                              ) : (
+                                "—"
+                              )
+                            }
+                            title={gitInfo.diff?.error ?? undefined}
+                          />
+                        </ThreadDetailsSection>
+                      )}
+                      <ThreadDetailsSection title="Session">
+                        <ThreadDetailsRow icon={<Hash size={16} />} label="Native session" value={activeTaskRecord?.threadId ?? activeTaskRecord?.claudeSessionId ?? activeTaskRecord?.dshSessionId ?? activeTaskRecord?.piSessionFile ?? "none yet"} />
+                        <ThreadDetailsRow icon={<Wrench size={16} />} label="Tools in this task" value={`${activeTaskRecord?.messages.reduce((sum, message) => sum + (message.tools?.length ?? 0), 0) ?? 0}`} />
+                        <ThreadDetailsRow icon={<CircleX size={16} />} label="Failed turns" value={`${activeTaskRecord?.messages.filter((message) => message.role === "assistant" && message.text.startsWith("The turn could not run:")).length ?? 0}`} />
+                      </ThreadDetailsSection>
+                      <ThreadDetailsSection title="Actions">
+                        <ThreadDetailsRow icon={<Pencil size={16} />} label="Rename task" onClick={() => activeTaskRecord && startRename(activeTaskRecord)} />
+                        <ThreadDetailsRow icon={<Copy size={16} />} label="Duplicate task" onClick={() => activeTask && void duplicateTask(activeTask)} />
+                        <ThreadDetailsRow icon={<Archive size={16} />} label={activeTaskRecord?.archived ? "Restore from Archived" : "Archive task"} onClick={() => activeTask && void archiveTaskAction(activeTask, !activeTaskRecord?.archived)} />
+                      </ThreadDetailsSection>
+                      </ThreadDetailsPanel>
+                    )}
+                  </ChatRightPanel>
+                )}
               </div>
             )}
             {view === "chat" && !(activeTask && headerAgent) && (

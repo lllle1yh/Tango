@@ -1,4 +1,3 @@
-import { X } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { cn } from "../../lib/utils";
@@ -73,34 +72,15 @@ export function ThreadDetailsRow({
   );
 }
 
-export function ThreadDetailsPanel({
-  open,
-  onClose,
-  children,
-}: {
-  open: boolean;
-  onClose: () => void;
-  children: ReactNode;
-}) {
-  if (!open) return null;
+export function ThreadDetailsPanel({ children }: { children: ReactNode }) {
+  // 外壳（aside、标签栏、关闭键）交给 RightPanelTabs/ChatRightPanel；
+  // 这里只负责详情内容本身的滚动区域。
   return (
-    <aside
+    <div
       data-thread-details-panel="inline"
-      className="conversation-details absolute top-0 right-0 bottom-0 z-20 flex w-[300px] flex-col border-l border-border bg-background"
+      className="flex min-h-0 flex-1 flex-col bg-background"
     >
-      <div className="flex h-11 shrink-0 items-center justify-between gap-2 border-b border-border px-3">
-        <span className="text-xs font-medium text-muted-foreground select-none">Details</span>
-        <button
-          type="button"
-          aria-label="Close details"
-          title="Close details"
-          className="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-          onClick={onClose}
-        >
-          <X size={14} />
-        </button>
-      </div>
       <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">{children}</div>
-    </aside>
+    </div>
   );
 }

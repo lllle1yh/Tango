@@ -1,7 +1,7 @@
 // 照 T3 的 DiffPanel 改写的 Tango 版：右侧「改动」面板。
 // T3 那版 1800 行，绑定 Pierre 高亮和 Effect 查询；这里用主进程给的结构化 patch
 // （git:diff）直接排行，保留它最有用的部分：范围切换、逐文件折叠、行号与复制路径。
-import { ChevronDown, ChevronRight, Copy, FileDiff, RefreshCw, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Copy, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { cn } from "../../lib/utils";
@@ -31,13 +31,7 @@ const STATUS_LABEL: Record<DiffFile["status"], string> = {
   renamed: "Renamed",
 };
 
-export function DiffPanel({
-  projectPath,
-  onClose,
-}: {
-  projectPath: string;
-  onClose: () => void;
-}) {
+export function DiffPanel({ projectPath }: { projectPath: string }) {
   const [scope, setScope] = useState<"working" | "staged">("working");
   const [files, setFiles] = useState<DiffFile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,15 +78,13 @@ export function DiffPanel({
   const deletions = files.reduce((sum, file) => sum + file.deletions, 0);
 
   return (
-    <aside
+    <div
       data-diff-panel="true"
       aria-label="Changes"
-      className="absolute top-0 right-0 bottom-0 z-20 flex w-[640px] max-w-[calc(100%-46px)] flex-col border-l border-border bg-background"
+      className="flex min-h-0 flex-1 flex-col bg-background"
     >
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3">
-        <FileDiff size={14} className="text-muted-foreground" />
-        <span className="text-xs font-medium text-muted-foreground select-none">Changes</span>
-        <div className="ml-2 flex items-center rounded-md border border-border p-0.5" role="tablist" aria-label="Diff scope">
+      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border/60 px-3">
+        <div className="flex items-center rounded-md border border-border p-0.5" role="tablist" aria-label="Diff scope">
           {(["working", "staged"] as const).map((value) => (
             <button
               key={value}
@@ -119,15 +111,6 @@ export function DiffPanel({
             onClick={() => setTick((value) => value + 1)}
           >
             <RefreshCw size={13} />
-          </button>
-          <button
-            type="button"
-            aria-label="Close changes"
-            title="Close changes"
-            className="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-            onClick={onClose}
-          >
-            <X size={14} />
           </button>
         </span>
       </div>
@@ -231,6 +214,6 @@ export function DiffPanel({
           </ul>
         )}
       </div>
-    </aside>
+    </div>
   );
 }
