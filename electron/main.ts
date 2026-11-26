@@ -1052,6 +1052,10 @@ async function readLastWorkspace(): Promise<string | null> {
   }
 }
 
+const ATTACHMENT_EXTENSIONS = new Set([
+  ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".pdf", ".txt", ".md", ".json", ".csv", ".log",
+]);
+
 function registerIpc() {
   // Settings shows where it runs and which files it owns, so bug reports can name them.
   ipcMain.handle("app:info", (event: IpcMainInvokeEvent): AppInfo => {
@@ -1313,6 +1317,23 @@ function parseGitDiff(patch: string) {
     const file = path.join(dir, name);
     await writeFile(file, text, "utf8");
     return { path: file, bytes: Buffer.byteLength(text, "utf8") };
+  });
+
+  // 输入框里粘贴/拖进来的图片或文件：Tango 不复制 T3 的上传服务，文件留在本地磁盘，
+  // 消息里只带路径；各 CLI 自己会读。扩展名白名单与 25 MB 上限避免它变成任意文件写入。
+  ipcMain.handle("attachments:save", async (event: IpcMainInvokeEvent, name: string, bytes: Uint8Array) => {
+    assertTrustedSender(event);
+    if (!(bytes instanceof Uint8Array) || bytes.byteLength === 0) throw new Error("Nothing to save");
+    if (bytes.byteLength > 25 * 1024 * 1024) throw new Error("Attachment is larger than 25 MB");
+    const base = typeof name === "string" ? path.basename(name).replace(/[^\w.\- ]+/g, "_").slice(0, 120) : "";
+    const ext = path.extname(base).toLowerCase();
+    if (!ATTACHMENT_EXTENSIONS.has(ext)) throw new Error("Unsupported attachment type: " + (ext || "none"));
+    const dir = path.join(app.getPath("userData"), "attachments");
+    await mkdir(dir, { recursive: true });
+    const safeName = base || "attachment" + ext;
+    const file = path.join(dir, Date.now() + "-" + randomUUID().slice(0, 8) + "-" + safeName);
+    await writeFile(file, Buffer.from(bytes));
+    return { path: file, bytes: bytes.byteLength, name: safeName };
   });
 
   ipcMain.handle("settings:reveal", async (event: IpcMainInvokeEvent) => {

@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 
 type TerminalDataListener = (terminalId: string, data: string) => void;
 type TerminalExitListener = (terminalId: string, exitCode: number) => void;
@@ -67,6 +67,10 @@ contextBridge.exposeInMainWorld("tango", {
   revealDataFolder: (): Promise<void> => ipcRenderer.invoke("settings:reveal"),
   // 大段粘贴存成附件文件，让 Agent 按需读，而不是把整段撑进上下文。
   saveClip: (text: string): Promise<{ path: string; bytes: number }> => ipcRenderer.invoke("clip:save", text),
+  // 拖进来的文件留在原处：只拿路径，不做复制。
+  getPathForFile: (file: File): string => webUtils.getPathForFile(file),
+  saveAttachment: (name: string, bytes: Uint8Array): Promise<{ path: string; bytes: number; name: string }> =>
+    ipcRenderer.invoke("attachments:save", name, bytes),
   listTasks: (): Promise<TaskRecord[]> => ipcRenderer.invoke("tasks:list"),
   createTask: (title: string, projectPath: string): Promise<TaskRecord> =>
     ipcRenderer.invoke("tasks:create", title, projectPath),
@@ -240,6 +244,8 @@ export interface TangoApi {
   saveSettings(next: Partial<AppSettings>): Promise<AppSettings>;
   revealDataFolder(): Promise<void>;
   saveClip(text: string): Promise<{ path: string; bytes: number }>;
+  getPathForFile(file: File): string;
+  saveAttachment(name: string, bytes: Uint8Array): Promise<{ path: string; bytes: number; name: string }>;
   listTasks(): Promise<TaskRecord[]>;
   createTask(title: string, projectPath: string): Promise<TaskRecord>;
   duplicateTask(taskId: string): Promise<TaskRecord>;

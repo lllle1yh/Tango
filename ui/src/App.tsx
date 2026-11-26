@@ -39,6 +39,8 @@ import { DiffPanel } from "./components/chat/DiffPanel";
 import { ChatRightPanel } from "./components/chat/ChatRightPanel";
 import { ScrollToEndButton } from "./components/chat/ScrollToEndButton";
 import { recallableComposerPrompt } from "./components/chat/composerPromptHistory";
+import { ComposerAttachmentStrip, type ComposerAttachment } from "./components/chat/ComposerAttachmentStrip";
+import { WorkspaceFileDropOverlay } from "./components/chat/WorkspaceFileDropOverlay";
 import { ProviderPackageIcon } from "./components/chat/ProviderPackageIcon";
 import { DeferredComposerCommandMenuLayer } from "./components/chat/ComposerCommandMenuLayer";
 import {
@@ -1030,6 +1032,8 @@ function App() {
     }
     draftTaskRef.current = activeTask;
     promptHistoryRef.current = null;
+    setAttachments([]);
+    setDropActive(false);
     setPrompt(localStorage.getItem("tango.draft." + activeTask) ?? "");
   }, [activeTask]);
 
@@ -1125,6 +1129,8 @@ function App() {
   } | null>(null);
   const [permissionText, setPermissionText] = useState("");
   const [atBottom, setAtBottom] = useState(true);
+  const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
+  const [dropActive, setDropActive] = useState(false);
   const promptLengthWarning = promptLengthMessage(prompt);
   const scrollTaskRef = useRef<string | null>(null);
 
@@ -1816,20 +1822,61 @@ function App() {
     return null;
   }
 
+  // 附件按文件路径进消息：各 CLI 自己读盘，Tango 不复制 T3 的上传资产。
+  function withAttachments(text: string, attachments: ReadonlyArray<ComposerAttachment>) {
+    if (attachments.length === 0) return text;
+    return text + String.fromCharCode(10,10) + "Attached files (read them from disk if you need them):" + String.fromCharCode(10) + attachments.map((item) => "- " + item.path).join(String.fromCharCode(10));
+  }
+
+  async function addAttachments(files: FileList | ReadonlyArray<File>, dropped: boolean) {
+    const accepted: ComposerAttachment[] = [];
+    const rejected: string[] = [];
+    for (const file of Array.from(files)) {
+      try {
+        if (dropped) {
+          // 拖进来的文件不搬家：直接拿真实路径。
+          const filePath = window.tango.getPathForFile(file);
+          if (!filePath) throw new Error("no path");
+          accepted.push({ path: filePath, name: file.name, bytes: file.size });
+        } else {
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          accepted.push(await window.tango.saveAttachment(file.name, bytes));
+        }
+      } catch {
+        rejected.push(file.name);
+      }
+    }
+    if (accepted.length) setAttachments((current) => {
+      const seen = new Set(current.map((item) => item.path));
+      return [...current, ...accepted.filter((item) => !seen.has(item.path))];
+    });
+    if (rejected.length) {
+      setAssistantText(
+        rejected.length === 1
+          ? `Could not attach ${rejected[0]}. Images, PDFs, and text files up to 25 MB can be attached.`
+          : `Could not attach ${rejected.length} files. Images, PDFs, and text files up to 25 MB can be attached.`,
+      );
+    }
+  }
+
   async function submitPrompt() {
     const text = prompt.trim();
     const task = tasks.find((item) => item.id === activeTask);
-    if (!text || !task || !activeAgent) return;
+    if (!task || !activeAgent) return;
+    // 只有附件、没有文字也算一条消息。
+    if (!text && attachments.length === 0) return;
     // 超过命令行能吃的长度就停在输入框里，提示已经显示在输入框上方。
     if (promptLengthMessage(text)) return;
+    const message = withAttachments(text, attachments);
+    setAttachments([]);
     // 正在跑的这一回合不接受新消息，先排到它后面。
     if (runningTurnsRef.current[task.id]) {
-      queuePrompt(activeAgent, task, text);
+      queuePrompt(activeAgent, task, message);
       setPrompt("");
       promptHistoryRef.current = null;
       return;
     }
-    await startTurn(activeAgent, task, text);
+    await startTurn(activeAgent, task, message);
   }
 
   // A handoff is a labelled selection of the recent turns, not an agent-written
@@ -3203,8 +3250,33 @@ function App() {
                 {/* T3 把校验放在 ComposerSurface.Main（输入框所在的卡片）里面；
                     放在 Host 外面会让提示和卡片脱节，也不随卡片宽度收缩。 */}
                 <ComposerSurface.Main>
+                  {dropActive && <WorkspaceFileDropOverlay />}
+                  <ComposerAttachmentStrip
+                    attachments={attachments}
+                    onRemove={(path) => setAttachments((current) => current.filter((item) => item.path !== path))}
+                  />
                   <ComposerPromptLengthValidation message={promptLengthWarning} />
-                <form data-chat-composer-form="true" className={"composer" + (prompt.trim() ? " has-draft" : "")} onSubmit={(event) => { event.preventDefault(); void submitPrompt(); }}>
+                <form
+                  data-chat-composer-form="true"
+                  className={"composer" + (prompt.trim() ? " has-draft" : "")}
+                  onSubmit={(event) => { event.preventDefault(); void submitPrompt(); }}
+                  onDragOver={(event) => {
+                    if (!event.dataTransfer.types.includes("Files")) return;
+                    event.preventDefault();
+                    setDropActive(true);
+                  }}
+                  onDragLeave={(event) => {
+                    // 移到卡片内部子元素不算离开。
+                    if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
+                    setDropActive(false);
+                  }}
+                  onDrop={(event) => {
+                    if (event.dataTransfer.files.length === 0) return;
+                    event.preventDefault();
+                    setDropActive(false);
+                    void addAttachments(event.dataTransfer.files, true);
+                  }}
+                >
                   <DeferredComposerCommandMenuLayer
                     open={slashOpen}
                     anchor={composerRef.current}
@@ -3239,6 +3311,13 @@ function App() {
                   </ComposerControl>
                   <div className="composer-field">
                   <textarea ref={composerRef} value={prompt} onChange={(event) => { setPrompt(event.target.value); setSlashIndex(0); }} onPaste={(event) => {
+                    // 剪贴板里的文件（截图、复制的文件）变成附件芯片，不塞进输入框。
+                    const files = event.clipboardData?.files;
+                    if (files && files.length > 0) {
+                      event.preventDefault();
+                      void addAttachments(files, false);
+                      return;
+                    }
                     // 大段粘贴不塞进输入框：存成附件文件，消息里只留一行路径。
                     const pasted = event.clipboardData?.getData("text/plain") ?? "";
                     if (pasted.length < 32000) return;
@@ -3297,7 +3376,7 @@ function App() {
                           {stopping ? "Stopping" : "Stop"}
                         </ComposerControl>
                       )}
-                      <button type="submit" className="send-button" disabled={!prompt.trim() || Boolean(promptLengthWarning)} title={isActiveTaskRunning ? "Send after this turn" : "Send (Enter)"}>
+                      <button type="submit" className="send-button" disabled={(!prompt.trim() && attachments.length === 0) || Boolean(promptLengthWarning)} title={isActiveTaskRunning ? "Send after this turn" : "Send (Enter)"}>
                         {isActiveTaskRunning ? "Queue" : "Send"}
                       </button>
                     </div>

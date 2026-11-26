@@ -18,6 +18,8 @@
 - `ChatRightPanel.tsx` + `RightPanelTabs.tsx`（照 T3 根目录同名组件改写：右侧面板共用外壳与页签）
 - `ScrollToEndButton.tsx`（T3 `TimelineOverlays` 的「滚到底」胶囊，带末尾摘要）
 - `composerPromptHistory.ts`（搬自 T3 同名文件：回填历史时剥掉上下文块并去重）
+- `ComposerAttachmentStrip.tsx`（Tango 版：本地文件路径代替 T3 的上传资产）
+- `WorkspaceFileDropOverlay.tsx`（搬自 T3 `TimelineOverlays` 的拖拽提示）
 - `markdownGithubAlerts.ts`（搬自 T3 `packages/shared`：把 `> [!NOTE]` 标成 dataAlert）
 - `ProviderPackageIcon.tsx`（Tango 适配版：Agent 图标位）
 - `ComposerBannerStack.tsx`（228 行）
@@ -192,3 +194,13 @@ T3 的 `packages/shared/src/markdownPipeline.ts` 用 `remarkRehype({ allowDanger
 `<details><summary>` 等 HTML 块真正变成元素，再用 sanitize 洗一遍。Tango 的 `ui/src/Markdown.tsx` 现在也走这条管线，
 并给 sanitize schema 补了 `blockquote` 的 `dataAlert` 属性，`remarkGithubAlerts` 才有地方落脚。已验证：
 折叠块点击展开/收起、内容渲染代码块；`> [!NOTE]` / `> [!WARNING]` 各自的色线与图标；`#fragment` 链接不新开窗口。
+
+## 附件（Tango 版）
+
+T3 的附件由服务端上传、按资产 ID 引用；Tango 没有这层服务，改为本地文件：
+
+- 粘贴图片或复制文件 → 主进程 `attachments:save` 存到 `<userData>/attachments/`（扩展名白名单、25 MB 上限）
+- 从系统拖文件 → 只取真实路径（`webUtils.getPathForFile`），不复制
+- 发送时在消息末尾追加 `Attached files (read them from disk if you need them):` 列表，Agent 自己读
+- 回填历史（上方向键）会剥掉这段列表，只留用户原话
+- 输入框上方显示芯片（文件名、大小、移除），拖动经过时浮出 `Drop files to attach`

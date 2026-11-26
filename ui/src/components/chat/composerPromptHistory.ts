@@ -8,6 +8,9 @@ const CLAUDE_ULTRATHINK_PREFIX = "Ultrathink:\n";
 const REVIEW_COMMENT_BLOCK_PATTERN = /<review_comment\b[^>]*>[\s\S]*?<\/review_comment>/g;
 const TRAILING_LEGACY_CONTEXT =
   /\n*<(terminal_context|element_context|preview_annotation)>\n([\s\S]*?)\n<\/\1>\s*$/;
+// Tango 发送时追加的附件路径块（T3 的附件走资产引用，没有这段文本）。
+const TRAILING_ATTACHED_FILES =
+  /\n*Attached files \(read them from disk if you need them\):\n(?:- .+\n?)+$/;
 
 function stripTrailingReviewComments(prompt: string): string {
   let cut = prompt.length;
@@ -48,6 +51,11 @@ export function recallableComposerPrompt(messageText: string): string {
   }
 
   while (prompt.length > 0) {
+    const withoutAttachments = prompt.replace(TRAILING_ATTACHED_FILES, "").trimEnd();
+    if (withoutAttachments !== prompt) {
+      prompt = withoutAttachments;
+      continue;
+    }
     const withoutReviewComments = stripTrailingReviewComments(prompt);
     if (withoutReviewComments !== prompt) {
       prompt = withoutReviewComments;
