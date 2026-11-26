@@ -1,8 +1,15 @@
 import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import type { AgentStatus, AppSettings, LayoutNode, TaskRecord } from "../../electron/preload";
-import { Archive, ArrowRightLeft, ChevronDown, ChevronRight, Columns2, MoreHorizontal, Pause, Pencil, Plus, RefreshCw, RotateCcw, Rows2, SlidersHorizontal, Terminal as TerminalIcon, Trash2, X, FolderCode, UserRound, MessagesSquare, Clock, Hash, CircleX } from "lucide-react";
+import type {
+  AgentStatus,
+  AppSettings,
+  DiffStat,
+  GitStatus,
+  LayoutNode,
+  TaskRecord,
+} from "../../electron/preload";
+import { Archive, ArrowRightLeft, ChevronDown, ChevronRight, Columns2, MoreHorizontal, Pause, Pencil, Plus, RefreshCw, RotateCcw, Rows2, SlidersHorizontal, Terminal as TerminalIcon, Trash2, X, FolderCode, UserRound, MessagesSquare, Clock, Hash, CircleX, GitBranch, FileDiff } from "lucide-react";
 import { Markdown } from "./Markdown";
 import { CommandPalette, type PaletteItem } from "./CommandPalette";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
@@ -28,6 +35,7 @@ import { ThreadDetailsPanel, ThreadDetailsRow, ThreadDetailsSection } from "./co
 import { AgentStatusBanner } from "./components/chat/AgentStatusBanner";
 import { ComposerPromptLengthValidation, promptLengthMessage } from "./components/chat/ComposerPromptLengthValidation";
 import { DraftProjectName } from "./components/chat/DraftProjectName";
+import { DiffStatLabel } from "./components/chat/DiffStatLabel";
 import { ThreadAnnouncer, type ThreadAnnouncementState } from "./components/chat/ThreadAnnouncer";
 import {
   WorkspaceBreadcrumb,
@@ -787,6 +795,36 @@ function App() {
   useEffect(() => {
     void window.tango.getSettings().then(setSettings);
   }, []);
+
+  // 任务详情里的 Git 一节：打开详情或切任务时读一次状态与改动统计。读失败只显示错误，不挡界面。
+  const [gitInfo, setGitInfo] = useState<{
+    status: GitStatus | null;
+    diff: DiffStat | null;
+    projectPath: string | null;
+  }>({ status: null, diff: null, projectPath: null });
+  const [gitReloadTick, setGitReloadTick] = useState(0);
+  useEffect(() => {
+    if (!detailsOpen || !project) return;
+    let cancelled = false;
+    setGitInfo((previous) =>
+      previous.projectPath === project ? previous : { status: null, diff: null, projectPath: project },
+    );
+    void Promise.all([window.tango.gitStatus(project), window.tango.gitDiffStat(project, "working")])
+      .then(([status, diff]) => {
+        if (!cancelled) setGitInfo({ status, diff, projectPath: project });
+      })
+      .catch(() => {
+        if (!cancelled)
+          setGitInfo({
+            status: { isRepo: false, branch: null, ahead: 0, behind: 0, upstream: null, changedFiles: 0, error: "Could not read Git" },
+            diff: null,
+            projectPath: project,
+          });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [detailsOpen, project, gitReloadTick]);
 
   function renameActiveTask() {
     const task = tasks.find((item) => item.id === activeTask);
@@ -3210,6 +3248,54 @@ function App() {
                     <ThreadDetailsRow icon={<MessagesSquare size={16} />} label="Messages" value={`${activeTaskRecord?.messages.length ?? 0}`} />
                     <ThreadDetailsRow icon={<Clock size={16} />} label="Started" value={activeTaskRecord?.messages[0] ? new Date(activeTaskRecord.messages[0].createdAt).toLocaleString() : "—"} />
                   </ThreadDetailsSection>
+                  {gitInfo.status?.isRepo && (
+                    <ThreadDetailsSection
+                      title="Repository"
+                      actions={
+                        <button
+                          type="button"
+                          aria-label="Refresh Git status"
+                          title="Refresh Git status"
+                          className="grid size-6 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+                          onClick={() => setGitReloadTick((tick) => tick + 1)}
+                        >
+                          <RefreshCw size={12} />
+                        </button>
+                      }
+                    >
+                      <ThreadDetailsRow
+                        icon={<GitBranch size={16} />}
+                        label="Branch"
+                        value={gitInfo.status.branch ?? "detached"}
+                        title={gitInfo.status.upstream ?? undefined}
+                      />
+                      <ThreadDetailsRow
+                        icon={<ArrowRightLeft size={16} />}
+                        label="Ahead / behind"
+                        value={`${gitInfo.status.ahead} / ${gitInfo.status.behind}`}
+                        title={gitInfo.status.upstream ? `Tracking ${gitInfo.status.upstream}` : "No upstream configured"}
+                      />
+                      <ThreadDetailsRow
+                        icon={<FileDiff size={16} />}
+                        label="Changed files"
+                        value={`${gitInfo.status.changedFiles}`}
+                      />
+                      <ThreadDetailsRow
+                        icon={<FileDiff size={16} />}
+                        label="Working tree"
+                        value={
+                          gitInfo.diff && (gitInfo.diff.additions > 0 || gitInfo.diff.deletions > 0) ? (
+                            <DiffStatLabel additions={gitInfo.diff.additions} deletions={gitInfo.diff.deletions} layout="inline" />
+                          ) : gitInfo.diff ? (
+                            "clean"
+                          ) : (
+                            "—"
+                          )
+                        }
+                        title={gitInfo.diff?.error ?? undefined}
+                      />
+                    </ThreadDetailsSection>
+                  )}
                   <ThreadDetailsSection title="Session">
                     <ThreadDetailsRow icon={<Hash size={16} />} label="Native session" value={activeTaskRecord?.threadId ?? activeTaskRecord?.claudeSessionId ?? activeTaskRecord?.dshSessionId ?? activeTaskRecord?.piSessionFile ?? "none yet"} />
                     <ThreadDetailsRow icon={<Wrench size={16} />} label="Tools in this task" value={`${activeTaskRecord?.messages.reduce((sum, message) => sum + (message.tools?.length ?? 0), 0) ?? 0}`} />

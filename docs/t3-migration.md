@@ -36,6 +36,9 @@ Tango 是 T3 Code 的二开。这份表记录 T3 的界面工作搬到哪一步�
 - `TimelineAssistantRow` / `TimelineUserRow` — 消息行（按 T3 行结构改造）
 - `ToolApprovalRow` — 审批卡片
 - `MarkdownCodeBlock` — 代码块顶栏（语言、换行、复制）
+- `DiffStatLabel` — 改动行数标签（+N / -N，大数压成 1.2k）
+- `ComposerPromptLengthValidation` — 输入框超长提示
+- `DraftProjectName` — 空任务标题里的项目名排版
 
 另按 T3 的写法新写了四个适配版（T3 同名组件依赖服务端契约，直接搬不可用）：
 
@@ -52,6 +55,10 @@ Tango 是 T3 Code 的二开。这份表记录 T3 的界面工作搬到哪一步�
 | --- | --- |
 | Provider 会话 / 模型 / 用量 | ProviderModelPicker, ProviderStatusBanner, ComposerModelEffort, ComposerUsageLimits, ThreadDetailsUsage |
 | Git / PR / Issue | DiffPanel, ThreadDetailsPrRow(s), ThreadRepositorySections, BranchToolbar |
+
+Git 分支已开始补：`git:status` / `git:diff-stat` 两个 IPC 已接到 `ThreadDetailsPanel` 的
+「Repository」一节（分支、领先/落后、改动文件数、工作区 +/-）。PR / Issue 仍无数据源，
+`DiffPanel` 的逐行 diff 也还没接。
 | 预览会话 / 设备 / 分享 | ChatRightPanel 的 preview/device 面、GuestShareControls, HtmlRenderDialog, McpAppFrame |
 | 子代理 / 后台任务 / 计划 | BackgroundWorkDetails, ThreadActivityBanners, ProposedPlanCard, SubagentTooltipContent |
 | 附件 / 图像 / 语音 | ComposerImageThumbnail, ExpandedImageDialog, VoiceInputPill, AttachmentImage |
