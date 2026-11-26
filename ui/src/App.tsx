@@ -2414,27 +2414,39 @@ function App() {
               .map((task) => (
               <div key={task.id} className={"task-row archived " + (task.id === activeTask ? "selected" : "")}>
                 <button className="task-link" onClick={() => openTask(task.id)}>
-                  <span>{highlightMatch(task.title, taskQuery)}</span>
+                  <span className="task-title">
+                    <span className="task-title-text">{highlightMatch(task.title, taskQuery)}</span>
+                  </span>
+                  <span className="task-meta">
+                    <Badge variant="outline" size="sm">Archived</Badge>
+                    <span className="task-meta-agent">{agents.find((agent) => agent.id === (task.messages.at(-1)?.agent ?? settings?.defaultAgent))?.name ?? "Agent"}</span>
+                    <span className="task-meta-time" title={task.messages.at(-1)?.createdAt}>
+                      {formatStamp(task.messages.at(-1)?.createdAt ?? "")}
+                    </span>
+                  </span>
                 </button>
-                <button
-                  className="task-quick"
-                  aria-label="Restore task"
-                  title="Restore task"
-                  onClick={(event) => { event.stopPropagation(); void archiveTaskAction(task.id, false); }}
-                >
-                  <Archive size={12} />
-                </button>
-                <button
-                  className="task-more"
-                  aria-label="Task actions"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    const rect = event.currentTarget.getBoundingClientRect();
-                    setTaskMenu({ id: task.id, x: rect.right - 150, y: rect.bottom + 4 });
-                  }}
-                >
-                  <MoreHorizontal size={14} />
-                </button>
+                {/* 与普通任务行同一个悬停槽：恢复、更多。 */}
+                <div className="task-actions">
+                  <button
+                    className="task-quick"
+                    aria-label="Restore task"
+                    title="Restore task"
+                    onClick={(event) => { event.stopPropagation(); void archiveTaskAction(task.id, false); }}
+                  >
+                    <Archive size={12} />
+                  </button>
+                  <button
+                    className="task-more"
+                    aria-label="Task actions"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      const rect = event.currentTarget.getBoundingClientRect();
+                      setTaskMenu({ id: task.id, x: rect.right - 150, y: rect.bottom + 4 });
+                    }}
+                  >
+                    <MoreHorizontal size={14} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
