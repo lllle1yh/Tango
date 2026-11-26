@@ -10,6 +10,7 @@
 
 - `ComposerBanner.tsx`（328 行）
 - `ComposerCommandMenuLayer.tsx`（111 行，适配 `observeResize` 路径）
+- `ReadOnlyComposerBar.tsx`（37 行）
 - `ProviderPackageIcon.tsx`（Tango 适配版：Agent 图标位）
 - `ComposerBannerStack.tsx`（228 行）
 - `ComposerControl.tsx`（82 行）

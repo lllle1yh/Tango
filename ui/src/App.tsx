@@ -38,6 +38,11 @@ import { DiffStatLabel } from "./components/chat/DiffStatLabel";
 import { DiffPanel } from "./components/chat/DiffPanel";
 import { ProviderPackageIcon } from "./components/chat/ProviderPackageIcon";
 import { DeferredComposerCommandMenuLayer } from "./components/chat/ComposerCommandMenuLayer";
+import {
+  ReadOnlyComposerBar,
+  ReadOnlyComposerLead,
+  ReadOnlyComposerStatus,
+} from "./components/chat/ReadOnlyComposerBar";
 import { ComposerBanner } from "./components/chat/ComposerBanner";
 import { ComposerBannerStack, type ComposerBannerStackItem } from "./components/chat/ComposerBannerStack";
 import { ThreadAnnouncer, type ThreadAnnouncementState } from "./components/chat/ThreadAnnouncer";
@@ -3303,6 +3308,34 @@ function App() {
                     </div>
                   </div>
                 </form>
+                  {/* T3 的 ReadOnlyComposerBar：所选 Agent 不可用时，在输入框下方给一行原因和重试，
+                      不用顶部横幅，也不拦着用户先写草稿。 */}
+                  {(() => {
+                    const agent = agents.find((item) => item.id === headerAgent);
+                    if (!agent || agent.available) return null;
+                    return (
+                      <div className="mt-2">
+                        <ReadOnlyComposerBar
+                          actions={
+                            <button
+                              type="button"
+                              className="h-8 shrink-0 rounded-md px-3 text-xs font-medium text-foreground hover:bg-accent disabled:opacity-60"
+                              disabled={detecting}
+                              onClick={() => void refreshAgents()}
+                            >
+                              {detecting ? "Checking…" : "Check again"}
+                            </button>
+                          }
+                        >
+                          <ReadOnlyComposerLead>
+                            <AlertCircle size={14} aria-hidden="true" className="shrink-0 text-muted-foreground" />
+                            <span className="min-w-0 truncate font-medium">{agent.name} is not available</span>
+                          </ReadOnlyComposerLead>
+                          <ReadOnlyComposerStatus>{versionHint(agent.version)}</ReadOnlyComposerStatus>
+                        </ReadOnlyComposerBar>
+                      </div>
+                    );
+                  })()}
                   </ComposerSurface.Host>
                 </ComposerSurface.Shell>
                 </div>
