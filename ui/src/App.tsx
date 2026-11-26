@@ -2152,7 +2152,10 @@ function App() {
           </div>
         )}
         {project && tasks.some((task) => samePath(task.projectPath, project)) && (
-          <label className="task-search">
+          <label
+            className="task-search"
+            onClick={() => taskSearchRef.current?.focus()}
+          >
             <Search size={13} />
             <input
               ref={taskSearchRef}
@@ -2344,12 +2347,55 @@ function App() {
       </aside>
 
       <main className="main-area">
-        {/* 顶栏只放当前页标题；品牌和菜单已经在标题栏里。 */}
+        {/* 顶栏按 T3 的做法只放面包屑：项目 / 当前页，右侧是页内动作图标。 */}
         <header className="topbar">
-          <div className="breadcrumb">
-            <strong>{view === "terminal" ? "Shell" : view === "chat"
-              ? tasks.find((task) => task.id === activeTask)?.title ?? "Task"
-              : projectName ?? "Home"}</strong>
+          <div className="topbar-breadcrumb">
+            {view !== "home" && project && (
+              <>
+                <button
+                  className="topbar-project"
+                  title={project}
+                  onClick={() => setView("home")}
+                >
+                  <FolderIcon />
+                  <span>{projectName}</span>
+                </button>
+                <span className="topbar-sep" aria-hidden="true">/</span>
+              </>
+            )}
+            <strong title={view === "chat" ? tasks.find((task) => task.id === activeTask)?.title : undefined}>
+              {view === "terminal" ? "Shell" : view === "chat"
+                ? tasks.find((task) => task.id === activeTask)?.title ?? "Task"
+                : projectName ?? "Home"}
+            </strong>
+          </div>
+          <div className="topbar-actions">
+            <button
+              className={"topbar-action" + (view === "home" ? " active" : "")}
+              onClick={() => setView("home")}
+              title="Home (Ctrl 2)"
+              aria-label="Home"
+            >
+              <FileText size={15} />
+            </button>
+            <button
+              className={"topbar-action" + (view === "terminal" ? " active" : "")}
+              onClick={() => openTerminal()}
+              title="The terminal page (Ctrl 1)"
+              aria-label="Shell"
+            >
+              <TerminalIcon size={15} />
+            </button>
+            {view === "chat" && (
+              <button
+                className={"topbar-action" + (splitTerminal ? " active" : "")}
+                onClick={() => setSplitTerminal((split) => !split)}
+                title={splitTerminal ? "Hide the terminal pane (Ctrl Shift J)" : "Show the terminal below this task (Ctrl Shift J)"}
+                aria-label={splitTerminal ? "Hide shell pane" : "Show shell pane"}
+              >
+                <Rows2 size={15} />
+              </button>
+            )}
           </div>
         </header>
 
@@ -2439,52 +2485,6 @@ function App() {
           </section>
         ) : (
           <section className={"workbench" + (view === "chat" && splitTerminal ? " split-terminal" : "")}>
-            <div className="panel-tabs">
-              <button
-                className="panel-tab"
-                onClick={() => setView("home")}
-                title="Back to the home page (Ctrl 2)"
-              >
-                <FileText size={15} />
-                <span>Home</span>
-              </button>
-              {activeTask && (
-                <button
-                  className={"panel-tab " + (view === "chat" ? "active" : "")}
-                  onClick={() => setView("chat")}
-                  title="This task's page"
-                >
-                  <AgentGlyph agentId={headerAgent ?? settings?.defaultAgent ?? "codex"} />
-                  <span>{tasks.find((task) => task.id === activeTask)?.title}</span>
-                </button>
-              )}
-              <button
-                className={"panel-tab " + (view === "terminal" ? "active" : "")}
-                onClick={() => openTerminal()}
-                title="The terminal page (Ctrl 1)"
-              >
-                <TerminalIcon size={15} />
-                <span>Shell</span>
-              </button>
-              {view === "chat" && (
-                <button
-                  className={"panel-tab panel-split" + (splitTerminal ? " active" : "")}
-                  onClick={() => setSplitTerminal((split) => !split)}
-                  title={splitTerminal ? "Hide the terminal pane (Ctrl Shift J)" : "Show the terminal below this task (Ctrl Shift J)"}
-                >
-                  <Rows2 size={15} />
-                  <span>{splitTerminal ? "Hide shell" : "Shell split"}</span>
-                </button>
-              )}
-              {activeAgent && (
-                <div className="active-agent-tab">
-                  <AgentGlyph agentId={activeAgent} />
-                  <span>{agents.find((agent) => agent.id === activeAgent)?.name}</span>
-                  <span className="connection-label">{activeAgent === "codex" ? "Codex App Server" : activeAgent === "claude" ? "Stream JSON" : activeAgent === "dsh" ? "ACP" : "RPC"}</span>
-                </div>
-              )}
-            </div>
-
             <div className={"terminal-panel" + (view === "chat" && splitTerminal ? " split" : "")} hidden={!(view === "terminal" || (view === "chat" && splitTerminal))}>
               <div className="terminal-canvas">
                 {layoutRoot ? (
