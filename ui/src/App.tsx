@@ -790,7 +790,6 @@ function App() {
   const [dismissedErrorKey, setDismissedErrorKey] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [diffOpen, setDiffOpen] = useState(false);
-  const [dismissedAgentBanner, setDismissedAgentBanner] = useState<string | null>(null);
   // 每次按查找快捷键都换一个请求号，已经打开的查找条也会重新聚焦。
   const [chatFindTick, setChatFindTick] = useState(0);
   // A turn that finishes in a task you are not looking at leaves a dot there.
@@ -2103,30 +2102,8 @@ function App() {
       description: "Answer above the composer; nothing is sent until you do.",
     });
   }
-  {
-    const agent = agents.find((item) => item.id === headerAgent);
-    if (agent && !agent.available && dismissedAgentBanner !== agent.id + ":" + (agent.version ?? "")) {
-      composerBannerItems.push({
-        id: "agent-unavailable",
-        variant: "error",
-        icon: <AlertCircle size={12} />,
-        title: `${agent.name} is not installed`,
-        description: versionHint(agent.version),
-        actions: (
-          <button
-            type="button"
-            className="h-6 rounded-md px-2 text-xs font-medium text-foreground hover:bg-accent disabled:opacity-60"
-            disabled={detecting}
-            onClick={() => void refreshAgents()}
-          >
-            Check again
-          </button>
-        ),
-        dismissLabel: "Dismiss",
-        onDismiss: () => setDismissedAgentBanner(agent.id + ":" + (agent.version ?? "")),
-      });
-    }
-  }
+  // Agent 不可用不再放横幅：输入框下方已经有 ReadOnlyComposerBar（原因 + Check again），
+  // 同一件事说两遍只会让「要不要重试」变成两个按钮。这里只留回合状态与审批提醒。
   // 查找条的下一条 / 上一条：定位当前命中的那条消息并滚过去。
   useEffect(() => {
     if (!chatSearchOpen || !chatNeedle) return;
