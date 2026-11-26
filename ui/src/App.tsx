@@ -748,7 +748,16 @@ function App() {
       if (event.key === "1" && !event.shiftKey) { event.preventDefault(); openTerminal(); return; }
       if (event.key === "2" && !event.shiftKey) { event.preventDefault(); setView("home"); return; }
       if (event.key === "3" && !event.shiftKey && activeTask) { event.preventDefault(); setView("chat"); return; }
-      if (event.key.toLowerCase() === "j" && event.shiftKey) { event.preventDefault(); setSplitTerminal((split) => !split); setView("chat"); return; }
+      // 在任务页按 Ctrl+Shift+J 开/关分屏；在终端页或首页按它回到任务页的分屏，保证能原路返回。
+      if (event.key.toLowerCase() === "j" && event.shiftKey) {
+        event.preventDefault();
+        if (view === "chat") setSplitTerminal((split) => !split);
+        else {
+          setSplitTerminal(true);
+          setView("chat");
+        }
+        return;
+      }
       if (event.key.toLowerCase() === "e" && event.shiftKey && activeTask) {
         event.preventDefault();
         void archiveTaskAction(activeTask, true);
@@ -2386,6 +2395,16 @@ function App() {
                 <TerminalIcon size={15} />
                 <span>Shell</span>
               </button>
+              {view === "chat" && (
+                <button
+                  className={"panel-tab panel-split" + (splitTerminal ? " active" : "")}
+                  onClick={() => setSplitTerminal((split) => !split)}
+                  title={splitTerminal ? "Hide the terminal pane (Ctrl Shift J)" : "Show the terminal below this task (Ctrl Shift J)"}
+                >
+                  <Rows2 size={15} />
+                  <span>{splitTerminal ? "Hide shell" : "Shell split"}</span>
+                </button>
+              )}
               {activeAgent && (
                 <div className="active-agent-tab">
                   <AgentGlyph agentId={activeAgent} />
