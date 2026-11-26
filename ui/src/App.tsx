@@ -41,6 +41,7 @@ import { ScrollToEndButton } from "./components/chat/ScrollToEndButton";
 import { recallableComposerPrompt } from "./components/chat/composerPromptHistory";
 import { ComposerAttachmentStrip, type ComposerAttachment } from "./components/chat/ComposerAttachmentStrip";
 import { WorkspaceFileDropOverlay } from "./components/chat/WorkspaceFileDropOverlay";
+import { freshSessionBannerItem } from "./components/chat/ComposerFreshSession";
 import { ProviderPackageIcon } from "./components/chat/ProviderPackageIcon";
 import { DeferredComposerCommandMenuLayer } from "./components/chat/ComposerCommandMenuLayer";
 import {
@@ -1131,6 +1132,8 @@ function App() {
   const [atBottom, setAtBottom] = useState(true);
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [dropActive, setDropActive] = useState(false);
+  // T3 的 fresh session：下一条消息开新会话，发给 Agent 之前先武装，可以撤销。
+  const [freshSessionArmed, setFreshSessionArmed] = useState(false);
   const promptLengthWarning = promptLengthMessage(prompt);
   const scrollTaskRef = useRef<string | null>(null);
 
@@ -1703,6 +1706,15 @@ function App() {
     window.requestAnimationFrame(() => composerRef.current?.focus());
   }
   async function startTurn(agent: AgentStatus["id"], task: TaskRecord, text: string) {
+    if (freshSessionArmed) {
+      setFreshSessionArmed(false);
+      try {
+        await window.tango.resetTaskSession(task.id);
+      } catch (error) {
+        setAssistantText(errorText(error, "Could not start a fresh session"));
+        return;
+      }
+    }
     setPrompt("");
     promptHistoryRef.current = null;
     resetStreamText(task.id);
@@ -2152,6 +2164,9 @@ function App() {
       description: "Enter queues the next message; Stop ends this turn first.",
     });
   }
+  if (freshSessionArmed && activeTask) {
+    composerBannerItems.push(freshSessionBannerItem(() => setFreshSessionArmed(false)));
+  }
   if (permission && permission.taskId === activeTask) {
     composerBannerItems.push({
       id: "needs-approval",
@@ -2287,7 +2302,7 @@ function App() {
       ? [{ name: "pin", label: slashTask.pinned ? "Unpin this task" : "Pin this task to the top", run: () => void togglePinActive() }]
       : []),
     ...(slashTask ? [{ name: "delete", label: "Delete this task", run: () => void deleteActiveTask() }] : []),
-    { name: "clear", label: "Clear the input", run: () => { /* handled by caller */ } },
+    { name: "new-session", label: "Start a fresh agent session for the next message", run: () => setFreshSessionArmed(true) },
     ...(activeAgent === "pi" ? piCommands.map((command) => ({
       name: command.name,
       label: command.description?.split(/\n/)[0].slice(0, 72) ?? "Pi command",

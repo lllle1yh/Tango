@@ -1422,6 +1422,27 @@ function parseGitDiff(patch: string) {
     await saveTasks([copy, ...tasks]);
     return copy;
   });
+  // T3 的 fresh session：任务记录保留，但下一回合开一个新的原生会话。
+  // 清掉会话引用并丢掉内存里的客户端，各 Adapter 下一次会重新 start 而不是 resume。
+  ipcMain.handle("tasks:reset-session", async (event: IpcMainInvokeEvent, taskId: string) => {
+    assertTrustedSender(event);
+    const tasks = await readTasks();
+    const task = tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Task not found");
+    delete task.threadId;
+    delete task.claudeSessionId;
+    delete task.dshSessionId;
+    delete task.piSessionFile;
+    await saveTasks(tasks);
+    for (const map of [codexProcesses, claudeProcesses, dshProcesses, piProcesses]) {
+      const client = map.get(taskId);
+      if (client) {
+        client.dispose();
+        map.delete(taskId);
+      }
+    }
+    return task;
+  });
   ipcMain.handle("tasks:pin", async (event: IpcMainInvokeEvent, taskId: string, pinned: boolean) => {
     assertTrustedSender(event);
     const tasks = await readTasks();

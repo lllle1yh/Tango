@@ -20,6 +20,7 @@
 - `composerPromptHistory.ts`（搬自 T3 同名文件：回填历史时剥掉上下文块并去重）
 - `ComposerAttachmentStrip.tsx`（Tango 版：本地文件路径代替 T3 的上传资产）
 - `WorkspaceFileDropOverlay.tsx`（搬自 T3 `TimelineOverlays` 的拖拽提示）
+- `ComposerFreshSession.tsx`（搬自 T3 同名文件：下一条消息开新会话的横幅）
 - `markdownGithubAlerts.ts`（搬自 T3 `packages/shared`：把 `> [!NOTE]` 标成 dataAlert）
 - `ProviderPackageIcon.tsx`（Tango 适配版：Agent 图标位）
 - `ComposerBannerStack.tsx`（228 行）
