@@ -664,3 +664,47 @@ button { color: inherit; font: inherit; }
 .panel-split { opacity: 0.72; }
 .panel-split:hover, .panel-split.active { opacity: 1; }
 .panel-split.active { color: var(--accent); }
+
+/* 任务页改成"标题 → 一行状态 → 对话 → 输入框"的连续结构，不再散落好几条细横线。 */
+.task-status-line { display: flex; align-items: center; gap: 7px; flex: none; margin: 0 auto; width: min(820px, calc(100% - 48px)); padding: 12px 2px 2px; color: var(--fg-muted); font-size: 11.5px; }
+.task-status-line svg, .task-status-line .agent-mark { flex: none; }
+.task-status-name { color: var(--fg); font-weight: 600; font-size: 12px; }
+.task-status-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--line-strong); flex: none; }
+.task-status-line.live .task-status-dot { background: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent); }
+.task-status-state { color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-status-line.live .task-status-state { color: var(--fg); }
+.task-status-path { margin-left: auto; flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg-subtle); font-size: 11px; }
+
+/* 输入框：一整块可点的框，工具条贴在框内底边，发送按钮永远在右下角。 */
+.composer { align-items: stretch; flex-direction: column; gap: 0; padding: 4px 6px 6px; }
+.composer-field { display: flex; min-width: 0; flex: 1; }
+.composer textarea { padding: 8px 6px 2px; }
+.composer-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; padding: 2px 2px 0; }
+.composer-context { display: flex; min-width: 0; align-items: center; gap: 6px; color: var(--fg-muted); font-size: 11.5px; }
+.composer-context svg, .composer-context .agent-mark { flex: none; }
+.composer-context-name { color: var(--fg); font-weight: 500; }
+.composer-context-project { display: inline-flex; min-width: 0; align-items: center; gap: 4px; padding-left: 6px; border-left: 1px solid var(--line); color: var(--fg-muted); }
+.composer-context-project svg { width: 12px; height: 12px; }
+.composer-context-project { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.composer-context-hint { color: var(--fg-subtle); font-size: 10.5px; }
+.composer-actions { display: flex; flex: none; align-items: center; gap: 6px; }
+.composer-stop { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 9px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--fg-muted); cursor: pointer; font-size: 12px; }
+.composer-stop:hover:not(:disabled) { border-color: var(--line-strong); color: var(--fg); }
+.composer .send-button { height: 28px; padding: 0 12px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 500; }
+.composer .send-button:disabled { opacity: .45; cursor: default; }
+@media (max-width: 900px) {
+  .composer-context-hint { display: none; }
+}
+
+.task-status-line + .conversation-messages { padding-top: 14px; }
+.composer-queued { flex: none; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--primary) 14%, transparent); color: var(--primary); font-size: 11px; font-weight: 500; }
+
+/* 用户的话做成右对齐气泡，回应保持整宽正文，一眼分得清谁在说话。 */
+.chat-row:has(> .message.user.bubble) { display: flex; justify-content: flex-end; }
+.message.user.bubble { width: fit-content; max-width: 78%; padding: 8px 12px; border-radius: 12px 12px 4px 12px; background: color-mix(in srgb, var(--primary) 10%, var(--surface-3)); border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--line)); }
+.message.user.bubble .message-role { color: var(--fg-subtle); font-size: 10.5px; }
+.message.user.bubble .markdown { font-size: 13.5px; }
+.message.user.bubble .message-copy { right: auto; left: -34px; }
+.assistant-block { min-height: 0; }
+.message.assistant { padding-left: 12px; border-left: 2px solid var(--line); }
+.message.assistant.failed { border-left-color: #e7b4b4; }

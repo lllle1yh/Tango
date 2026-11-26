@@ -2541,6 +2541,15 @@ function App() {
                     </button>
                   </div>
                 )}
+                <div className={"task-status-line" + (isActiveTaskRunning ? " live" : "")} role="status">
+                  <AgentGlyph agentId={headerAgent ?? settings?.defaultAgent ?? "codex"} />
+                  <span className="task-status-name">{agents.find((agent) => agent.id === headerAgent)?.name ?? "Agent"}</span>
+                  <span className="task-status-dot" aria-hidden="true" />
+                  <span className="task-status-state">
+                    {turnLine && turnLine.taskId === activeTask ? turnLine.text : isActiveTaskRunning ? "Working" : "Ready"}
+                  </span>
+                  {(activeTaskRecord?.projectPath ?? project) && <span className="task-status-path" title={activeTaskRecord?.projectPath ?? project ?? ""}>{projectLabel(activeTaskRecord?.projectPath ?? project ?? "")}</span>}
+                </div>
                 <div
                   className="conversation-messages"
                   ref={messagesRef}
@@ -2597,7 +2606,7 @@ function App() {
                               const handoff = row.message.role === "user" && row.message.text.startsWith("Handoff from ");
                               const handoffOpen = Boolean(expandedHandoff[row.id]);
                               return (
-                              <article className={"message " + row.message.role + (handoff ? " handoff" : "") + (row.message.role === "assistant" && row.message.text.startsWith("The turn could not run:") ? " failed" : "")}>
+                              <article className={"message " + row.message.role + (handoff ? " handoff" : "") + (row.message.role === "assistant" && row.message.text.startsWith("The turn could not run:") ? " failed" : "") + (!handoff && row.message.role === "user" ? " bubble" : "")}>
                                 <span className="message-role">
                                   {handoff
                                     ? "Handoff"
@@ -2767,14 +2776,7 @@ function App() {
                     >Edit next</button>
                   </div>
                 )}
-                {turnLine && turnLine.taskId === activeTask && (
-                  <div className={`composer-turn${isActiveTaskRunning ? " live" : ""}`} role="status" aria-live="polite">
-                    {isActiveTaskRunning && <Loader2 size={11} className="spin" />}
-                    <AgentGlyph agentId={turnLine.agent as AgentStatus["id"]} />
-                    <span>{agents.find((agent) => agent.id === turnLine.agent)?.name ?? turnLine.agent} {turnLine.text}</span>
-                  </div>
-                )}
-                <form className="composer" onSubmit={(event) => { event.preventDefault(); void submitPrompt(); }}>
+                <form className={"composer" + (prompt.trim() ? " has-draft" : "")} onSubmit={(event) => { event.preventDefault(); void submitPrompt(); }}>
                   {slashOpen && (
                     <div className="slash-menu" role="listbox" aria-label="Commands">
                       {slashItems.map((command, index) => (
@@ -2801,6 +2803,7 @@ function App() {
                   >
                     <Plus size={16} />
                   </button>
+                  <div className="composer-field">
                   <textarea ref={composerRef} value={prompt} onChange={(event) => { setPrompt(event.target.value); setSlashIndex(0); }} onPaste={(event) => {
                     // 大段粘贴不塞进输入框：存成附件文件，消息里只留一行路径。
                     const pasted = event.clipboardData?.getData("text/plain") ?? "";
@@ -2834,17 +2837,42 @@ function App() {
                   }} placeholder={isActiveTaskRunning
                     ? (agents.find((agent) => agent.id === activeAgent)?.name ?? "The agent") + " is working… press Esc to stop, or wait for the reply"
                     : "Ask " + (agents.find((agent) => agent.id === activeAgent)?.name ?? "an agent") + " to work in this project…  (/ for commands)"} />
-                  {isActiveTaskRunning && (
-                    <button
-                      type="button"
-                      className="subtle-button"
-                      onClick={() => void stopTurn(activeTask)}
-                      disabled={stopping}
-                    >
-                      {stopping ? "Stopping…" : "Stop"}
-                    </button>
-                  )}
-                  <button type="submit" className="send-button" disabled={!prompt.trim()}>{isActiveTaskRunning ? "Queue" : "Send"}</button>
+                  </div>
+                  <div className="composer-bar">
+                    {queuedCounts[activeTask ?? ""] > 0 && (
+                      <span className="composer-queued" role="status">
+                        {queuedCounts[activeTask ?? ""]} queued
+                      </span>
+                    )}
+                    <span className="composer-context" title={(activeAgent ? (agents.find((agent) => agent.id === activeAgent)?.name ?? activeAgent) : "The agent") + " · " + (activeTaskRecord?.projectPath ?? project ?? "")}>
+                      <AgentGlyph agentId={activeAgent ?? settings?.defaultAgent ?? "codex"} />
+                      <span className="composer-context-name">{agents.find((agent) => agent.id === activeAgent)?.name ?? "Agent"}</span>
+                      {(activeTaskRecord?.projectPath ?? project) && (
+                        <span className="composer-context-project">
+                          <FolderIcon />
+                          {projectLabel(activeTaskRecord?.projectPath ?? project ?? "")}
+                        </span>
+                      )}
+                      <span className="composer-context-hint">Enter send · Shift Enter new line</span>
+                    </span>
+                    <div className="composer-actions">
+                      {isActiveTaskRunning && (
+                        <button
+                          type="button"
+                          className="composer-stop"
+                          title="Stop this turn (Esc)"
+                          onClick={() => void stopTurn(activeTask)}
+                          disabled={stopping}
+                        >
+                          <Square size={12} />
+                          {stopping ? "Stopping" : "Stop"}
+                        </button>
+                      )}
+                      <button type="submit" className="send-button" disabled={!prompt.trim()} title={isActiveTaskRunning ? "Send after this turn" : "Send (Enter)"}>
+                        {isActiveTaskRunning ? "Queue" : "Send"}
+                      </button>
+                    </div>
+                  </div>
                 </form>
               </div>
             )}
