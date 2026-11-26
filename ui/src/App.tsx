@@ -775,8 +775,19 @@ function App() {
       // Alt+Up / Alt+Down walk the task list; they are the only arrows this handler wants.
       const walkTasks = event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey
         && (event.key === "ArrowUp" || event.key === "ArrowDown");
-      if (inField(event.target) && event.key !== "Escape" && !findInConversation && !walkTasks
-        && !((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k")) return;
+      // 带 Ctrl 的组合键在输入框里敲不出字符，光标停在输入框时也要能用：
+      // 页面切换、分屏、侧栏、归档、命令面板都在这一档，否则边写边切页面就没有入口。
+      const withCtrl = event.ctrlKey || event.metaKey;
+      const ctrlGlobal = withCtrl && (
+        event.key === "1" || event.key === "2" || event.key === "3"
+        || event.key.toLowerCase() === "b"
+        || event.key.toLowerCase() === "k"
+        || event.key === ","
+        || event.key === "/"
+        || (event.shiftKey && event.key.toLowerCase() === "e")
+        || (event.shiftKey && event.key.toLowerCase() === "j")
+      );
+      if (inField(event.target) && event.key !== "Escape" && !findInConversation && !walkTasks && !ctrlGlobal) return;
       // Esc interrupts the turn this task is running, unless a dialog or menu is open to close first.
       if (event.key === "Escape" && running && !stopping && activeTask && runningTurnsRef.current[activeTask]
         && !settingsOpen && !shortcutsOpen && !handoffOpen && !paletteOpen && !taskMenu && !openMenu) {
@@ -1881,8 +1892,13 @@ function App() {
   const lastAgent = [...activeTaskRecord?.messages ?? []].reverse()
     .find((message) => message.role === "assistant")?.agent;
   const historicalAgent = agentIds.find((id) => id === lastAgent);
+  // 打开一个从没跑过的任务（新建、复制）时，历史里没有 Agent，但界面上必须有一个可用的：
+  // 侧栏选中的、任务指定的、历史最后的，最后才落到默认 Agent。否则对话区整块不渲染，
+  // 只剩侧栏，看起来像“点了没反应”。
   const headerAgent: AgentStatus["id"] | undefined = activeAgent ?? historicalAgent
-    ?? (activeTaskRecord?.threadId ? "codex" : undefined);
+    ?? (activeTaskRecord?.threadId ? "codex" : undefined)
+    ?? settings?.defaultAgent
+    ?? agentIds[0];
 
   type ToolItem = { id: string; name: string; status: string; detail?: string; exitCode?: number };
   type ChatRow =
@@ -2979,7 +2995,7 @@ function App() {
                 </ComposerSurface.Shell>
               </div>
             )}
-            {view === "chat" && !activeTask && (
+            {view === "chat" && !(activeTask && headerAgent) && (
               <div className="agent-placeholder">
                 <div className="agent-placeholder-icon">
                   <AgentGlyph agentId={activeAgent ?? settings?.defaultAgent ?? "codex"} />
