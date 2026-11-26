@@ -9,11 +9,13 @@ import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from 
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Check, Copy, GripVertical, PanelLeft, Pin, RotateCcw, Search, Square, TerminalSquare, FileText, Globe, Wrench, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Check, Copy, GripVertical, PanelLeft, Pin, Search, Square, TerminalSquare, FileText, Globe, Wrench, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import "./layout.css";
 import "./agent-icons.css";
 import { formatElapsed } from "./time";
 import { summarizeToolGroup } from "./toolSummary";
+import { AssistantTimelineRow } from "./components/chat/TimelineAssistantRow";
+import { TimelineUserRow } from "./components/chat/TimelineUserRow";
 import { WorkLogBlock, WorkLogButton, WorkLogDetails, WorkLogList, WorkLogRow } from "./WorkLog";
 
 // Windows paths use backslashes, other platforms slashes; the label is only the last part.
@@ -677,7 +679,6 @@ function App() {
   const [taskQuery, setTaskQuery] = useState("");
   const taskSearchRef = useRef<HTMLInputElement>(null);
   const [piCommands, setPiCommands] = useState<Array<{ name: string; description?: string }>>([]);
-  const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
   const [toolsExpanded, setToolsExpanded] = useState(false);
   // Finished turns keep their tool list folded into the reply; this remembers which ones were opened.
   const [expandedTools, setExpandedTools] = useState<Record<string, boolean>>({});
@@ -690,8 +691,6 @@ function App() {
   // Streamed text per task, so a turn keeps writing while another task is open.
   const streamByTaskRef = useRef<Record<string, string>>({});
   const activeTaskRef = useRef<string | null>(null);
-  // A handoff prompt is long machine-written context; it starts folded to one line.
-  const [expandedHandoff, setExpandedHandoff] = useState<Record<string, boolean>>({});
   const [copiedConversation, setCopiedConversation] = useState(false);
   const [handoffOpen, setHandoffOpen] = useState(false);
   // 打开任务就进「这个任务的页面」；侧栏只属于任务列表页，终端单独成页（对齐 T3 的 thread 视图）。
@@ -2680,75 +2679,38 @@ function App() {
                           >
                             {row.kind === "message" && (() => {
                               const handoff = row.message.role === "user" && row.message.text.startsWith("Handoff from ");
-                              const handoffOpen = Boolean(expandedHandoff[row.id]);
+                              if (handoff) {
+                                return (
+                                  <TimelineUserRow
+                                    text={row.message.text}
+                                    createdAt={row.message.createdAt}
+                                    handoff
+                                    highlight={chatSearchOpen ? chatNeedle : undefined}
+                                  />
+                                );
+                              }
+                              if (row.message.role === "user") {
+                                return (
+                                  <TimelineUserRow
+                                    text={row.message.text}
+                                    createdAt={row.message.createdAt}
+                                    highlight={chatSearchOpen ? chatNeedle : undefined}
+                                    onResend={!isActiveTaskRunning ? () => resendFrom(row.index) : undefined}
+                                  />
+                                );
+                              }
+                              const failed = row.message.text.startsWith("The turn could not run:");
+                              const retryIndex = promptIndexBefore(row.index);
                               return (
-                              <article className={"message " + row.message.role + (handoff ? " handoff" : "") + (row.message.role === "assistant" && row.message.text.startsWith("The turn could not run:") ? " failed" : "") + (!handoff && row.message.role === "user" ? " bubble" : "")}>
-                                <span className="message-role">
-                                  {handoff
-                                    ? "Handoff"
-                                    : row.message.role === "user"
-                                      ? "You"
-                                      : agents.find((agent) => agent.id === row.message.agent)?.name ?? row.message.agent}
-                                  <time dateTime={row.message.createdAt} title={formatStamp(row.message.createdAt)}>{formatStamp(row.message.createdAt)}</time>
-                                </span>
-                                {handoff && !handoffOpen ? (
-                                  <div className="handoff-prompt-summary">
-                                    <p>{row.message.text.split("\n\n").find((part) => part.startsWith("Task:")) ?? row.message.text.split("\n\n")[0]}</p>
-                                    <button
-                                      type="button"
-                                      className="subtle-button"
-                                      onClick={() => setExpandedHandoff((current) => ({ ...current, [row.id]: true }))}
-                                    >
-                                      Show context
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <Markdown text={row.message.text} highlight={chatSearchOpen ? chatNeedle : undefined} />
-                                )}
-                                {row.message.role === "user" && !handoff && !isActiveTaskRunning && (
-                                  <button
-                                    className="message-action"
-                                    title="Put this prompt back in the composer"
-                                    onClick={() => resendFrom(row.index)}
-                                  >
-                                    <RotateCcw size={12} />
-                                    Resend
-                                  </button>
-                                )}
-                                {!handoff && row.message.role === "assistant" && row.message.text.startsWith("The turn could not run:")
-                                  && !isActiveTaskRunning && promptIndexBefore(row.index) !== null && (
-                                  <button
-                                    className="message-action retry"
-                                    title="Send the prompt that failed again"
-                                    onClick={() => resendFrom(promptIndexBefore(row.index) as number)}
-                                  >
-                                    <RotateCcw size={12} />
-                                    Retry
-                                  </button>
-                                )}
-                                {handoff && handoffOpen && (
-                                  <button
-                                    type="button"
-                                    className="subtle-button handoff-collapse"
-                                    onClick={() => setExpandedHandoff((current) => ({ ...current, [row.id]: false }))}
-                                  >
-                                    Hide context
-                                  </button>
-                                )}
-                                <button
-                                  className="message-copy"
-                                  aria-label="Copy message"
-                                  title="Copy message"
-                                  onClick={() => {
-                                    void navigator.clipboard.writeText(row.message.text).then(() => {
-                                      setCopiedIndex(row.id);
-                                      window.setTimeout(() => setCopiedIndex((current) => (current === row.id ? null : current)), 1200);
-                                    });
-                                  }}
-                                >
-                                  {copiedIndex === row.id ? <Check size={13} /> : <Copy size={13} />}
-                                </button>
-                              </article>
+                                <AssistantTimelineRow
+                                  text={row.message.text}
+                                  createdAt={row.message.createdAt}
+                                  agentName={agents.find((agent) => agent.id === row.message.agent)?.name ?? row.message.agent ?? "Agent"}
+                                  failed={failed}
+                                  stopped={failed && stoppedByUserRef.current}
+                                  highlight={chatSearchOpen ? chatNeedle : undefined}
+                                  onRetry={failed && !isActiveTaskRunning && retryIndex !== null ? () => resendFrom(retryIndex) : undefined}
+                                />
                               );
                             })()}
                             {row.kind === "divider" && (

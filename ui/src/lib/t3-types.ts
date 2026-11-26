@@ -6,3 +6,6 @@ export type ScopedThreadRef = { readonly threadId: ThreadId; readonly environmen
 export type ProjectId = string;
 export type MessageId = string;
 export type DraftId = string;
+
+// 时间戳显示格式（Settings -> Appearance）
+export type TimestampFormat = "locale" | "12-hour" | "24-hour";
