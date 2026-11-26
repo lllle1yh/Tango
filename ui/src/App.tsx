@@ -26,6 +26,7 @@ import { TimelineSystemDivider } from "./components/chat/TimelineSystemDivider";
 import { ThreadErrorBanner } from "./components/chat/ThreadErrorBanner";
 import { ThreadDetailsPanel, ThreadDetailsRow, ThreadDetailsSection } from "./components/chat/ThreadDetailsPanel";
 import { AgentStatusBanner } from "./components/chat/AgentStatusBanner";
+import { ThreadAnnouncer, type ThreadAnnouncementState } from "./components/chat/ThreadAnnouncer";
 import {
   WorkspaceBreadcrumb,
   WorkspaceBreadcrumbItem,
@@ -2816,6 +2817,22 @@ function App() {
                     />
                   );
                 })()}
+                <ThreadAnnouncer
+                  state={
+                    (permission && permission.taskId === activeTask
+                      ? "needs-approval"
+                      : isActiveTaskRunning
+                        ? "working"
+                        : stoppedByUserRef.current
+                          ? "stopped"
+                          : activeMessages.at(-1)?.role === "assistant" && activeMessages.at(-1)!.text.startsWith("The turn could not run:")
+                            ? "failed"
+                            : activeMessages.length > 0
+                              ? "done"
+                              : "idle") satisfies ThreadAnnouncementState
+                  }
+                  agentName={agents.find((agent) => agent.id === headerAgent)?.name ?? headerAgent}
+                />
                 <TimelineMinimap
                   items={minimapItems}
                   currentIndex={minimapCurrent}
