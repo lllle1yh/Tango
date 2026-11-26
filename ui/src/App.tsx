@@ -9,7 +9,7 @@ import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from 
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Check, Copy, GripVertical, PanelLeft, Pin, Search, Square, TerminalSquare, FileText, Globe, Wrench, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Check, Copy, GripVertical, PanelLeft, Pin, Search, Square, TerminalSquare, FileText, Globe, Wrench, CheckCircle2, AlertCircle } from "lucide-react";
 import "./layout.css";
 import "./agent-icons.css";
 import { formatElapsed } from "./time";
@@ -31,6 +31,7 @@ import {
 } from "./components/WorkspaceBreadcrumb";
 import { Badge } from "./components/ui/badge";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "./components/ui/empty";
+import { Spinner } from "./components/ui/spinner";
 import { WorkLogBlock, WorkLogButton, WorkLogDetails, WorkLogList, WorkLogRow } from "./WorkLog";
 
 // Windows paths use backslashes, other platforms slashes; the label is only the last part.
@@ -495,12 +496,12 @@ function SortableTaskRow({
           <span
             className="task-title"
             title={`${task.title} · ${task.messages.length} ${task.messages.length === 1 ? "message" : "messages"}${lastLabel ? " · last " + lastLabel : ""}`}
-          >{runningHere && <Loader2 size={11} className="spin task-running-mark" />}{!runningHere && lastFailed && <AlertCircle size={11} className="task-failed" aria-label="Last turn could not run" />}{task.pinned && <Pin size={11} className="task-pin" />}<span className="task-title-text">{highlightMatch(task.title, query)}</span>{lastLabel && <span className="task-title-time">{lastLabel}</span>}</span>
+          >{runningHere && <Spinner size="xs" className="task-running-mark" />}{!runningHere && lastFailed && <AlertCircle size={11} className="task-failed" aria-label="Last turn could not run" />}{task.pinned && <Pin size={11} className="task-pin" />}<span className="task-title-text">{highlightMatch(task.title, query)}</span>{lastLabel && <span className="task-title-time">{lastLabel}</span>}</span>
           <span className="task-meta">
             <AgentGlyph agentId={agentId} />
             <span className="task-meta-agent">{agentName}</span>
             {!lastLabel && <span className="task-meta-time">No messages yet</span>}
-            {runningHere && <span className="task-meta-live"><Loader2 size={10} className="spin" />Working</span>}
+            {runningHere && <span className="task-meta-live"><Spinner size="xs" />Working</span>}
             {/* 状态标签用 T3 的 Badge，跟 T3 侧栏的 Draft/Unread 同一套排版。 */}
             {draft && <Badge variant="secondary" size="sm" className="task-meta-draft" title="Unsent draft">Draft</Badge>}
             {unread && (
@@ -596,7 +597,7 @@ function ToolActivity({ tools, expanded, onToggle }: {
       <WorkLogBlock>
         <WorkLogList>
           <WorkLogButton
-            icon={running ? <Loader2 size={13} className="spin" /> : <Wrench size={13} />}
+            icon={running ? <Spinner size="sm" /> : <Wrench size={13} />}
             label={
               <span className="tool-summary-text">
                 <span className="tool-summary-label">{group.summary}</span>
@@ -644,7 +645,7 @@ function ToolActivity({ tools, expanded, onToggle }: {
                       <span className={"tool-exit " + (tool.exitCode === 0 ? "ok" : "bad")} title={`Exit code ${tool.exitCode}`}>exit {tool.exitCode}</span>
                     )}
                     <span className="tool-status">
-                      {tool.status === "running" ? <Loader2 size={12} className="spin" />
+                      {tool.status === "running" ? <Spinner size="xs" />
                         : tool.status === "error" ? <AlertCircle size={12} />
                         : <CheckCircle2 size={12} />}
                     </span>
@@ -2315,7 +2316,7 @@ function App() {
                 className={"running-row " + (task.id === activeTask ? "selected" : "")}
                 onClick={() => openTask(task.id)}
               >
-                <Loader2 size={12} className="spin" />
+                <Spinner size="xs" />
                 <span className="running-row-title">{task.title}</span>
                 {permission?.taskId === task.id && (
                   <span className="running-row-needs" title="The agent is waiting for your approval">Needs approval</span>
@@ -2554,7 +2555,7 @@ function App() {
                     {projectTasks.map((task) => (
                       <button key={task.id} className="home-task" onClick={() => openTask(task.id)}>
                         <span className="home-task-title">
-                          {runningTurnsRef.current[task.id] && <Loader2 size={12} className="spin" />}
+                          {runningTurnsRef.current[task.id] && <Spinner size="xs" />}
                           {task.title}
                         </span>
                         <span className="home-task-meta">
@@ -2953,7 +2954,7 @@ function App() {
                     停止入口不必只在输入框里。 */}
                 {isActiveTaskRunning && !permission && (
                   <ThreadStatusLine
-                    icon={<Loader2 size={14} className="spin" />}
+                    icon={<Spinner size="xs" />}
                     label={`${agents.find((agent) => agent.id === activeAgent)?.name ?? activeAgent ?? "Agent"} is working`}
                     actionLabel={stopping ? "Stopping…" : "Stop"}
                     actionDisabled={stopping}
