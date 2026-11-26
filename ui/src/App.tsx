@@ -36,6 +36,8 @@ import { ComposerPromptLengthValidation, promptLengthMessage } from "./component
 import { DraftProjectName } from "./components/chat/DraftProjectName";
 import { DiffStatLabel } from "./components/chat/DiffStatLabel";
 import { DiffPanel } from "./components/chat/DiffPanel";
+import { ProviderPackageIcon } from "./components/chat/ProviderPackageIcon";
+import { DeferredComposerCommandMenuLayer } from "./components/chat/ComposerCommandMenuLayer";
 import { ComposerBanner } from "./components/chat/ComposerBanner";
 import { ComposerBannerStack, type ComposerBannerStackItem } from "./components/chat/ComposerBannerStack";
 import { ThreadAnnouncer, type ThreadAnnouncementState } from "./components/chat/ThreadAnnouncer";
@@ -153,14 +155,13 @@ function ThreadNowButton({ children, onClick }: { children: ReactNode; onClick: 
   );
 }
 
-function AgentGlyph({ agentId }: { agentId: AgentStatus["id"] }) {
-  const icon = {
-    codex: "codex.svg",
-    claude: "claude-code.svg",
-    dsh: "deepseek.svg",
-    pi: "pi.svg",
-  }[agentId];
-  return <span className={"agent-mark " + agentId + "-mark"} aria-hidden="true"><img src={"./icons/" + icon} alt="" /></span>;
+// 图标文件表与图标位都走 T3 的 ProviderPackageIcon，未知 Agent 回退首字母方块。
+function AgentGlyph({ agentId, agentName }: { agentId: AgentStatus["id"]; agentName?: string }) {
+  return (
+    <span className={"agent-mark " + agentId + "-mark"} aria-hidden="true">
+      <ProviderPackageIcon agentId={agentId} agentName={agentName} width={22} height={22} />
+    </span>
+  );
 }
 
 function paneIds(node: LayoutNode): string[] {
@@ -3203,8 +3204,11 @@ function App() {
                   <ComposerSurface.Host>
                 {/* T3 的输入长度提示：超长时在输入框上方说明，而不是等发送后报错。 */}
                 <ComposerPromptLengthValidation message={promptLengthWarning} />
-                <form className={"composer" + (prompt.trim() ? " has-draft" : "")} onSubmit={(event) => { event.preventDefault(); void submitPrompt(); }}>
-                  {slashOpen && (
+                <form data-chat-composer-form="true" className={"composer" + (prompt.trim() ? " has-draft" : "")} onSubmit={(event) => { event.preventDefault(); void submitPrompt(); }}>
+                  <DeferredComposerCommandMenuLayer
+                    open={slashOpen}
+                    anchor={composerRef.current}
+                  >
                     <div className="slash-menu" role="listbox" aria-label="Commands">
                       {slashItems.map((command, index) => (
                         <button
@@ -3222,7 +3226,7 @@ function App() {
                         </button>
                       ))}
                     </div>
-                  )}
+                  </DeferredComposerCommandMenuLayer>
                   {/* T3 的 ComposerControl：输入框左侧的小圆角控制键。 */}
                   <ComposerControl
                     size="xs"
