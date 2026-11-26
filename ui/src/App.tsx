@@ -2228,7 +2228,7 @@ function App() {
               {recentProjects.slice(0, 5).map((projectPath) => (
                 <li key={projectPath}>
                   <button className="recent-project" title={projectPath} onClick={() => void switchProject(projectPath)}>
-                    <FolderIcon />
+                    <ProjectFavicon projectName={projectLabel(projectPath)} className="size-4" />
                     <span>{projectLabel(projectPath)}</span>
                     {(() => {
                       const count = tasks.filter((task) => samePath(task.projectPath, projectPath) && !task.archived).length;
