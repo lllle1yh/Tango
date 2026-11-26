@@ -309,10 +309,23 @@ button { color: inherit; font: inherit; }
 /* Duplicate sits beside the actions button and only appears on hover, like it. */
 .task-quick { display: grid; width: 22px; height: 22px; flex: none; place-items: center; border: 0; border-radius: 5px; background: transparent; color: var(--fg-muted); cursor: pointer; opacity: 0; }
 .task-row:hover .task-quick, .task-row:focus-within .task-quick { opacity: 1; }
-/* T3 的悬停控件浮在行上，不给它们留位置：任务行是两行文字，常驻的图标会把标题挤掉一半。 */
-.task-row .task-quick, .task-row .task-more { position: absolute; z-index: 1; top: 50%; transform: translateY(-50%); }
-.task-row .task-quick { right: 44px; }
-.task-row .task-more { right: 3px; }
+/* T3 的悬停控件浮在行上，不给它们留位置：任务行是两行文字，常驻的图标会把标题挤掉一半。
+   三个按钮排在一个槽里横排，不再各自定位到同一个坐标。 */
+.task-actions {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  right: 3px;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px;
+  border-radius: 7px;
+  /* 行上的文字从图标下面穿过，垫一层和侧栏同色的底，避免读不清。 */
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  transform: translateY(-50%);
+}
+.task-row .task-quick, .task-row .task-more { position: static; top: auto; right: auto; transform: none; }
 .task-row .task-quick:hover, .task-row .task-more:hover { background: var(--surface-2); }
 .task-quick:hover { background: var(--surface-2); color: var(--fg); }
 .task-more svg { display: block; }

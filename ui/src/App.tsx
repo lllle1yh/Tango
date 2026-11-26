@@ -494,8 +494,10 @@ function SortableTaskRow({
           </span>
         </button>
       )}
+      {/* 悬停控件装在同一个槽里：三个按钮原来各自绝对定位到同一坐标，叠在一起，
+          指针只能碰到最上面那个（Duplicate），Pin 和 Archive 实际点不到。 */}
       {renamingId !== task.id && (
-        <>
+        <div className="task-actions">
           <button
             className="task-quick"
             aria-label={task.pinned ? "Unpin task" : "Pin task"}
@@ -512,34 +514,30 @@ function SortableTaskRow({
           >
             <Archive size={12} />
           </button>
-        </>
-      )}
-      {renamingId !== task.id && (
-        <button
-          className="task-quick"
-          aria-label="Duplicate task"
-          title="Duplicate task"
-          onClick={(event) => {
-            event.stopPropagation();
-            onDuplicate(task.id);
-          }}
-        >
-          <Copy size={12} />
-        </button>
-      )}
-      {renamingId !== task.id && (
-        <button
-          className="task-more"
-          aria-label="Task actions"
-          title="Task actions"
-          onClick={(event) => {
-            event.stopPropagation();
-            const rect = event.currentTarget.getBoundingClientRect();
-            onMenu(task.id, rect.right - 150, rect.bottom + 4);
-          }}
-        >
-          <MoreHorizontal size={14} />
-        </button>
+          <button
+            className="task-quick"
+            aria-label="Duplicate task"
+            title="Duplicate task"
+            onClick={(event) => {
+              event.stopPropagation();
+              onDuplicate(task.id);
+            }}
+          >
+            <Copy size={12} />
+          </button>
+          <button
+            className="task-more"
+            aria-label="Task actions"
+            title="Task actions"
+            onClick={(event) => {
+              event.stopPropagation();
+              const rect = event.currentTarget.getBoundingClientRect();
+              onMenu(task.id, rect.right - 150, rect.bottom + 4);
+            }}
+          >
+            <MoreHorizontal size={14} />
+          </button>
+        </div>
       )}
     </div>
   );
@@ -830,6 +828,8 @@ function App() {
         return;
       }
       if (event.key === ",") { event.preventDefault(); setSettingsOpen(true); }
+      // Ctrl+/ 是菜单和命令面板里写明的快捷键，但这里一直没接。
+      if (event.key === "/") { event.preventDefault(); setShortcutsOpen(true); return; }
       if (event.key.toLowerCase() === "n" && event.shiftKey) { event.preventDefault(); renameActiveTask(); return; }
       if (event.key.toLowerCase() === "n") { event.preventDefault(); void createTask(); }
       if (event.key.toLowerCase() === "k") { event.preventDefault(); setPaletteOpen(true); }
