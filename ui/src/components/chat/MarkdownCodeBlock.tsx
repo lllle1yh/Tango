@@ -3,7 +3,6 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { extractCodeBlock, extractFenceLanguage, extractFenceTitle } from "../../lib/markdownCodeBlock";
 import { cn } from "../../lib/utils";
-import { Kbd } from "../ui/kbd";
 
 // 搬自 T3 的 MarkdownCodeBlock：代码块顶栏写语言（围栏里给了文件名就写文件名），
 // 右侧是换行开关和复制；下面是高亮后的代码。高亮本身仍由 Markdown.tsx 的
@@ -94,12 +93,4 @@ export function MarkdownCodeBlock({ children }: { children?: ReactNode }) {
       <div ref={preRef}>{children}</div>
     </MarkdownCodeBlockFrame>
   );
-}
-
-/** 围栏后写了 `title=` 或文件名时，顶栏把它当作标题显示。 */
-export function codeBlockTitle(meta: string | null, language: string): ReactNode {
-  const title = extractFenceTitle(meta ?? undefined);
-  if (title) return title;
-  if (!language || language === "text") return "Text";
-  return <Kbd variant="outline">{language}</Kbd>;
 }
