@@ -26,6 +26,7 @@ import {
   WorkspaceBreadcrumbSeparator,
   WorkspaceBreadcrumbText,
 } from "./components/WorkspaceBreadcrumb";
+import { Badge } from "./components/ui/badge";
 import { WorkLogBlock, WorkLogButton, WorkLogDetails, WorkLogList, WorkLogRow } from "./WorkLog";
 
 // Windows paths use backslashes, other platforms slashes; the label is only the last part.
@@ -496,8 +497,14 @@ function SortableTaskRow({
             <span className="task-meta-agent">{agentName}</span>
             {!lastLabel && <span className="task-meta-time">No messages yet</span>}
             {runningHere && <span className="task-meta-live"><Loader2 size={10} className="spin" />Working</span>}
-            {draft && <span className="task-meta-draft" title="Unsent draft">Draft</span>}
-            {unread && <span className="task-meta-unread" title="Finished while you were elsewhere"><span className="task-unread" />Unread</span>}
+            {/* 状态标签用 T3 的 Badge，跟 T3 侧栏的 Draft/Unread 同一套排版。 */}
+            {draft && <Badge variant="secondary" size="sm" className="task-meta-draft" title="Unsent draft">Draft</Badge>}
+            {unread && (
+              <Badge variant="outline" size="sm" className="task-meta-unread" title="Finished while you were elsewhere">
+                <span className="task-unread" />
+                Unread
+              </Badge>
+            )}
           </span>
         </button>
       )}
