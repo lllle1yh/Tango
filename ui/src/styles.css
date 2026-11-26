@@ -50,11 +50,8 @@ body { min-width: 760px; min-height: 100vh; margin: 0; }
 button { color: inherit; font: inherit; }
 .app-shell { display: grid; height: 100vh; grid-template-columns: 268px 1fr; background: var(--bg); }
 .sidebar { position: relative; z-index: 2; display: flex; min-height: 100vh; flex-direction: column; padding: 14px 10px; border-right: 1px solid var(--line); background: var(--surface); }
-.brand-lockup { display: flex; align-items: center; gap: 9px; padding: 2px 6px 16px; }
 .brand-mark { display: block; width: 22px; height: 22px; flex: none; }
 .brand-mark svg { display: block; width: 22px; height: 22px; }
-.settings-button { display: grid; width: 30px; height: 30px; margin-left: auto; place-items: center; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--fg-subtle); cursor: pointer; font-size: 15px; }
-.settings-button:hover { background: var(--surface-2); color: var(--fg); }
 .brand-name { color: var(--fg); font-family: inherit; font-size: 14px; font-weight: 600; letter-spacing: -.01em; }
 .sidebar-label { padding: 0 8px 6px; color: var(--fg-subtle); font-size: 10.5px; font-weight: 500; letter-spacing: .06em; }
 .project-button { display: flex; height: 34px; align-items: center; gap: 8px; padding: 0 9px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-3); cursor: pointer; color: var(--fg); font-size: 13px; font-weight: 500; text-align: left; }
@@ -75,7 +72,6 @@ button { color: inherit; font: inherit; }
 .project-folder { overflow: hidden; color: var(--fg); font-size: 12.5px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .sidebar-hint { padding: 0 8px; color: var(--fg-subtle); font-size: 12px; line-height: 1.55; }
 .sidebar-agents { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
-.create-task { width: 100%; margin-top: 8px; justify-content: center; color: var(--fg-muted); font-weight: 500; }
 /* The task list heading keeps the count and the create action on one compact line. */
 .tasks-label { display: flex; align-items: center; gap: 6px; margin: 14px 0 6px; padding: 0 8px 0; }
 .tasks-label span:first-child { flex: 1; }
@@ -109,10 +105,6 @@ button { color: inherit; font: inherit; }
 .topbar-action { display: grid; width: 28px; height: 28px; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--fg-muted); cursor: pointer; }
 .topbar-action:hover { background: var(--surface-2); color: var(--fg); }
 .topbar-action.active { background: var(--surface-3); color: var(--fg); box-shadow: inset 0 0 0 1px var(--line); }
-.breadcrumb { display: flex; align-items: center; gap: 8px; color: var(--fg-subtle); font-size: 13px; }
-.breadcrumb b { color: var(--fg-subtle); font-weight: 400; }
-.breadcrumb strong { color: var(--fg); font-weight: 600; }
-.header-right { display: flex; align-items: center; gap: 19px; }
 .icon-button { width: 28px; height: 28px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--fg-muted); cursor: pointer; font-size: 15px; }
 .icon-button:hover { background: var(--surface-2); color: var(--fg); }
 .icon-button:disabled { cursor: wait; opacity: .45; }
@@ -122,19 +114,9 @@ button { color: inherit; font: inherit; }
 .primary-button { display: inline-flex; height: 34px; align-items: center; gap: 8px; padding: 0 13px; border: 0; border-radius: var(--radius-sm); background: var(--primary); color: var(--primary-fg); cursor: pointer; font-size: 13px; font-weight: 500; }
 .primary-button:hover { background: #3f4bc4; }
 .primary-button span { margin-left: 8px; color: var(--primary-fg); }
-.project-chip { display: inline-flex; max-width: 100%; height: 40px; align-items: center; gap: 8px; margin-top: 11px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); font-size: 10px; }
-.project-chip span { max-width: 390px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.project-chip button { padding-left: 10px; border: 0; border-left: 1px solid var(--line); background: transparent; color: var(--indigo); cursor: pointer; font-size: 10px; }
 .workbench { display: flex; height: calc(100vh - 60px); min-height: 400px; flex-direction: column; }
-.panel-tabs { display: flex; height: 46px; flex: none; align-items: stretch; gap: 2px; padding: 0 12px; border-bottom: 1px solid var(--line); background: var(--surface); }
-.panel-tab { display: flex; min-width: 132px; align-items: center; gap: 8px; padding: 0 12px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--fg-muted); cursor: pointer; font-size: 13px; }
 .panel-tab.active { border-bottom-color: var(--primary); color: var(--fg); font-weight: 500; }
-.tab-terminal-icon { color: var(--fg-muted); font-family: Consolas, monospace; font-size: 15px; }
-.tab-close { margin-left: auto; color: #a39a91; font-size: 16px; }
-.new-terminal { width: 34px; border: 0; background: transparent; color: #8f857a; cursor: pointer; font-size: 18px; }
-.active-agent-tab { display: flex; align-items: center; gap: 7px; margin-left: 8px; padding: 0 6px; color: var(--fg); font-size: 13px; }
 .active-agent-tab .agent-mark { width: 18px; height: 18px; font-size: 12px; background: transparent; }
-.connection-label { margin-left: 8px; color: var(--fg-subtle); font-size: 11px; }
 .terminal-panel { display: flex; min-width: 0; min-height: 0; flex: 1; flex-direction: column; overflow: hidden; background: #17171c; }
 /* 作者样式里的 display:flex 会覆盖浏览器默认的 [hidden] { display:none }，
    结果是切到 Agent 时终端仍然占一半高度。必须显式声明。 */
@@ -146,8 +128,6 @@ button { color: inherit; font: inherit; }
 .sidebar-empty .sidebar-hint { padding: 0; font-size: 11px; }
 .sidebar-empty-button { height: 26px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-3); color: var(--fg); cursor: pointer; font: inherit; font-size: 12px; }
 .sidebar-empty-button:hover { border-color: var(--line-strong); background: var(--surface-2); }
-.terminal-instance { width: 100%; height: 100%; }
-.terminal-instance[hidden] { display: none; }
 .terminal-surface { display: flex; width: 100%; height: 100%; flex-direction: column; overflow: hidden; }
 .terminal-toolbar { display: flex; height: 44px; flex: none; align-items: center; gap: 13px; padding: 0 20px; border-bottom: 1px solid #302e35; background: #201f25; color: #aaa3a0; }
 .shell-indicator { display: flex; align-items: center; gap: 8px; color: #e6e0d6; font-size: 12px; }
@@ -197,31 +177,14 @@ button { color: inherit; font: inherit; }
 .agent-placeholder-icon .agent-mark { background: transparent; }
 .subtle-button { height: 30px; padding: 0 11px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-3); color: var(--fg); cursor: pointer; font-size: 12px; }
 .subtle-button:hover { background: var(--surface-2); }
-.agent-card { display: flex; min-height: 75px; align-items: center; gap: 11px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg)99; }
 .agent-card.is-available { border-color: var(--line-strong); background: var(--surface-3); }
 .agent-mark { display: grid; width: 31px; height: 31px; flex: none; place-items: center; border-radius: 8px; background: #ede8df; color: var(--fg-muted); font-size: 18px; }
 .agent-card.is-available .agent-mark { background: var(--surface-3); }
-.codex-mark { color: #2f7760; }
-.agent-info { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 4px; }
-.agent-info strong { font-size: 13px; font-weight: 600; }
-.agent-info span { overflow: hidden; color: var(--fg-subtle); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.agent-state { display: flex; align-items: center; gap: 5px; color: var(--fg-subtle); font-size: 8px; }
-.agent-state i { width: 5px; height: 5px; border-radius: 50%; background: #c5beb4; }
-.agent-state.ready { color: #16a34a; }
-.agent-state.ready i { background: #22c55e; }
-.agent-footnote { margin: 12px 0 0; color: #aaa098; font-size: 9px; }
-.loading-agents { grid-column: 1 / -1; color: var(--fg-muted); font-size: 13px; }
-.ambient { position: absolute; border-radius: 50%; filter: blur(1px); pointer-events: none; }
-.ambient-one { top: 50px; right: -250px; width: 510px; height: 510px; background: radial-gradient(circle, #e8573212, transparent 68%); }
-.ambient-two { top: 200px; right: -160px; width: 510px; height: 510px; background: radial-gradient(circle, #4b3cd010, transparent 68%); }
 @media (max-width: 1050px) {
   .app-shell { grid-template-columns: 244px 1fr; }
-  .panel-tab { min-width: 126px; }
   /* The copy button hangs 34px outside the message; at this width it needs a gutter of its own,
      or the transcript grows a horizontal scrollbar. */
   .conversation-messages { padding: 26px 56px 0 24px; }
-  .agent-state { font-size: 0; }
-  .agent-state i { width: 6px; height: 6px; }
 }
 @media (max-height: 760px) {
   .workbench { min-height: 340px; }
@@ -359,7 +322,6 @@ button { color: inherit; font: inherit; }
 .brand-mark { color: var(--fg); }
 .brand-mark svg, .settings-button svg, .icon-button svg, .pane-actions svg, .tab-terminal-icon svg { display: block; }
 .plus svg { display: block; }
-.create-task { gap: 6px; }
 
 /* Shortcuts dialog */
 .shortcuts-panel { width: min(460px, calc(100vw - 60px)); }
@@ -417,7 +379,6 @@ button { color: inherit; font: inherit; }
    搜索、置顶都在这里；关掉侧栏会把这一整组功能变成不可用。 */
 .app-body.chat-view { grid-template-columns: 268px minmax(0, 1fr); }
 .app-body.terminal-view { grid-template-columns: 268px minmax(0, 1fr); }
-.crumb-tab { padding: 0; border: 0; background: transparent; color: var(--fg-subtle); cursor: pointer; font: inherit; font-size: 12px; }
 .crumb-tab:hover, .crumb-tab.active { color: var(--fg); }
 .app-body .workbench { height: 100%; }
 .app-body .empty-workspace { min-height: 100%; }
@@ -500,15 +461,10 @@ button { color: inherit; font: inherit; }
 
 /* Tool activity */
 .tool-activity { display: flex; flex-direction: column; gap: 2px; margin: 4px 0 0; }
-.tool-summary { display: inline-flex; width: fit-content; align-items: center; gap: 6px; padding: 3px 8px 3px 3px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--fg-subtle); cursor: pointer; font: inherit; font-size: 12px; }
-.tool-summary:hover { background: var(--surface-2); color: var(--fg-muted); }
-.tool-summary svg { display: block; flex: none; }
 .tool-summary-label { font-variant-numeric: tabular-nums; }
 .tool-summary-names { overflow: hidden; min-width: 0; color: var(--fg-muted); font-family: ui-monospace, Consolas, monospace; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .tool-activity[data-expanded="true"] .tool-summary { margin-bottom: 2px; }
 .tool-activity[data-expanded="true"] .tool-row { padding-left: 6px; }
-.tool-row { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--fg-muted); font-size: 12px; }
-.tool-row .tool-dot { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--fg-subtle); }
 .tool-row.running .tool-dot { background: var(--primary); animation: tool-pulse 1.1s ease-in-out infinite; }
 .tool-row.done .tool-dot { background: #16a34a; }
 .tool-row.error .tool-dot { background: #dc2626; }
@@ -543,10 +499,7 @@ button { color: inherit; font: inherit; }
 
 /* Composer command button */
 /* One quiet line: who is working on this task, and what it just did. */
-.composer-turn { display: flex; align-items: center; gap: 6px; margin: 0 auto -4px; width: min(var(--chat-content-max-width), calc(100% - 48px)); padding: 0 2px 6px; color: var(--fg-subtle); font-size: 11.5px; line-height: 1.4; }
 .composer-turn.live { color: var(--fg-muted); }
-.composer-turn > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.composer-turn svg { flex: none; }
 /* 队列里还有几条等着发，写清数量和去处。 */
 .composer-queue { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 auto -4px; width: min(var(--chat-content-max-width), calc(100% - 48px)); padding: 0 2px 6px; color: var(--fg-muted); font-size: 11.5px; }
 
@@ -604,9 +557,7 @@ button { color: inherit; font: inherit; }
 
 /* Per-message copy action */
 .message { position: relative; }
-.message-copy { position: absolute; top: -2px; right: -34px; display: grid; width: 26px; height: 26px; place-items: center; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-3); color: var(--fg-muted); cursor: pointer; opacity: 0; transition: opacity .12s ease; }
 .message:hover .message-copy, .message-copy:focus-visible { opacity: 1; }
-.message-copy:hover { color: var(--fg); border-color: var(--line-strong); }
 .message.user .message-copy { right: auto; left: -34px; }
 /* A turn that never ran reads as a note, not as the agent's answer. */
 .message.failed { padding-left: 10px; border-left: 2px solid #e7b4b4; }
@@ -614,10 +565,7 @@ button { color: inherit; font: inherit; }
 :root[data-theme="dark"] .message.failed { border-left-color: #7f3b38; }
 :root[data-theme="dark"] .message.failed .message-role { color: #f0a3a0; }
 /* Sending the same prompt again is one click away, without a second bubble. */
-.message-action { display: inline-flex; align-items: center; gap: 5px; height: 24px; margin-top: 8px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-3); color: var(--fg-muted); cursor: pointer; font: inherit; font-size: 11.5px; opacity: 0; transition: opacity .12s ease; }
 .message:hover .message-action, .message-action:focus-visible { opacity: 1; }
-.message-action:hover { border-color: var(--line-strong); color: var(--fg); }
-.message-action.retry { opacity: 1; margin-top: 6px; color: var(--fg); }
 
 /* Collapsible sidebar */
 .titlebar-icon { display: grid; width: 26px; height: 26px; margin-right: 2px; place-items: center; border: 0; border-radius: 5px; background: transparent; color: var(--fg-muted); cursor: pointer; -webkit-app-region: no-drag; }
@@ -636,7 +584,6 @@ button { color: inherit; font: inherit; }
 .code-copy { position: absolute; top: 16px; right: 8px; height: 22px; padding: 0 8px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface-3); color: var(--fg-muted); cursor: pointer; font-size: 11px; opacity: 0; transition: opacity .12s ease; }
 .code-block:hover .code-copy, .code-copy:focus-visible { opacity: 1; }
 .code-copy:hover { color: var(--fg); border-color: var(--line-strong); }
-
 
 /* Interrupted turn notice */
 .run-stale { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 10px auto 0; padding: 9px 12px; width: min(820px, calc(100% - 48px)); border: 1px solid #f0c674; border-radius: var(--radius-sm); background: #fff8e6; color: #6b4e16; font-size: 12.5px; }
@@ -695,10 +642,7 @@ button { color: inherit; font: inherit; }
 .tool-status { flex: none; }
 
 /* Handoffs are long machine-written prompts; the summary keeps one line in the transcript. */
-.handoff-prompt-summary { display: flex; align-items: flex-start; gap: 10px; margin-top: 5px; }
-.handoff-prompt-summary p { min-width: 0; flex: 1; margin: 0; color: var(--fg-muted); }
 .handoff-prompt-summary .subtle-button, .handoff-collapse { flex: none; height: 24px; padding: 0 8px; font-size: 11.5px; }
-.handoff-collapse { margin-top: 8px; }
 .message.handoff .message-role { color: var(--accent); }
 
 /* The no-project screen offers the folders you already used, not only the picker. */
@@ -723,14 +667,9 @@ button { color: inherit; font: inherit; }
 .thread-now-button { padding: 0; border: 0; background: transparent; color: var(--primary); cursor: pointer; font: inherit; font-size: 11.5px; font-weight: 500; }
 .thread-now-button:hover { text-decoration: underline; }
 .thread-now-stop-mark { width: 7px; height: 7px; border-radius: 2px; background: var(--fg-subtle); }
-.task-status-line { display: flex; align-items: center; gap: 7px; flex: none; margin: 0 auto; width: min(var(--chat-content-max-width), calc(100% - 48px)); padding: 12px 2px 2px; color: var(--fg-muted); font-size: 11.5px; }
 .task-status-line svg, .task-status-line .agent-mark { flex: none; }
-.task-status-name { color: var(--fg); font-weight: 600; font-size: 12px; }
-.task-status-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--line-strong); flex: none; }
 .task-status-line.live .task-status-dot { background: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent); }
-.task-status-state { color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task-status-line.live .task-status-state { color: var(--fg); }
-.task-status-path { margin-left: auto; flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg-subtle); font-size: 11px; }
 
 /* 输入框：一整块可点的框，工具条贴在框内底边，发送按钮永远在右下角。 */
 .composer { align-items: stretch; flex-direction: column; gap: 0; padding: 4px 6px 6px; }
@@ -754,7 +693,6 @@ button { color: inherit; font: inherit; }
 }
 
 .task-status-line + .conversation-messages { padding-top: 14px; }
-.composer-queued { flex: none; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--primary) 14%, transparent); color: var(--primary); font-size: 11px; font-weight: 500; }
 
 /* 用户的话做成右对齐气泡，回应保持整宽正文，一眼分得清谁在说话。 */
 .chat-row:has(> .message.user.bubble) { display: flex; justify-content: flex-end; }
@@ -762,15 +700,10 @@ button { color: inherit; font: inherit; }
 .message.user.bubble .message-role { color: var(--fg-subtle); font-size: 10.5px; }
 .message.user.bubble .markdown { font-size: 13.5px; }
 .message.user.bubble .message-copy { right: auto; left: -34px; }
-.assistant-block { min-height: 0; }
 .message.assistant { padding-left: 12px; border-left: 2px solid var(--line); }
 .message.assistant.failed { border-left-color: #e7b4b4; }
 
 /* 工具行：一行日志，点开才铺开输出（对齐 T3 的 WorkLogLine）。 */
-.tool-row { width: 100%; align-items: center; gap: 6px; padding: 3px 4px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--fg-muted); cursor: pointer; font: inherit; font-size: 11.5px; text-align: left; flex-wrap: wrap; }
-.tool-row:hover:not(:disabled) { background: var(--surface-2); color: var(--fg); }
-.tool-row:disabled { cursor: default; }
-.tool-caret { flex: none; color: var(--fg-subtle); }
 .tool-detail { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tool-output { width: 100%; max-height: 240px; margin: 4px 0 2px; padding: 6px 8px; overflow: auto; border-radius: var(--radius-sm); background: var(--surface-2); color: var(--fg); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
 
