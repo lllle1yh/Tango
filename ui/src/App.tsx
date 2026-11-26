@@ -30,6 +30,7 @@ import {
   WorkspaceBreadcrumbText,
 } from "./components/WorkspaceBreadcrumb";
 import { Badge } from "./components/ui/badge";
+import { ProjectFavicon } from "./components/ProjectFavicon";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "./components/ui/empty";
 import { Spinner } from "./components/ui/spinner";
 import { ComposerControl, ComposerControlIcon } from "./components/chat/ComposerControl";
@@ -2212,7 +2213,8 @@ function App() {
 
         {project ? (
           <div className="project-current" title={project}>
-            <span className="project-dot" />
+            {/* T3 的项目图标：按项目名生成稳定色块的字母标记。 */}
+            <ProjectFavicon projectName={projectName ?? ""} className="size-4" />
             {/* The folder name is what the user reads; the full path stays in the tooltip and row title. */}
             <span className="project-folder">{projectName}</span>
           </div>
@@ -2631,6 +2633,7 @@ function App() {
                             title={`Back to ${projectName ?? "the project"}`}
                             onClick={() => setView("home")}
                           >
+                            <ProjectFavicon projectName={projectName ?? ""} className="size-3.5" />
                             <WorkspaceBreadcrumbText>{projectName}</WorkspaceBreadcrumbText>
                           </button>
                         </WorkspaceBreadcrumbItem>
