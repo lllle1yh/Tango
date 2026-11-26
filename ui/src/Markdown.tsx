@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useRef, useState, type ComponentPropsWithoutRef, type ReactNode } from "react";
+import { Fragment, useMemo, type ComponentPropsWithoutRef, type ReactNode } from "react";
 import { jsx, jsxs } from "react/jsx-runtime";
 import { unified } from "unified";
 import remarkParse from "remark-parse";
@@ -7,6 +7,7 @@ import remarkRehype from "remark-rehype";
 import rehypeSanitize from "rehype-sanitize";
 import rehypeHighlight from "rehype-highlight";
 import { toJsxRuntime } from "hast-util-to-jsx-runtime";
+import { MarkdownCodeBlock } from "./components/chat/MarkdownCodeBlock";
 
 // Same pipeline shape T3 Code uses for chat messages: remark → rehype → React.
 // Sanitising in the middle means we can render agent output without trusting it.
@@ -18,32 +19,9 @@ const processor = unified()
   // Highlight after sanitising: the sanitizer only ever sees plain code text.
   .use(rehypeHighlight, { detect: false });
 
-function CodeBlock({ children, ...props }: ComponentPropsWithoutRef<"pre"> & { children?: ReactNode }) {
-  const ref = useRef<HTMLPreElement>(null);
-  const [copied, setCopied] = useState(false);
-  return (
-    <div className="code-block">
-      <button
-        type="button"
-        className="code-copy"
-        aria-label="Copy code"
-        title="Copy code"
-        onClick={() => {
-          const text = ref.current?.innerText ?? "";
-          void navigator.clipboard.writeText(text).then(() => {
-            setCopied(true);
-            window.setTimeout(() => setCopied(false), 1200);
-          });
-        }}
-      >
-        {copied ? "Copied" : "Copy"}
-      </button>
-      <pre ref={ref} {...props}>{children}</pre>
-    </div>
-  );
-}
-
-const components = { pre: CodeBlock };
+const components = { pre: ({ children }: ComponentPropsWithoutRef<"pre"> & { children?: ReactNode }) => (
+  <MarkdownCodeBlock>{children}</MarkdownCodeBlock>
+) };
 
 type HastNode = { type: string; value?: string; tagName?: string; properties?: Record<string, unknown>; children?: HastNode[] };
 

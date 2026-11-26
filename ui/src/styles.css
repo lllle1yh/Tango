@@ -602,11 +602,9 @@ button { color: inherit; font: inherit; }
 .message { content-visibility: auto; contain-intrinsic-size: auto 140px; }
 
 /* Code blocks: copy action */
-.code-block { position: relative; }
-.code-block pre { margin: 10px 0; }
-.code-copy { position: absolute; top: 16px; right: 8px; height: 22px; padding: 0 8px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface-3); color: var(--fg-muted); cursor: pointer; font-size: 11px; opacity: 0; transition: opacity .12s ease; }
-.code-block:hover .code-copy, .code-copy:focus-visible { opacity: 1; }
-.code-copy:hover { color: var(--fg); border-color: var(--line-strong); }
+/* T3 的代码块外壳：顶栏写语言 / 文件名，右侧换行与复制。 */
+.chat-markdown-codeblock pre { margin: 0; padding: 8px 12px 10px; background: transparent; }
+.chat-markdown-codeblock[data-wrap="false"] { overflow-x: auto; }
 
 /* Interrupted turn notice */
 .run-stale { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 10px auto 0; padding: 9px 12px; width: min(820px, calc(100% - 48px)); border: 1px solid #f0c674; border-radius: var(--radius-sm); background: #fff8e6; color: #6b4e16; font-size: 12.5px; }
