@@ -12,6 +12,8 @@
 - `ComposerCommandMenuLayer.tsx`（111 行，适配 `observeResize` 路径）
 - `ReadOnlyComposerBar.tsx`（37 行）
 - `ChatBannerLane.tsx`（64 行，Tango 适配版：只留错误条）
+- `MarkdownDetails.tsx`（108 行，适配为原生 details）
+- `MarkdownExternalLink.tsx`（118 行，去掉品牌图标只留 favicon）
 - `ProviderPackageIcon.tsx`（Tango 适配版：Agent 图标位）
 - `ComposerBannerStack.tsx`（228 行）
 - `ComposerControl.tsx`（82 行）

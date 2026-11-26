@@ -9,6 +9,8 @@ import rehypeHighlight from "rehype-highlight";
 import { toJsxRuntime } from "hast-util-to-jsx-runtime";
 import { MarkdownCodeBlock } from "./components/chat/MarkdownCodeBlock";
 import { MarkdownTable } from "./components/chat/MarkdownTable";
+import { MarkdownDetails } from "./components/chat/MarkdownDetails";
+import { MarkdownExternalLinkContent } from "./components/chat/MarkdownExternalLink";
 
 // Same pipeline shape T3 Code uses for chat messages: remark → rehype → React.
 // Sanitising in the middle means we can render agent output without trusting it.
@@ -20,11 +22,43 @@ const processor = unified()
   // Highlight after sanitising: the sanitizer only ever sees plain code text.
   .use(rehypeHighlight, { detect: false });
 
+function markdownAnchorProps(props: ComponentPropsWithoutRef<"a">) {
+  const href = typeof props.href === "string" ? props.href : "";
+  return { external: /^https?:\/\//i.test(href), host: href ? safeHost(href) : null };
+}
+
+function safeHost(href: string) {
+  try {
+    return new URL(href).host;
+  } catch {
+    return null;
+  }
+}
+
 const components = {
   pre: ({ children }: ComponentPropsWithoutRef<"pre"> & { children?: ReactNode }) => (
     <MarkdownCodeBlock>{children}</MarkdownCodeBlock>
   ),
   table: MarkdownTable,
+  details: (props: ComponentPropsWithoutRef<"details">) => (
+    <MarkdownDetails open={props.open} dir={props.dir}>
+      {props.children}
+    </MarkdownDetails>
+  ),
+  a: (props: ComponentPropsWithoutRef<"a">) => {
+    const { external, host } = markdownAnchorProps(props);
+    if (!external || !host) {
+      return <a {...props} target="_blank" rel="noreferrer noopener" />;
+    }
+    const plainText = typeof props.children === "string" ? props.children : null;
+    return (
+      <a {...props} target="_blank" rel="noreferrer noopener">
+        <MarkdownExternalLinkContent host={host} plainText={plainText}>
+          {props.children}
+        </MarkdownExternalLinkContent>
+      </a>
+    );
+  },
 };
 
 type HastNode = { type: string; value?: string; tagName?: string; properties?: Record<string, unknown>; children?: HastNode[] };
