@@ -141,6 +141,11 @@ button { color: inherit; font: inherit; }
 .terminal-error span { color: #a79d98; }
 .agent-placeholder { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; }
 .conversation { position: relative; display: flex; min-height: 0; flex: 1; flex-direction: column; background: var(--bg); }
+/* T3 的右侧详情栏：贴住对话列右缘，消息区让出这一栏的宽度。 */
+.conversation-details { box-shadow: -8px 0 24px -18px #0000002e; }
+.conversation:has(.conversation-details) .conversation-messages,
+.conversation:has(.conversation-details) [data-slot="composer-shell"] { margin-right: 300px; }
+
 /* T3 的 TimelineMinimap：时间线左缘的缩略刻度。平时很淡，悬停才显形，
    每根条对应一条用户消息，点击跳转。 */
 .chat-minimap { position: absolute; z-index: 12; top: 54px; bottom: 168px; left: 6px; display: flex; width: 18px; flex-direction: column; align-items: center; opacity: .35; transition: opacity .15s ease; }

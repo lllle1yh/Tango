@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } fr
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import type { AgentStatus, AppSettings, LayoutNode, TaskRecord } from "../../electron/preload";
-import { Archive, ArrowRightLeft, ChevronDown, ChevronRight, Columns2, MoreHorizontal, Pause, Pencil, Plus, RefreshCw, RotateCcw, Rows2, Terminal as TerminalIcon, Trash2, X } from "lucide-react";
+import { Archive, ArrowRightLeft, ChevronDown, ChevronRight, Columns2, MoreHorizontal, Pause, Pencil, Plus, RefreshCw, RotateCcw, Rows2, SlidersHorizontal, Terminal as TerminalIcon, Trash2, X, FolderCode, UserRound, MessagesSquare, Clock, Hash, CircleX } from "lucide-react";
 import { Markdown } from "./Markdown";
 import { CommandPalette, type PaletteItem } from "./CommandPalette";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
@@ -24,6 +24,7 @@ import { ThreadFindBar } from "./components/chat/ThreadFindBar";
 import { TimelineMinimap, type TimelineMinimapItem } from "./components/chat/TimelineMinimap";
 import { TimelineSystemDivider } from "./components/chat/TimelineSystemDivider";
 import { ThreadErrorBanner } from "./components/chat/ThreadErrorBanner";
+import { ThreadDetailsPanel, ThreadDetailsRow, ThreadDetailsSection } from "./components/chat/ThreadDetailsPanel";
 import {
   WorkspaceBreadcrumb,
   WorkspaceBreadcrumbItem,
@@ -759,6 +760,7 @@ function App() {
   const [chatIndex, setChatIndex] = useState(0);
   // 错误条按消息时间戳记一次关闭：同一条失败回合关掉后不再反复弹出。
   const [dismissedErrorKey, setDismissedErrorKey] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   // 每次按查找快捷键都换一个请求号，已经打开的查找条也会重新聚焦。
   const [chatFindTick, setChatFindTick] = useState(0);
   // A turn that finishes in a task you are not looking at leaves a dot there.
@@ -2698,6 +2700,15 @@ function App() {
                     {copiedConversation ? <Check size={14} /> : <Copy size={14} />}
                   </button>
                   <button
+                    className="icon-button"
+                    aria-label={detailsOpen ? "Close task details" : "Task details"}
+                    title={detailsOpen ? "Close task details" : "Task details"}
+                    aria-pressed={detailsOpen}
+                    onClick={() => setDetailsOpen((open) => !open)}
+                  >
+                    <SlidersHorizontal size={14} />
+                  </button>
+                  <button
                     className="subtle-button handoff-button"
                     onClick={() => setHandoffOpen((open) => !open)}
                     disabled={isActiveTaskRunning}
@@ -3138,6 +3149,24 @@ function App() {
                 </form>
                   </ComposerSurface.Host>
                 </ComposerSurface.Shell>
+                <ThreadDetailsPanel open={detailsOpen} onClose={() => setDetailsOpen(false)}>
+                  <ThreadDetailsSection title="Workspace">
+                    <ThreadDetailsRow icon={<FolderCode size={16} />} label="Project" value={projectName} title={project ?? undefined} onClick={() => void openProject()} />
+                    <ThreadDetailsRow icon={<UserRound size={16} />} label="Agent" value={agents.find((agent) => agent.id === headerAgent)?.name ?? headerAgent} title="Choose another agent in the sidebar" />
+                    <ThreadDetailsRow icon={<MessagesSquare size={16} />} label="Messages" value={`${activeTaskRecord?.messages.length ?? 0}`} />
+                    <ThreadDetailsRow icon={<Clock size={16} />} label="Started" value={activeTaskRecord?.messages[0] ? new Date(activeTaskRecord.messages[0].createdAt).toLocaleString() : "—"} />
+                  </ThreadDetailsSection>
+                  <ThreadDetailsSection title="Session">
+                    <ThreadDetailsRow icon={<Hash size={16} />} label="Native session" value={activeTaskRecord?.threadId ?? activeTaskRecord?.claudeSessionId ?? activeTaskRecord?.dshSessionId ?? activeTaskRecord?.piSessionFile ?? "none yet"} />
+                    <ThreadDetailsRow icon={<Wrench size={16} />} label="Tools in this task" value={`${activeTaskRecord?.messages.reduce((sum, message) => sum + (message.tools?.length ?? 0), 0) ?? 0}`} />
+                    <ThreadDetailsRow icon={<CircleX size={16} />} label="Failed turns" value={`${activeTaskRecord?.messages.filter((message) => message.role === "assistant" && message.text.startsWith("The turn could not run:")).length ?? 0}`} />
+                  </ThreadDetailsSection>
+                  <ThreadDetailsSection title="Actions">
+                    <ThreadDetailsRow icon={<Pencil size={16} />} label="Rename task" onClick={() => activeTaskRecord && startRename(activeTaskRecord)} />
+                    <ThreadDetailsRow icon={<Copy size={16} />} label="Duplicate task" onClick={() => activeTask && void duplicateTask(activeTask)} />
+                    <ThreadDetailsRow icon={<Archive size={16} />} label={activeTaskRecord?.archived ? "Restore from Archived" : "Archive task"} onClick={() => activeTask && void archiveTaskAction(activeTask, !activeTaskRecord?.archived)} />
+                  </ThreadDetailsSection>
+                </ThreadDetailsPanel>
               </div>
             )}
             {view === "chat" && !(activeTask && headerAgent) && (
