@@ -13,6 +13,8 @@ import { Check, Copy, GripVertical, PanelLeft, Pin, RotateCcw, Search, Square, T
 import "./layout.css";
 import "./agent-icons.css";
 import { formatElapsed } from "./time";
+import { summarizeToolGroup } from "./toolSummary";
+import { WorkLogBlock, WorkLogButton, WorkLogDetails, WorkLogList, WorkLogRow } from "./WorkLog";
 
 // Windows paths use backslashes, other platforms slashes; the label is only the last part.
 function projectLabel(projectPath: string) {
@@ -509,62 +511,88 @@ function toolNamesSummary(tools: Array<{ name: string }>) {
   const names = [...new Set(tools.map((tool) => tool.name).filter(Boolean))];
   if (names.length === 0) return "";
   const shown = names.slice(0, 2).join(", ");
-  return names.length > 2 ? `Ran ${shown} +${names.length - 2}` : `Ran ${shown}`;
+  return names.length > 2 ? `${shown} +${names.length - 2}` : shown;
 }
 
-// One line for the tools of a turn, folded or open; live and finished turns look the same.
+// T3 的 WorkLog 结构：摘要行 + 每行一颗工具，行本身可展开出输出；悬停才显示时间戳。
 function ToolActivity({ tools, expanded, onToggle }: {
   tools: Array<{ id: string; name: string; status: string; detail?: string; exitCode?: number }>;
   expanded: boolean;
   onToggle(): void;
 }) {
   const [openTools, setOpenTools] = useState<Record<string, boolean>>({});
+  const group = summarizeToolGroup(tools.map((tool) => ({ name: tool.name, detail: tool.detail, status: tool.status, exitCode: tool.exitCode })));
+  const running = tools.some((tool) => tool.status === "running");
   return (
     <div className="tool-activity" aria-label="Tool activity" data-expanded={expanded}>
-      <button
-        type="button"
-        className="tool-summary"
-        aria-expanded={expanded}
-        onClick={onToggle}
-      >
-        {tools.some((tool) => tool.status === "running") ? <Loader2 size={12} className="spin" /> : <Wrench size={12} />}
-        <span className="tool-summary-label">{toolSummary(tools)}</span>
-        {!expanded && toolNamesSummary(tools) && <span className="tool-summary-names">{toolNamesSummary(tools)}</span>}
-        {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-      </button>
-      {expanded && tools.map((tool) => {
-        const name = tool.name.toLowerCase();
-        const ToolIcon = /(bash|shell|command|exec|terminal)/.test(name) ? TerminalSquare
-          : /(file|patch|write|edit|read)/.test(name) ? FileText
-          : /(search|grep|web|fetch)/.test(name) ? Globe
-          : Wrench;
-        return (
-          // 工具行本身是按钮（T3 的 WorkLogRow）：收起时一行看完，点开才铺开内容。
-          <button
-            key={tool.id}
-            type="button"
-            className={"tool-row " + tool.status + (openTools[tool.id] ? " open" : "")}
-            aria-expanded={Boolean(openTools[tool.id])}
-            title={tool.detail || tool.name}
-            onClick={() => setOpenTools((current) => ({ ...current, [tool.id]: !current[tool.id] }))}
-            disabled={!tool.detail}
-          >
-            {openTools[tool.id] ? <ChevronDown size={11} className="tool-caret" /> : <ChevronRight size={11} className="tool-caret" />}
-            <ToolIcon size={12} className="tool-icon" />
-            <span className="tool-name">{tool.name}</span>
-            <span className="tool-detail">{tool.detail}</span>
-            {typeof tool.exitCode === "number" && (
-              <span className={"tool-exit " + (tool.exitCode === 0 ? "ok" : "bad")} title={`Exit code ${tool.exitCode}`}>exit {tool.exitCode}</span>
-            )}
-            <span className="tool-status">
-              {tool.status === "running" ? <Loader2 size={11} className="spin" />
-                : tool.status === "error" ? <AlertCircle size={11} />
-                : <CheckCircle2 size={11} />}
-            </span>
-            {openTools[tool.id] && tool.detail && <pre className="tool-output">{tool.detail}</pre>}
-          </button>
-        );
-      })}
+      <WorkLogBlock>
+        <WorkLogList>
+          <WorkLogButton
+            icon={running ? <Loader2 size={13} className="spin" /> : <Wrench size={13} />}
+            label={
+              <span className="tool-summary-text">
+                <span className="tool-summary-label">{group.summary}</span>
+                {!expanded && toolNamesSummary(tools) && <span className="tool-summary-names">{toolNamesSummary(tools)}</span>}
+                {group.hasFailure && <span className="tool-summary-failed" title="Some tools failed">failed</span>}
+              </span>
+            }
+            trailing={expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+            aria-expanded={expanded}
+            onClick={onToggle}
+          />
+          {expanded && tools.map((tool) => {
+            const name = tool.name.toLowerCase();
+            const ToolIcon = /(bash|shell|command|exec|terminal)/.test(name) ? TerminalSquare
+              : /(file|patch|write|edit|read)/.test(name) ? FileText
+              : /(search|grep|web|fetch)/.test(name) ? Globe
+              : Wrench;
+            const open = Boolean(openTools[tool.id]);
+            return (
+              <WorkLogRow
+                key={tool.id}
+                toggle={{
+                  role: "button",
+                  tabIndex: tool.detail ? 0 : -1,
+                  "aria-expanded": open,
+                  onClick: () => tool.detail && setOpenTools((current) => ({ ...current, [tool.id]: !current[tool.id] })),
+                  onKeyDown: (event) => {
+                    if (!tool.detail) return;
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setOpenTools((current) => ({ ...current, [tool.id]: !current[tool.id] }));
+                    }
+                  },
+                }}
+                icon={<ToolIcon size={13} className={tool.status === "error" ? "tool-failed-icon" : undefined} />}
+                label={
+                  <span className="tool-line">
+                    <span className="tool-name">{tool.name}</span>
+                    {tool.detail && <span className="tool-detail">{tool.detail}</span>}
+                  </span>
+                }
+                trailing={
+                  <span className="tool-line-meta">
+                    {typeof tool.exitCode === "number" && (
+                      <span className={"tool-exit " + (tool.exitCode === 0 ? "ok" : "bad")} title={`Exit code ${tool.exitCode}`}>exit {tool.exitCode}</span>
+                    )}
+                    <span className="tool-status">
+                      {tool.status === "running" ? <Loader2 size={12} className="spin" />
+                        : tool.status === "error" ? <AlertCircle size={12} />
+                        : <CheckCircle2 size={12} />}
+                    </span>
+                  </span>
+                }
+              >
+                {open && tool.detail && (
+                  <WorkLogDetails followLive={tool.status === "running"}>
+                    <pre className="tool-output">{tool.detail}</pre>
+                  </WorkLogDetails>
+                )}
+              </WorkLogRow>
+            );
+          })}
+        </WorkLogList>
+      </WorkLogBlock>
     </div>
   );
 }
