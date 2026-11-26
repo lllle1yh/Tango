@@ -579,6 +579,11 @@ function App() {
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [activeTask, setActiveTask] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
+  // 运行中再按发送就排队：这一回合结束后按顺序接着发（T3 的 Queue）。
+  const tasksRef = useRef<TaskRecord[]>([]);
+  tasksRef.current = tasks;
+  const queuedRef = useRef<Record<string, Array<{ agent: AgentStatus["id"]; text: string }>>>({});
+  const [queuedCounts, setQueuedCounts] = useState<Record<string, number>>({});
   const [assistantText, setAssistantText] = useState("");
   // The streamed text as of this instant, so finishing a turn reads it without relying on a
   // state updater that may run more than once.
@@ -1240,6 +1245,24 @@ function App() {
     return tools.map((tool) => ({ ...tool, status: tool.status === "running" ? "done" : tool.status }));
   }
 
+  function queuePrompt(agent: AgentStatus["id"], task: TaskRecord, text: string) {
+    const list = queuedRef.current[task.id] ?? [];
+    queuedRef.current = { ...queuedRef.current, [task.id]: [...list, { agent, text }] };
+    setQueuedCounts((current) => ({ ...current, [task.id]: (current[task.id] ?? 0) + 1 }));
+  }
+
+  // 一个回合结束（回复、失败或被停止）后，把队首交给同一个 Agent 继续。
+  function flushQueue(taskId: string) {
+    const list = queuedRef.current[taskId] ?? [];
+    const next = list[0];
+    if (!next) return;
+    const rest = list.slice(1);
+    queuedRef.current = { ...queuedRef.current, [taskId]: rest };
+    setQueuedCounts((current) => ({ ...current, [taskId]: rest.length }));
+    const task = tasksRef.current.find((item) => item.id === taskId);
+    if (task) void startTurn(next.agent, task, next.text);
+  }
+
   // Only the turn that this window started can end it; a completion for a turn that was
   // already finished elsewhere must not clear a different task's running state.
   function endTurn(taskId: string) {
@@ -1253,6 +1276,8 @@ function App() {
     setRunning(false);
     setRunningAgent(null);
     setStopping(false);
+    // 队列里的下一条在同一 tick 之后接着发，避免在渲染中被同步调用。
+    window.setTimeout(() => flushQueue(taskId), 0);
   }
 
   // Streamed answer text is appended to the turn's assistant message as it arrives.
@@ -1585,6 +1610,13 @@ function App() {
     const text = prompt.trim();
     const task = tasks.find((item) => item.id === activeTask);
     if (!text || !task || !activeAgent) return;
+    // 正在跑的这一回合不接受新消息，先排到它后面。
+    if (runningTurnsRef.current[task.id]) {
+      queuePrompt(activeAgent, task, text);
+      setPrompt("");
+      promptHistoryRef.current = null;
+      return;
+    }
     await startTurn(activeAgent, task, text);
   }
 
@@ -2696,6 +2728,26 @@ function App() {
                   </div>
                 )}
                 {/* Whose turn the turn list belongs to, in one line above the box. */}
+                {(queuedCounts[activeTask ?? ""] ?? 0) > 0 && (
+                  <div className="composer-queue" role="status">
+                    <span>
+                      {queuedCounts[activeTask ?? ""]} queued · sends after this turn
+                    </span>
+                    <button
+                      type="button"
+                      className="subtle-button"
+                      onClick={() => {
+                        if (!activeTask) return;
+                        const list = queuedRef.current[activeTask] ?? [];
+                        const first = list[0];
+                        const rest = list.slice(1);
+                        queuedRef.current = { ...queuedRef.current, [activeTask]: rest };
+                        setQueuedCounts((current) => ({ ...current, [activeTask]: rest.length }));
+                        if (first) setPrompt(first.text);
+                      }}
+                    >Edit next</button>
+                  </div>
+                )}
                 {turnLine && turnLine.taskId === activeTask && (
                   <div className={`composer-turn${isActiveTaskRunning ? " live" : ""}`} role="status" aria-live="polite">
                     {isActiveTaskRunning && <Loader2 size={11} className="spin" />}
@@ -2759,9 +2811,6 @@ function App() {
                       if (event.key === "ArrowUp" && (browsing || !prompt.trim())) { event.preventDefault(); recallPrompt(1); return; }
                       if (event.key === "ArrowDown" && browsing) { event.preventDefault(); recallPrompt(-1); return; }
                     }
-                    // While the task is busy the turn belongs to someone else: Enter must neither
-                    // send nor swallow the draft, or the text looks sent and is silently lost.
-                    if (event.key === "Enter" && !event.shiftKey && isActiveTaskRunning) { event.preventDefault(); return; }
                     if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submitPrompt(); }
                   }} placeholder={isActiveTaskRunning
                     ? (agents.find((agent) => agent.id === activeAgent)?.name ?? "The agent") + " is working… press Esc to stop, or wait for the reply"
@@ -2776,7 +2825,7 @@ function App() {
                       {stopping ? "Stopping…" : "Stop"}
                     </button>
                   )}
-                  <button type="submit" className="send-button" disabled={!prompt.trim() || isActiveTaskRunning}>Send</button>
+                  <button type="submit" className="send-button" disabled={!prompt.trim()}>{isActiveTaskRunning ? "Queue" : "Send"}</button>
                 </form>
               </div>
             )}
