@@ -145,6 +145,18 @@ button { color: inherit; font: inherit; }
 .conversation-details { box-shadow: -8px 0 24px -18px #0000002e; }
 .conversation:has(.conversation-details) .conversation-messages,
 .conversation:has(.conversation-details) [data-slot="composer-shell"] { margin-right: 300px; }
+/* 输入框上方的提示堆栈（T3 的 ComposerBanner）：和输入框同一列宽，卡片底边塞进玻璃壳下面。 */
+.composer-banner-dock {
+  display: flex;
+  width: 100%;
+  max-width: var(--chat-content-max-width);
+  min-width: 0;
+  margin-inline: auto;
+  flex-direction: column;
+  /* 卡片宽度按输入框的抽屉内缩算；Shell 上定义了同一个变量，这里补一份给横幅。 */
+  --chat-composer-drawer-inset: 1.375rem;
+}
+.conversation:has(.conversation-details) .composer-banner-dock { margin-right: 300px; }
 
 /* T3 的 TimelineMinimap：时间线左缘的缩略刻度。平时很淡，悬停才显形，
    每根条对应一条用户消息，点击跳转。 */

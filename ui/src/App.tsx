@@ -32,10 +32,11 @@ import { TimelineMinimap, type TimelineMinimapItem } from "./components/chat/Tim
 import { TimelineSystemDivider } from "./components/chat/TimelineSystemDivider";
 import { ThreadErrorBanner } from "./components/chat/ThreadErrorBanner";
 import { ThreadDetailsPanel, ThreadDetailsRow, ThreadDetailsSection } from "./components/chat/ThreadDetailsPanel";
-import { AgentStatusBanner } from "./components/chat/AgentStatusBanner";
 import { ComposerPromptLengthValidation, promptLengthMessage } from "./components/chat/ComposerPromptLengthValidation";
 import { DraftProjectName } from "./components/chat/DraftProjectName";
 import { DiffStatLabel } from "./components/chat/DiffStatLabel";
+import { ComposerBanner } from "./components/chat/ComposerBanner";
+import { ComposerBannerStack, type ComposerBannerStackItem } from "./components/chat/ComposerBannerStack";
 import { ThreadAnnouncer, type ThreadAnnouncementState } from "./components/chat/ThreadAnnouncer";
 import {
   WorkspaceBreadcrumb,
@@ -62,6 +63,14 @@ function samePath(a: string | null | undefined, b: string | null | undefined) {
   if (!a || !b) return false;
   const normal = (value: string) => value.split("\\").join("/").replace(/\/+$/, "").toLowerCase();
   return normal(a) === normal(b);
+}
+
+// The follow-up line under "X is not installed": a version we could not read means the
+// CLI is there but its capabilities are unknown, which needs a different next step.
+function versionHint(version: string | null) {
+  return version
+    ? `Tango could not read the version this CLI reports (${version}), so its capabilities are unknown.`
+    : "Install the CLI, then check again. Tasks that already ran with it keep their transcript.";
 }
 
 // Tool inputs across protocols share a few field names for what they act on.
@@ -2066,6 +2075,50 @@ function App() {
     const hit = minimapItems.filter((item) => (chatVirtualizer.measurementsCache[item.rowIndex]?.start ?? 0) <= middle).at(-1);
     return hit ? minimapItems.indexOf(hit) : null;
   })();
+  // 输入框上方的提醒（T3 的 ComposerBannerStack）：回合跑到一半时要等，Agent 没装时发不出去。
+  const composerBannerItems: ComposerBannerStackItem[] = [];
+  if (isActiveTaskRunning) {
+    composerBannerItems.push({
+      id: "turn-running",
+      variant: "info",
+      icon: <Spinner size="xs" />,
+      title: stopping ? "Stopping this turn" : "Still working on the last message",
+      description: "Enter queues the next message; Stop ends this turn first.",
+    });
+  }
+  if (permission && permission.taskId === activeTask) {
+    composerBannerItems.push({
+      id: "needs-approval",
+      variant: "warning",
+      icon: <AlertCircle size={12} />,
+      title: `${agents.find((agent) => agent.id === headerAgent)?.name ?? "The agent"} is waiting for your approval`,
+      description: "Answer above the composer; nothing is sent until you do.",
+    });
+  }
+  {
+    const agent = agents.find((item) => item.id === headerAgent);
+    if (agent && !agent.available && dismissedAgentBanner !== agent.id + ":" + (agent.version ?? "")) {
+      composerBannerItems.push({
+        id: "agent-unavailable",
+        variant: "error",
+        icon: <AlertCircle size={12} />,
+        title: `${agent.name} is not installed`,
+        description: versionHint(agent.version),
+        actions: (
+          <button
+            type="button"
+            className="h-6 rounded-md px-2 text-xs font-medium text-foreground hover:bg-accent disabled:opacity-60"
+            disabled={detecting}
+            onClick={() => void refreshAgents()}
+          >
+            Check again
+          </button>
+        ),
+        dismissLabel: "Dismiss",
+        onDismiss: () => setDismissedAgentBanner(agent.id + ":" + (agent.version ?? "")),
+      });
+    }
+  }
   // 查找条的下一条 / 上一条：定位当前命中的那条消息并滚过去。
   useEffect(() => {
     if (!chatSearchOpen || !chatNeedle) return;
@@ -2856,22 +2909,6 @@ function App() {
                     />
                   );
                 })()}
-                {(() => {
-                  // 所选 Agent 不可用时提醒一次；关掉只对本次会话有效。
-                  const agent = agents.find((item) => item.id === headerAgent);
-                  if (!agent || agent.available) return null;
-                  const key = agent.id + ":" + (agent.version ?? "");
-                  if (dismissedAgentBanner === key) return null;
-                  return (
-                    <AgentStatusBanner
-                      agentName={agent.name}
-                      version={agent.version}
-                      rechecking={detecting}
-                      onRecheck={() => void refreshAgents()}
-                      onDismiss={() => setDismissedAgentBanner(key)}
-                    />
-                  );
-                })()}
                 <ThreadAnnouncer
                   state={
                     (permission && permission.taskId === activeTask
@@ -3139,7 +3176,13 @@ function App() {
                     }}
                   />
                 )}
-                <ComposerSurface.Shell className="px-3 pb-3 pt-1">
+                <div className="composer-banner-dock">
+                  <ComposerBanner.Dock>
+                    <ComposerBanner.Column>
+                      <ComposerBannerStack items={composerBannerItems} />
+                    </ComposerBanner.Column>
+                  </ComposerBanner.Dock>
+                  <ComposerSurface.Shell className="px-3 pb-3 pt-1">
                   <ComposerSurface.Host>
                 {/* T3 的输入长度提示：超长时在输入框上方说明，而不是等发送后报错。 */}
                 <ComposerPromptLengthValidation message={promptLengthWarning} />
@@ -3241,6 +3284,7 @@ function App() {
                 </form>
                   </ComposerSurface.Host>
                 </ComposerSurface.Shell>
+                </div>
                 <ThreadDetailsPanel open={detailsOpen} onClose={() => setDetailsOpen(false)}>
                   <ThreadDetailsSection title="Workspace">
                     <ThreadDetailsRow icon={<FolderCode size={16} />} label="Project" value={projectName} title={project ?? undefined} onClick={() => void openProject()} />

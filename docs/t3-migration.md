@@ -39,12 +39,13 @@ Tango 是 T3 Code 的二开。这份表记录 T3 的界面工作搬到哪一步�
 - `DiffStatLabel` — 改动行数标签（+N / -N，大数压成 1.2k）
 - `ComposerPromptLengthValidation` — 输入框超长提示
 - `DraftProjectName` — 空任务标题里的项目名排版
+- `ComposerBanner` / `ComposerBannerStack` — 输入框上方贴边的提示堆栈（回合进行中、等待审批、Agent 不可用）
 
 另按 T3 的写法新写了四个适配版（T3 同名组件依赖服务端契约，直接搬不可用）：
 
 - `ThreadDetailsPanel` — 右侧详情栏（工作区 / 会话 / 操作）
 - `ThreadErrorBanner` — 失败回合的错误条（就地重试、会话内关闭）
-- `AgentStatusBanner` — 所选 Agent 未安装 / 版本读不出时的提醒
+- ~~`AgentStatusBanner`~~ — 已并入 `ComposerBannerStack`（提示改贴输入框，不再占用时间线）
 - `ThreadAnnouncer` — 回合状态的读屏播报
 
 ## 3. 依赖 T3 服务端契约、Tango 没有等价数据的（132 个）
@@ -69,6 +70,7 @@ Git 分支已开始补：`git:status` / `git:diff-stat` 两个 IPC 已接到 `Th
 
 - `ComposerBanner` / `ComposerPromptLengthValidation` — 输入框上方的提示与长度校验
 - `DraftProjectName` — 空任务标题里的项目名排版
+- `ComposerBanner` / `ComposerBannerStack` — 输入框上方贴边的提示堆栈（回合进行中、等待审批、Agent 不可用）
 - `ProviderPackageIcon` — 包装成 Tango 的 Agent 图标位
 
 ## 5. 已知适配差异
