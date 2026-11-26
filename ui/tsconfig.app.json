@@ -16,6 +16,14 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
+    /* T3 组件按 ~/ 与内部包路径导入；这里映射到本仓库的适配层。 */
+    "paths": {
+      "gt-react": ["./src/lib/gt-shim.tsx"],
+      "gt-i18n": ["./src/lib/gt-shim.tsx"],
+      "gt-i18n/types": ["./src/lib/gt-shim.tsx"],
+      "@t3tools/shared/qrCode": ["./src/lib/qrCode.tsx"]
+    },
+
     /* Linting */
     "noUnusedLocals": true,
     "noUnusedParameters": true,

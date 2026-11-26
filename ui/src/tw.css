@@ -1,0 +1,170 @@
+/* T3 的样式栈：Tailwind v4 的 theme 与 utilities 两层（不引入 preflight，
+   避免重置 Tango 已有的手写样式）。色彩 token 全部落在 :root，
+   @theme inline 只做颜色名 -> 变量的映射，复制过来的组件因此与现有界面同色。 */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+@custom-variant dark (&:is(.dark, .dark *));
+
+:root {
+  /* 基础语义色，取自 Tango 的既有变量 */
+  --t-bg: var(--bg);
+  --t-fg: var(--fg);
+  --t-surface: var(--surface);
+  --t-surface-2: var(--surface-2);
+  --t-surface-3: var(--surface-3);
+  --t-muted-fg: var(--fg-muted);
+  --t-subtle-fg: var(--fg-subtle);
+  --t-line: var(--line);
+  --t-line-strong: var(--line-strong);
+  --t-primary: var(--primary);
+  --t-primary-fg: var(--primary-fg);
+
+  /* 状态色 */
+  --t-error: #d64545;
+  --t-error-fg: #b4433f;
+  --t-warning: #b7791f;
+  --t-warning-fg: #8a5a12;
+  --t-success: #2f855a;
+  --t-success-fg: #276749;
+  --t-info: #2b6cb0;
+  --t-info-fg: #2c5282;
+
+  /* diff 与客人标记 */
+  --t-diff-add: #e6ffec;
+  --t-diff-del: #ffebe9;
+  --t-diff-add-fg: #1a7f37;
+  --t-diff-del-fg: #cf222e;
+  --t-guest: #b83280;
+  --t-guest-fg: #97266d;
+}
+
+@theme {
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+@theme inline {
+  /* T3 密集界面的字号刻度（2xs=11px … 5xs=7px）；tailwind-merge 已在 lib/utils 注册。 */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: calc(1 / 0.6875);
+  --text-3xs: 0.625rem;
+  --text-3xs--line-height: calc(0.875 / 0.625);
+  --text-4xs: 0.5rem;
+  --text-4xs--line-height: 1;
+  --text-5xs: 0.4375rem;
+  --text-5xs--line-height: 1;
+
+  --color-background: var(--t-bg);
+  --color-foreground: var(--t-fg);
+  --color-card: var(--t-surface-3);
+  --color-card-foreground: var(--t-fg);
+  --color-popover: var(--t-surface-3);
+  --color-popover-foreground: var(--t-fg);
+  --color-primary: var(--t-primary);
+  --color-primary-foreground: var(--t-primary-fg);
+  --color-secondary: var(--t-surface-2);
+  --color-secondary-foreground: var(--t-fg);
+  --color-muted: var(--t-surface-2);
+  --color-muted-foreground: var(--t-muted-fg);
+  --color-placeholder: var(--t-subtle-fg);
+  --color-secondary-label: var(--t-muted-fg);
+  --color-icon-muted: var(--t-muted-fg);
+  --color-accent: var(--t-surface-2);
+  --color-accent-foreground: var(--t-fg);
+  --color-border: var(--t-line);
+  --color-input: var(--t-line-strong);
+  --color-ring: var(--t-primary);
+  --color-destructive: var(--t-error);
+  --color-destructive-foreground: var(--t-error-fg);
+
+  --color-error: var(--t-error);
+  --color-error-foreground: var(--t-error-fg);
+  --color-error-surface: color-mix(in srgb, var(--t-error) 10%, transparent);
+  --color-tool-error-icon: var(--t-error-fg);
+  --color-warning: var(--t-warning);
+  --color-warning-foreground: var(--t-warning-fg);
+  --color-warning-surface: color-mix(in srgb, var(--t-warning) 10%, transparent);
+  --color-success: var(--t-success);
+  --color-success-foreground: var(--t-success-fg);
+  --color-info: var(--t-info);
+  --color-info-foreground: var(--t-info-fg);
+  --color-update: var(--t-primary);
+  --color-update-foreground: var(--t-primary);
+  --color-diff-addition: var(--t-diff-add);
+  --color-diff-deletion: var(--t-diff-del);
+  --color-diff-addition-foreground: var(--t-diff-add-fg);
+  --color-diff-deletion-foreground: var(--t-diff-del-fg);
+  --color-guest: var(--t-guest);
+  --color-guest-foreground: var(--t-guest-fg);
+  --color-guest-surface: color-mix(in srgb, var(--t-guest) 12%, var(--t-surface-2));
+
+  --color-message: var(--t-surface-2);
+  --color-message-foreground: var(--t-fg);
+  --color-message-action: var(--t-primary);
+  --color-message-action-foreground: var(--t-primary-fg);
+  --color-message-action-hover: color-mix(in srgb, var(--t-primary) 90%, var(--t-bg));
+  --color-code: var(--t-surface-2);
+
+  --color-sidebar: var(--t-surface);
+  --color-sidebar-foreground: var(--t-fg);
+  --color-sidebar-muted-foreground: var(--t-muted-fg);
+  --color-sidebar-control-surface: var(--t-surface-2);
+  --color-sidebar-row-hover: var(--t-surface-2);
+  --color-sidebar-row-active: var(--t-surface-3);
+  --color-sidebar-row-selected: var(--t-surface-3);
+  --color-sidebar-border: var(--t-line);
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 20px;
+  --control-radius: 8px;
+  --shadow-composer: 0 1px 2px rgb(0 0 0 / 6%);
+  --inset-shadow-control-highlight: 0 1px rgb(255 255 255 / 16%);
+  --inset-shadow-control-pressed: 0 1px rgb(0 0 0 / 8%);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --spacing-composer-seam: calc(var(--spacing) * 4 - 1px);
+}
+
+/* T3 用 observeVisibleAnimation 写 --visible-animation-state 控制动画暂停。 */
+@utility visible-animate-spin {
+  animation: spin 1s linear infinite;
+  animation-play-state: var(--visible-animation-state, paused);
+  will-change: var(--visible-animation-will-change, auto);
+}
+@utility animate-skeleton {
+  animation: skeleton 1.6s steps(4) infinite;
+}
+@keyframes skeleton {
+  0%, 42% { opacity: 1; }
+  50%, 92% { opacity: .55; }
+  100% { opacity: 1; }
+}
+
+/* T3 的四个自定义工具类，复制过来的组件直接引用。 */
+@utility surface-glass {
+  background: color-mix(in srgb, var(--t-surface-3) 88%, transparent);
+  backdrop-filter: blur(12px) saturate(140%);
+}
+@utility topbar-scroll-fade {
+  mask-image: linear-gradient(to bottom, transparent, #000 24px);
+}
+@utility virtualized-scroll-fade {
+  mask-image: linear-gradient(to bottom, transparent, #000 12px, #000 calc(100% - 12px), transparent);
+}
+@utility live-activity-focus {
+  animation: liveActivityPulse 1.8s steps(3) infinite;
+}
+@keyframes liveActivityPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .62; }
+}
+
+@utility pt-safe { padding-top: max(env(safe-area-inset-top), 0px); }
+@utility pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 0px); }
+@utility pl-safe { padding-left: max(env(safe-area-inset-left), 0px); }
+@utility pr-safe { padding-right: max(env(safe-area-inset-right), 0px); }
