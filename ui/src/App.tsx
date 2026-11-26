@@ -38,6 +38,7 @@ import { DiffStatLabel } from "./components/chat/DiffStatLabel";
 import { DiffPanel } from "./components/chat/DiffPanel";
 import { ChatRightPanel } from "./components/chat/ChatRightPanel";
 import { ScrollToEndButton } from "./components/chat/ScrollToEndButton";
+import { recallableComposerPrompt } from "./components/chat/composerPromptHistory";
 import { ProviderPackageIcon } from "./components/chat/ProviderPackageIcon";
 import { DeferredComposerCommandMenuLayer } from "./components/chat/ComposerCommandMenuLayer";
 import {
@@ -1558,10 +1559,12 @@ function App() {
   function recallPrompt(direction: 1 | -1) {
     const task = tasks.find((item) => item.id === activeTask);
     if (!task) return;
+    // 只回填用户真正打的那段，去掉消息末尾追加的上下文；连着重复的只留一条。
     const history = task.messages
       .filter((message) => message.role === "user")
-      .map((message) => message.text)
-      .reverse();
+      .map((message) => recallableComposerPrompt(message.text))
+      .reverse()
+      .filter((text, index, all) => text.length > 0 && text !== all[index - 1]);
     if (!history.length) return;
     const cursor = promptHistoryRef.current;
     const nextIndex = cursor ? cursor.index + direction : (direction === 1 ? 0 : -1);
@@ -3197,8 +3200,10 @@ function App() {
                   </ComposerBanner.Dock>
                   <ComposerSurface.Shell className="px-3 pb-3 pt-1">
                   <ComposerSurface.Host>
-                {/* T3 的输入长度提示：超长时在输入框上方说明，而不是等发送后报错。 */}
-                <ComposerPromptLengthValidation message={promptLengthWarning} />
+                {/* T3 把校验放在 ComposerSurface.Main（输入框所在的卡片）里面；
+                    放在 Host 外面会让提示和卡片脱节，也不随卡片宽度收缩。 */}
+                <ComposerSurface.Main>
+                  <ComposerPromptLengthValidation message={promptLengthWarning} />
                 <form data-chat-composer-form="true" className={"composer" + (prompt.trim() ? " has-draft" : "")} onSubmit={(event) => { event.preventDefault(); void submitPrompt(); }}>
                   <DeferredComposerCommandMenuLayer
                     open={slashOpen}
@@ -3298,6 +3303,7 @@ function App() {
                     </div>
                   </div>
                 </form>
+                </ComposerSurface.Main>
                   {/* T3 的 ReadOnlyComposerBar：所选 Agent 不可用时，在输入框下方给一行原因和重试，
                       不用顶部横幅，也不拦着用户先写草稿。 */}
                   {(() => {

@@ -17,6 +17,7 @@
 - `MarkdownAlert.tsx`（T3 ChatMarkdown 的提示块渲染：Note/Tip/Important/Warning/Caution）
 - `ChatRightPanel.tsx` + `RightPanelTabs.tsx`（照 T3 根目录同名组件改写：右侧面板共用外壳与页签）
 - `ScrollToEndButton.tsx`（T3 `TimelineOverlays` 的「滚到底」胶囊，带末尾摘要）
+- `composerPromptHistory.ts`（搬自 T3 同名文件：回填历史时剥掉上下文块并去重）
 - `markdownGithubAlerts.ts`（搬自 T3 `packages/shared`：把 `> [!NOTE]` 标成 dataAlert）
 - `ProviderPackageIcon.tsx`（Tango 适配版：Agent 图标位）
 - `ComposerBannerStack.tsx`（228 行）
