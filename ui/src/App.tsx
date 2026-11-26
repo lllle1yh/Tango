@@ -31,6 +31,7 @@ import {
 } from "./components/WorkspaceBreadcrumb";
 import { Badge } from "./components/ui/badge";
 import { ProjectFavicon } from "./components/ProjectFavicon";
+import { DraftHeroProjectHeading } from "./components/chat/DraftHeroProjectHeading";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "./components/ui/empty";
 import { Spinner } from "./components/ui/spinner";
 import { ComposerControl, ComposerControlIcon } from "./components/chat/ComposerControl";
@@ -2801,10 +2802,17 @@ function App() {
                             <AgentGlyph agentId={headerAgent ?? settings?.defaultAgent ?? "codex"} />
                           </span>
                         </EmptyMedia>
-                        <EmptyTitle>
-                          {headerAgent
-                            ? `Start with ${agents.find((agent) => agent.id === headerAgent)?.name ?? headerAgent}`
-                            : "Choose an agent to begin"}
+                        <EmptyTitle className="conversation-hero-title">
+                          {/* T3 的空任务大标题：项目名作为一个可换行的整体排在句子里。 */}
+                          {project ? (
+                            <DraftHeroProjectHeading projectName={projectName ?? ""}>
+                              <span className="conversation-hero-project">{projectName}</span>
+                            </DraftHeroProjectHeading>
+                          ) : headerAgent ? (
+                            `Start with ${agents.find((agent) => agent.id === headerAgent)?.name ?? headerAgent}`
+                          ) : (
+                            "Choose an agent to begin"
+                          )}
                         </EmptyTitle>
                         <EmptyDescription>Describe the work below. Type / for commands; Hand off switches agent mid-task.</EmptyDescription>
                       </EmptyHeader>
