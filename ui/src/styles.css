@@ -163,6 +163,8 @@ button { color: inherit; font: inherit; }
 .composer-banner-dock:has([data-composer-banner-surface="attached"]) > [data-slot="composer-shell"]::before { display: none; }
 .composer-banner-dock:has([data-composer-banner-surface="attached"]) [data-slot="composer-host"] { box-shadow: none; }
 .composer-banner-dock:has([data-composer-banner-surface="attached"]) [data-slot="composer-host"]::after { display: none; }
+/* T3 的 ChatBannerLane：时间线上方的横幅通道。横幅本身不挡点击，按钮自己接管指针。 */
+.chat-banner-lane { display: flex; width: 100%; flex-direction: column; pointer-events: none; }
 /* T3 的右侧改动面板（DiffPanel）：比详情栏宽，消息区按它的实际宽度让位。 */
 .conversation:has([data-diff-panel]) .conversation-messages,
 .conversation:has([data-diff-panel]) .composer-banner-dock {

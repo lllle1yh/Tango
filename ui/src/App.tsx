@@ -30,7 +30,7 @@ import { ThreadStatusLine } from "./components/chat/ThreadStatusLine";
 import { ThreadFindBar } from "./components/chat/ThreadFindBar";
 import { TimelineMinimap, type TimelineMinimapItem } from "./components/chat/TimelineMinimap";
 import { TimelineSystemDivider } from "./components/chat/TimelineSystemDivider";
-import { ThreadErrorBanner } from "./components/chat/ThreadErrorBanner";
+import { ChatBannerLane } from "./components/chat/ChatBannerLane";
 import { ThreadDetailsPanel, ThreadDetailsRow, ThreadDetailsSection } from "./components/chat/ThreadDetailsPanel";
 import { ComposerPromptLengthValidation, promptLengthMessage } from "./components/chat/ComposerPromptLengthValidation";
 import { DraftProjectName } from "./components/chat/DraftProjectName";
@@ -2925,7 +2925,7 @@ function App() {
                   if (dismissedErrorKey === lastMessage.createdAt) return null;
                   const retryIndex = promptIndexBefore(lastIndex);
                   return (
-                    <ThreadErrorBanner
+                    <ChatBannerLane
                       error={lastMessage.text.replace("The turn could not run:", "").trim()}
                       onRetry={retryIndex !== null && !isActiveTaskRunning ? () => resendFrom(retryIndex) : undefined}
                       onDismiss={() => setDismissedErrorKey(lastMessage.createdAt)}
