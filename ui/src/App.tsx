@@ -17,6 +17,7 @@ import { summarizeToolGroup } from "./toolSummary";
 import { AssistantTimelineRow } from "./components/chat/TimelineAssistantRow";
 import { TimelineUserRow } from "./components/chat/TimelineUserRow";
 import { ComposerSurface } from "./components/chat/ComposerSurface";
+import { QueuedRuns } from "./components/chat/QueuedRuns";
 import { WorkLogBlock, WorkLogButton, WorkLogDetails, WorkLogList, WorkLogRow } from "./WorkLog";
 
 // Windows paths use backslashes, other platforms slashes; the label is only the last part.
@@ -2796,26 +2797,42 @@ function App() {
                     </div>
                   </div>
                 )}
-                {/* Whose turn the turn list belongs to, in one line above the box. */}
                 {(queuedCounts[activeTask ?? ""] ?? 0) > 0 && (
-                  <div className="composer-queue" role="status">
-                    <span>
-                      {queuedCounts[activeTask ?? ""]} queued · sends after this turn
-                    </span>
-                    <button
-                      type="button"
-                      className="subtle-button"
-                      onClick={() => {
-                        if (!activeTask) return;
-                        const list = queuedRef.current[activeTask] ?? [];
-                        const first = list[0];
-                        const rest = list.slice(1);
-                        queuedRef.current = { ...queuedRef.current, [activeTask]: rest };
-                        setQueuedCounts((current) => ({ ...current, [activeTask]: rest.length }));
-                        if (first) setPrompt(first.text);
-                      }}
-                    >Edit next</button>
-                  </div>
+                  <QueuedRuns
+                    items={(queuedRef.current[activeTask ?? ""] ?? []).map((item, index) => ({
+                      key: activeTask + "-" + index + "-" + item.text.slice(0, 24),
+                      text: item.text,
+                      agentName: agents.find((agent) => agent.id === item.agent)?.name ?? item.agent,
+                    }))}
+                    disabled={stopping}
+                    onSendNow={(index) => {
+                      if (!activeTask) return;
+                      const list = queuedRef.current[activeTask] ?? [];
+                      if (index <= 0 || index >= list.length) return;
+                      const chosen = list[index];
+                      if (!chosen) return;
+                      const rest = [...list.slice(0, index), ...list.slice(index + 1)];
+                      queuedRef.current = { ...queuedRef.current, [activeTask]: [chosen, ...rest] };
+                    }}
+                    onEdit={(index) => {
+                      if (!activeTask) return;
+                      const list = queuedRef.current[activeTask] ?? [];
+                      const chosen = list[index];
+                      if (!chosen) return;
+                      const rest = [...list.slice(0, index), ...list.slice(index + 1)];
+                      queuedRef.current = { ...queuedRef.current, [activeTask]: rest };
+                      setQueuedCounts((current) => ({ ...current, [activeTask]: rest.length }));
+                      setPrompt(chosen.text);
+                      window.requestAnimationFrame(() => composerRef.current?.focus());
+                    }}
+                    onRemove={(index) => {
+                      if (!activeTask) return;
+                      const list = queuedRef.current[activeTask] ?? [];
+                      const rest = [...list.slice(0, index), ...list.slice(index + 1)];
+                      queuedRef.current = { ...queuedRef.current, [activeTask]: rest };
+                      setQueuedCounts((current) => ({ ...current, [activeTask]: rest.length }));
+                    }}
+                  />
                 )}
                 <ComposerSurface.Shell className="px-3 pb-3 pt-1">
                   <ComposerSurface.Host>
@@ -2882,11 +2899,6 @@ function App() {
                     : "Ask " + (agents.find((agent) => agent.id === activeAgent)?.name ?? "an agent") + " to work in this project…  (/ for commands)"} />
                   </div>
                   <div className="composer-bar">
-                    {queuedCounts[activeTask ?? ""] > 0 && (
-                      <span className="composer-queued" role="status">
-                        {queuedCounts[activeTask ?? ""]} queued
-                      </span>
-                    )}
                     <span className="composer-context" title={(activeAgent ? (agents.find((agent) => agent.id === activeAgent)?.name ?? activeAgent) : "The agent") + " · " + (activeTaskRecord?.projectPath ?? project ?? "")}>
                       <AgentGlyph agentId={activeAgent ?? settings?.defaultAgent ?? "codex"} />
                       <span className="composer-context-name">{agents.find((agent) => agent.id === activeAgent)?.name ?? "Agent"}</span>
