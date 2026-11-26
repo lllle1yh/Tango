@@ -373,6 +373,8 @@ function SortableTaskRow({
   runningHere,
   draft,
   lastLabel,
+  agentId,
+  agentName,
   query,
   renamingId,
   renamingTitle,
@@ -393,6 +395,8 @@ function SortableTaskRow({
   runningHere: boolean;
   draft: boolean;
   lastLabel: string;
+  agentId: AgentStatus["id"];
+  agentName: string;
   query: string;
   renamingId: string | null;
   renamingTitle: string;
@@ -442,9 +446,15 @@ function SortableTaskRow({
           <span
             className="task-title"
             title={`${task.title} · ${task.messages.length} ${task.messages.length === 1 ? "message" : "messages"}${lastLabel ? " · last " + lastLabel : ""}`}
-          >{runningHere && <Loader2 size={11} className="spin task-running-mark" />}{!runningHere && lastFailed && <AlertCircle size={11} className="task-failed" aria-label="Last turn could not run" />}{task.pinned && <Pin size={11} className="task-pin" />}{highlightMatch(task.title, query)}</span>
-          {draft && <span className="task-draft" title="Unsent draft" aria-label="Unsent draft" />}
-          {unread && <span className="task-unread" title="Finished while you were elsewhere" aria-label="Unread reply" />}
+          >{runningHere && <Loader2 size={11} className="spin task-running-mark" />}{!runningHere && lastFailed && <AlertCircle size={11} className="task-failed" aria-label="Last turn could not run" />}{task.pinned && <Pin size={11} className="task-pin" />}<span className="task-title-text">{highlightMatch(task.title, query)}</span>{lastLabel && <span className="task-title-time">{lastLabel}</span>}</span>
+          <span className="task-meta">
+            <AgentGlyph agentId={agentId} />
+            <span className="task-meta-agent">{agentName}</span>
+            {!lastLabel && <span className="task-meta-time">No messages yet</span>}
+            {runningHere && <span className="task-meta-live"><Loader2 size={10} className="spin" />Working</span>}
+            {draft && <span className="task-meta-draft" title="Unsent draft">Draft</span>}
+            {unread && <span className="task-meta-unread" title="Finished while you were elsewhere"><span className="task-unread" />Unread</span>}
+          </span>
         </button>
       )}
       {renamingId !== task.id && (
@@ -2249,6 +2259,8 @@ function App() {
                   runningHere={Boolean(runningTurnsRef.current[task.id])}
                   draft={task.id !== activeTask && Boolean(localStorage.getItem("tango.draft." + task.id)?.trim())}
                   lastLabel={formatStamp(task.messages.at(-1)?.createdAt ?? "")}
+                  agentId={(task.messages.at(-1)?.agent ?? settings?.defaultAgent ?? "codex") as AgentStatus["id"]}
+                  agentName={agents.find((agent) => agent.id === (task.messages.at(-1)?.agent ?? settings?.defaultAgent))?.name ?? "Agent"}
                   query={taskQuery}
                   renamingId={renamingId}
                   renamingTitle={renamingTitle}

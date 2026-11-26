@@ -84,8 +84,6 @@ button { color: inherit; font: inherit; }
 .task-link { display: flex; min-height: 32px; align-items: center; gap: 8px; padding: 0 8px; overflow: hidden; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--fg-muted); cursor: pointer; text-align: left; font-size: 13px; }
 .task-link:hover { background: var(--surface-2); }
 .task-link.selected { background: var(--surface-3); color: var(--fg); box-shadow: inset 0 0 0 1px var(--line), 0 1px 2px #0000000d; }
-.task-link span:first-child { color: var(--fg-subtle); font-size: 11px; }
-.task-link span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sidebar-agent { display: flex; width: 100%; height: 34px; align-items: center; gap: 9px; padding: 0 8px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--fg-muted); cursor: pointer; text-align: left; font-size: 13px; }
 .sidebar-agent:hover { background: var(--surface-2); }
 .sidebar-agent.selected { background: var(--surface-3); box-shadow: inset 0 0 0 1px var(--line), 0 1px 2px #0000000d; }
@@ -289,11 +287,16 @@ button { color: inherit; font: inherit; }
 .task-row.selected .task-link { color: var(--fg); }
 .task-row.archived .task-link { color: var(--fg-subtle); }
 .task-more { display: grid; width: 24px; height: 24px; margin-right: 3px; flex: none; place-items: center; border: 0; border-radius: 5px; background: transparent; color: var(--fg-muted); cursor: pointer; opacity: 0; }
-.task-row:hover .task-more, .task-row.selected .task-more { opacity: 1; }
+.task-row:hover .task-more, .task-row:focus-within .task-more { opacity: 1; }
 .task-more:hover { background: var(--surface-2); color: var(--fg); }
 /* Duplicate sits beside the actions button and only appears on hover, like it. */
 .task-quick { display: grid; width: 22px; height: 22px; flex: none; place-items: center; border: 0; border-radius: 5px; background: transparent; color: var(--fg-muted); cursor: pointer; opacity: 0; }
-.task-row:hover .task-quick, .task-row.selected .task-quick { opacity: 1; }
+.task-row:hover .task-quick, .task-row:focus-within .task-quick { opacity: 1; }
+/* T3 的悬停控件浮在行上，不给它们留位置：任务行是两行文字，常驻的图标会把标题挤掉一半。 */
+.task-row .task-quick, .task-row .task-more { position: absolute; z-index: 1; top: 50%; transform: translateY(-50%); }
+.task-row .task-quick { right: 44px; }
+.task-row .task-more { right: 3px; }
+.task-row .task-quick:hover, .task-row .task-more:hover { background: var(--surface-2); }
 .task-quick:hover { background: var(--surface-2); color: var(--fg); }
 .task-more svg { display: block; }
 .task-rename { height: 28px; min-width: 0; flex: 1; margin: 2px 4px; padding: 0 6px; border: 1px solid var(--primary); border-radius: 5px; outline: none; background: var(--bg); color: var(--fg); font: inherit; font-size: 13px; }
@@ -526,7 +529,22 @@ button { color: inherit; font: inherit; }
 .task-search:focus-within { border-color: var(--line-strong); }
 .task-search input { width: 100%; min-width: 0; border: 0; outline: none; background: transparent; color: var(--fg); font: inherit; font-size: 12.5px; }
 .task-search input::placeholder { color: var(--fg-subtle); }
-.task-title { display: flex; align-items: center; gap: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-title { display: flex; min-width: 0; align-items: center; gap: 5px; overflow: hidden; white-space: nowrap; }
+/* 标题占满剩余宽度，未读/时间这类状态贴着右边缘，扫一眼就能看到。 */
+.task-title-text { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.task-title-time { flex: none; margin-left: auto; color: var(--fg-subtle); font-size: 11px; font-variant-numeric: tabular-nums; }
+/* T3 的任务行是两行：标题在上，Agent 元信息在下；状态用小字标出来。 */
+.task-link { flex-direction: column; align-items: stretch; justify-content: center; gap: 1px; min-height: 46px; padding-top: 6px; padding-bottom: 6px; }
+.task-meta { display: flex; min-width: 0; align-items: center; gap: 5px; color: var(--fg-subtle); font-size: 11px; line-height: 1.3; white-space: nowrap; }
+.task-meta .agent-mark { width: 12px; height: 12px; flex: none; border-radius: 3px; }
+.task-meta-agent { flex: none; max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-meta-time { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.task-meta-live, .task-meta-unread { margin-left: auto; }
+.task-meta-live + .task-meta-unread, .task-meta-draft + .task-meta-unread { margin-left: 0; }
+.task-meta-live { display: inline-flex; flex: none; align-items: center; gap: 3px; color: var(--primary); font-weight: 500; }
+.task-meta-draft { flex: none; padding: 0 4px; border-radius: 999px; background: var(--surface-2); color: var(--fg-muted); font-size: 10px; }
+.task-meta-unread { display: inline-flex; flex: none; align-items: center; gap: 4px; color: var(--primary); font-weight: 500; }
+.task-meta-unread .task-unread { box-shadow: none; width: 5px; height: 5px; }
 .task-pin { flex: none; color: var(--fg-subtle); }
 /* A hairline label between the pinned rows and the rest of the list. */
 .task-group-label { display: flex; align-items: center; gap: 6px; margin: 7px 8px 3px; color: var(--fg-subtle); font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
