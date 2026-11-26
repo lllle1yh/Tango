@@ -25,6 +25,7 @@ import { TimelineMinimap, type TimelineMinimapItem } from "./components/chat/Tim
 import { TimelineSystemDivider } from "./components/chat/TimelineSystemDivider";
 import { ThreadErrorBanner } from "./components/chat/ThreadErrorBanner";
 import { ThreadDetailsPanel, ThreadDetailsRow, ThreadDetailsSection } from "./components/chat/ThreadDetailsPanel";
+import { AgentStatusBanner } from "./components/chat/AgentStatusBanner";
 import {
   WorkspaceBreadcrumb,
   WorkspaceBreadcrumbItem,
@@ -761,6 +762,7 @@ function App() {
   // 错误条按消息时间戳记一次关闭：同一条失败回合关掉后不再反复弹出。
   const [dismissedErrorKey, setDismissedErrorKey] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [dismissedAgentBanner, setDismissedAgentBanner] = useState<string | null>(null);
   // 每次按查找快捷键都换一个请求号，已经打开的查找条也会重新聚焦。
   const [chatFindTick, setChatFindTick] = useState(0);
   // A turn that finishes in a task you are not looking at leaves a dot there.
@@ -2795,6 +2797,22 @@ function App() {
                       error={lastMessage.text.replace("The turn could not run:", "").trim()}
                       onRetry={retryIndex !== null && !isActiveTaskRunning ? () => resendFrom(retryIndex) : undefined}
                       onDismiss={() => setDismissedErrorKey(lastMessage.createdAt)}
+                    />
+                  );
+                })()}
+                {(() => {
+                  // 所选 Agent 不可用时提醒一次；关掉只对本次会话有效。
+                  const agent = agents.find((item) => item.id === headerAgent);
+                  if (!agent || agent.available) return null;
+                  const key = agent.id + ":" + (agent.version ?? "");
+                  if (dismissedAgentBanner === key) return null;
+                  return (
+                    <AgentStatusBanner
+                      agentName={agent.name}
+                      version={agent.version}
+                      rechecking={detecting}
+                      onRecheck={() => void refreshAgents()}
+                      onDismiss={() => setDismissedAgentBanner(key)}
                     />
                   );
                 })()}
