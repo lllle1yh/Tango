@@ -1,81 +1,176 @@
 # T3 → Tango 迁移清单
 
-Tango 是 T3 Code 的二开。这份表记录 T3 的界面工作搬到哪一步，避免"代码写了但没接线"
-或者"搬了一半又重写一遍"。范围以 `t3code/apps/web/src/components` 为准。
+生成自 `t3code/apps/web/src/components/chat`（160 个组件文件，不含测试）。
 
-统计口径：`components/chat` 下 160 个组件文件（不含 `*.test.*`）与 `components/ui`
-下 54 个原语文件，对照 `ui/src/components`。
+- 已搬入并接线：**18**
+- 纯展示、可搬但尚未搬：**12**
+- 依赖 T3 服务端契约（provider / PR / diff / 预览会话 / 后台任务 / 附件），Tango 没有对应数据源：**130**
 
-## 1. 原语层（`components/ui`）
+## 已搬入
 
-**48 / 48 已搬入**（T3 另有 6 个 `*.browser.test.tsx`，测试文件不搬）。
-搬入时只改 import 路径与 i18n：T3 用 `gt-react`，Tango 直接写英文；样式类保持原样，
-依赖 `ui/src/tw.css` 里的 Tailwind v4 theme 与 `@utility`。
+- `ComposerBanner.tsx`（328 行）
+- `ComposerBannerStack.tsx`（228 行）
+- `ComposerControl.tsx`（82 行）
+- `ComposerPromptLengthValidation.tsx`（14 行）
+- `ComposerSurface.tsx`（86 行）
+- `DiffStatLabel.tsx`（47 行）
+- `DraftHeroProjectHeading.tsx`（77 行）
+- `DraftProjectName.tsx`（17 行）
+- `MarkdownCodeBlock.tsx`（375 行）
+- `MarkdownTable.tsx`（89 行）
+- `MessageCopyButton.tsx`（62 行）
+- `ThreadDetailsPanel.tsx`（380 行）
+- `ThreadErrorBanner.tsx`（149 行）
+- `ThreadFindBar.tsx`（157 行）
+- `ThreadStatusLine.tsx`（28 行）
+- `TimelineMinimap.tsx`（314 行）
+- `TimelineRowParts.tsx`（66 行）
+- `TimelineSystemDivider.tsx`（86 行）
 
-| 组 | 文件 |
-| --- | --- |
-| 基础 | button, badge, kbd, separator, skeleton, spinner, empty, alert |
-| 表单 | checkbox, combobox, input, input-group, label, number-field, radio-group, select, switch, textarea, toggle, toggle-group, color-picker, calendar, autocomplete |
-| 浮层 | dialog, sheet, menu, popover, tooltip, shared-tooltip, closing-positioner, alert-dialog, command |
-| 布局 | sidebar, scroll-area, group, collapsible, collapsible-section-header, panel-tab-close-button, standalone-page |
-| 其它 | table, toast, wizard, qr-code, refresh-icon, middle-truncate, draft-input, discovery-list, preview-card, background-thread |
+## 可搬但尚未搬
 
-## 2. 对话层（`components/chat`）
+- `ChatRightPanel.tsx`（52 行）
+- `ComposerCodeBlockNodeView.tsx`（57 行）
+- `ComposerCommandMenuLayer.tsx`（112 行）
+- `ComposerImageThumbnail.tsx`（81 行）
+- `ComposerPendingTerminalContexts.tsx`（33 行）
+- `HighlightedCodeLines.tsx`（47 行）
+- `PierreEntryIcon.tsx`（96 行）
+- `ProviderPackageIcon.tsx`（69 行）
+- `ReadOnlyComposerBar.tsx`（38 行）
+- `ThreadDetailsSection.tsx`（50 行）
+- `VoiceInputPill.tsx`（77 行）
+- `WorkLog.tsx`（193 行）
 
-已搬入并接到 `App.tsx`（13 个）：
+## 依赖 T3 服务端契约，需先有等价数据
 
-- `ComposerControl` — 输入框左下角的控制键与图标
-- `ComposerSurface` — 输入框的玻璃卡片外壳
-- `MessageCopyButton` — 单条消息复制
-- `QueuedRuns` — 排队消息的逐条操作
-- `ThreadFindBar` — 对话内查找（计数、上下跳、Esc）
-- `ThreadStatusLine` — 时间线末尾的状态行
-- `TimelineMinimap` — 长对话缩略刻度
-- `TimelineRowParts` — 作者标题、时间戳、活动微光
-- `TimelineSystemDivider` — 交接 / 暂停 / 恢复分隔行
-- `TimelineAssistantRow` / `TimelineUserRow` — 消息行（按 T3 行结构改造）
-- `ToolApprovalRow` — 审批卡片
-- `MarkdownCodeBlock` — 代码块顶栏（语言、换行、复制）
-- `DiffStatLabel` — 改动行数标签（+N / -N，大数压成 1.2k）
-- `DiffPanel`（Tango 适配版）— 右侧改动面板：工作区/暂存切换、逐文件折叠、行号与增删配色、复制路径；数据来自 `git:diff`
-- `ComposerPromptLengthValidation` — 输入框超长提示
-- `DraftProjectName` — 空任务标题里的项目名排版
-- `ComposerBanner` / `ComposerBannerStack` — 输入框上方贴边的提示堆栈（回合进行中、等待审批、Agent 不可用）
-
-另按 T3 的写法新写了四个适配版（T3 同名组件依赖服务端契约，直接搬不可用）：
-
-- `ThreadDetailsPanel` — 右侧详情栏（工作区 / 会话 / 操作）
-- `ThreadErrorBanner` — 失败回合的错误条（就地重试、会话内关闭）
-- ~~`AgentStatusBanner`~~ — 已并入 `ComposerBannerStack`（提示改贴输入框，不再占用时间线）
-- `ThreadAnnouncer` — 回合状态的读屏播报
-
-## 3. 依赖 T3 服务端契约、Tango 没有等价数据的（132 个）
-
-这些不是"没搬"，是 Tango 当前没有产生它们所需数据的入口。要搬必须先补数据层：
-
-| 数据源 | 涉及组件（举例） |
-| --- | --- |
-| Provider 会话 / 模型 / 用量 | ProviderModelPicker, ProviderStatusBanner, ComposerModelEffort, ComposerUsageLimits, ThreadDetailsUsage |
-| Git / PR / Issue | DiffPanel, ThreadDetailsPrRow(s), ThreadRepositorySections, BranchToolbar |
-
-Git 分支已补：`git:status` / `git:diff-stat` 接到 `ThreadDetailsPanel` 的「Repository」一节
-（分支、领先/落后、改动文件数、工作区 +/-）；`git:diff` 的结构化 patch 驱动 `DiffPanel`。
-PR / Issue 仍无数据源。
-| 预览会话 / 设备 / 分享 | ChatRightPanel 的 preview/device 面、GuestShareControls, HtmlRenderDialog, McpAppFrame |
-| 子代理 / 后台任务 / 计划 | BackgroundWorkDetails, ThreadActivityBanners, ProposedPlanCard, SubagentTooltipContent |
-| 附件 / 图像 / 语音 | ComposerImageThumbnail, ExpandedImageDialog, VoiceInputPill, AttachmentImage |
-| 富文本编辑器（Tiptap）与技能 / 提及 | ComposerPromptEditorTiptap, SkillInlineText, ModelMentionChip |
-| Pierre / Shiki 高亮 | HighlightedCodeLines, PierreEntryIcon, MarkdownCodeBlock 的 Shiki 路径 |
-
-## 4. 接下去要搬的（纯展示、不依赖服务端契约）
-
-- `ComposerBanner` / `ComposerPromptLengthValidation` — 输入框上方的提示与长度校验
-- `DraftProjectName` — 空任务标题里的项目名排版
-- `ComposerBanner` / `ComposerBannerStack` — 输入框上方贴边的提示堆栈（回合进行中、等待审批、Agent 不可用）
-- `ProviderPackageIcon` — 包装成 Tango 的 Agent 图标位
-
-## 5. 已知适配差异
-
-- T3 的 `--chat-content-max-width` 是 820px；Tango 的消息列按 796px 收过，两者需要保持一致。
-- T3 用 `gt-react` 做 i18n；Tango 目前写英文文案，翻译要另起一层。
-- T3 的 `ThreadDetailsPanel` 走 popover / sheet 两种模式；Tango 先在对话列右侧内联。
+- `AgentElapsed.tsx`（74 行）
+- `AssistantCitationChip.tsx`（371 行）
+- `AssistantCitationCommentEditor.tsx`（150 行）
+- `AssistantCitationSource.tsx`（382 行）
+- `AssistantSelectionToolbar.tsx`（222 行）
+- `BackgroundWorkDetails.tsx`（123 行）
+- `ChatBannerLane.tsx`（65 行）
+- `ChatCanvas.tsx`（203 行）
+- `ChatComposer.tsx`（4196 行）
+- `ChatGptSharingControl.tsx`（40 行）
+- `ChatHeader.tsx`（420 行）
+- `ChatMarkdownMedia.tsx`（511 行）
+- `ChatOverlayHosts.tsx`（298 行）
+- `ChatTerminalDrawers.tsx`（108 行）
+- `ChildThreadApprovals.tsx`（105 行）
+- `CollapsedComposerPromptPreview.tsx`（129 行）
+- `CommandOutputPanel.tsx`（106 行）
+- `CompactComposerControlsMenu.tsx`（57 行）
+- `ComposerAttachmentStrip.tsx`（790 行）
+- `ComposerCodeBlockLanguagePicker.tsx`（114 行）
+- `ComposerCommandMenu.tsx`（369 行）
+- `ComposerControlsBar.tsx`（316 行）
+- `ComposerFeedback.tsx`（56 行）
+- `ComposerFooterControls.tsx`（340 行）
+- `ComposerFreshSession.tsx`（23 行）
+- `ComposerHeldSendBanner.tsx`（51 行）
+- `ComposerModelEffort.tsx`（740 行）
+- `ComposerPendingApprovalActions.tsx`（162 行）
+- `ComposerPendingUserInputPanel.tsx`（371 行）
+- `ComposerPrimaryActions.tsx`（553 行）
+- `ComposerServerUpdateStatus.tsx`（15 行）
+- `ComposerSpeechButton.tsx`（261 行）
+- `ComposerStashBadge.tsx`（67 行）
+- `ComposerStashMenu.tsx`（290 行）
+- `ComposerUsageLimits.tsx`（195 行）
+- `DraftHeroHeadline.tsx`（391 行）
+- `EffortGlyph.tsx`（108 行）
+- `ExpandedImageDialog.tsx`（352 行）
+- `ExpandedImagePreview.tsx`（221 行）
+- `FeedbackRequestCard.tsx`（219 行）
+- `FileSearchResults.tsx`（135 行）
+- `FileTagChip.tsx`（28 行）
+- `GlobalVoiceInputIndicator.tsx`（54 行）
+- `GuestMessageAttachments.tsx`（107 行）
+- `GuestShareControls.tsx`（354 行）
+- `HighlightedTokens.tsx`（122 行）
+- `HtmlRenderDialog.tsx`（111 行）
+- `HtmlRenderFrame.tsx`（152 行）
+- `LinkRequestCard.tsx`（541 行）
+- `LinkedThreadPage.tsx`（68 行）
+- `LinkedThreadPane.tsx`（269 行）
+- `MarkdownDetails.tsx`（108 行）
+- `MarkdownExternalLink.tsx`（118 行）
+- `MarkdownFileLink.tsx`（471 行）
+- `MarkdownMermaidCodeBlock.tsx`（87 行）
+- `MarkdownThreadLink.tsx`（145 行）
+- `McpAppFrame.tsx`（531 行）
+- `McpSignInAction.tsx`（215 行）
+- `MermaidDiagram.tsx`（327 行）
+- `MessagesTimeline.tsx`（1973 行）
+- `ModelListRow.tsx`（155 行）
+- `ModelMentionChip.tsx`（128 行）
+- `ModelPickerContent.tsx`（1263 行）
+- `ModelPickerSidebar.tsx`（235 行）
+- `NativeChildWorkDialog.tsx`（147 行）
+- `OpenInPicker.tsx`（362 行）
+- `PanelLayoutControls.tsx`（266 行）
+- `ProposedPlanCard.tsx`（337 行）
+- `ProviderInstanceIcon.tsx`（195 行）
+- `ProviderModelPicker.tsx`（506 行）
+- `ProviderStartingIcon.tsx`（68 行）
+- `ProviderStatusBanner.tsx`（254 行）
+- `ProviderSubagentBar.tsx`（92 行）
+- `QueuedRunsControl.tsx`（631 行）
+- `ReadOnlyThreadTimeline.tsx`（147 行）
+- `RightPanelSurfaceContent.tsx`（311 行）
+- `SecretRequestCard.tsx`（382 行）
+- `ShellCommandBlock.tsx`（65 行）
+- `SideThreadPane.tsx`（224 行）
+- `SkillInlineText.tsx`（162 行）
+- `SnapShotAttachmentDetails.tsx`（248 行）
+- `SubagentTooltipContent.tsx`（220 行）
+- `TerminalContextInlineChip.tsx`（78 行）
+- `ThreadActivityAnnouncer.tsx`（189 行）
+- `ThreadActivityBanners.tsx`（355 行）
+- `ThreadAutomationsPanel.tsx`（286 行）
+- `ThreadContextDragGhost.tsx`（26 行）
+- `ThreadDetailsCard.tsx`（202 行）
+- `ThreadDetailsControl.tsx`（142 行）
+- `ThreadDetailsIssueRows.tsx`（187 行）
+- `ThreadDetailsItemsMenu.tsx`（50 行）
+- `ThreadDetailsPrRow.tsx`（629 行）
+- `ThreadDetailsPrRows.tsx`（205 行）
+- `ThreadDetailsUsage.tsx`（392 行）
+- `ThreadFindProvider.tsx`（49 行）
+- `ThreadLineageWorkflowRow.tsx`（301 行）
+- `ThreadNow.tsx`（100 行）
+- `ThreadRelationshipIcon.tsx`（113 行）
+- `ThreadRelationshipsControl.tsx`（1162 行）
+- `ThreadRepositorySections.tsx`（372 行）
+- `ThreadServersPanel.tsx`（355 行）
+- `ThreadTimeline.tsx`（61 行）
+- `ThreadVisitWatermark.tsx`（38 行）
+- `TimelineAssistantRows.tsx`（403 行）
+- `TimelineOverlays.tsx`（57 行）
+- `TimelinePendingApprovalRow.tsx`（133 行）
+- `TimelineToolActivityIcon.tsx`（277 行）
+- `TimelineUserMessageRow.tsx`（1311 行）
+- `TimelineV2EventRow.tsx`（182 行）
+- `TimelineWorkEntryRow.tsx`（823 行）
+- `TimelineWorkGroupRows.tsx`（773 行）
+- `TraitsPicker.tsx`（590 行）
+- `TraitsSpeed.tsx`（78 行）
+- `TriageDraftHero.tsx`（80 行）
+- `UsageLimitRecoveryBanner.tsx`（216 行）
+- `UserMessageContextChips.tsx`（658 行）
+- `V2ItemInspector.tsx`（431 行）
+- `V2LifecycleRow.tsx`（776 行）
+- `VoiceInputErrorPill.tsx`（118 行）
+- `VoiceInputSetup.tsx`（300 行）
+- `WorkflowOpeningBlock.tsx`（253 行）
+- `WorkspaceEntryIcon.tsx`（42 行）
+- `WorktreeSetupCard.tsx`（409 行）
+- `ZoomableImage.tsx`（266 行）
+- `composerProviderState.tsx`（202 行）
+- `guestMessageStyle.tsx`（21 行）
+- `useAutoBalanceUpdateBanner.tsx`（181 行）
+- `useProjectCloneBanner.tsx`（138 行）
+- `useSystemComposerBanners.tsx`（299 行）
+- `useThreadLifecycle.tsx`（773 行）

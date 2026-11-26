@@ -158,6 +158,11 @@ button { color: inherit; font: inherit; }
   --chat-composer-drawer-inset: 1.375rem;
 }
 
+/* 横幅贴着输入框时，Shell 的玻璃和 Host 的阴影/描边交给卡片本身负责，避免接缝处两层叠影。
+   T3 把这套挂在 ComposerSurface.Main 上；Tango 的卡片仍是 .composer 自己画底，所以只做抑制。 */
+.composer-banner-dock:has([data-composer-banner-surface="attached"]) > [data-slot="composer-shell"]::before { display: none; }
+.composer-banner-dock:has([data-composer-banner-surface="attached"]) [data-slot="composer-host"] { box-shadow: none; }
+.composer-banner-dock:has([data-composer-banner-surface="attached"]) [data-slot="composer-host"]::after { display: none; }
 /* T3 的右侧改动面板（DiffPanel）：比详情栏宽，消息区按它的实际宽度让位。 */
 .conversation:has([data-diff-panel]) .conversation-messages,
 .conversation:has([data-diff-panel]) .composer-banner-dock {
