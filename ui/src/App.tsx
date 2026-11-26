@@ -20,6 +20,7 @@ import { ComposerSurface } from "./components/chat/ComposerSurface";
 import { QueuedRuns } from "./components/chat/QueuedRuns";
 import { ToolApprovalRow } from "./components/chat/ToolApprovalRow";
 import { ThreadStatusLine } from "./components/chat/ThreadStatusLine";
+import { ThreadFindBar } from "./components/chat/ThreadFindBar";
 import {
   WorkspaceBreadcrumb,
   WorkspaceBreadcrumbItem,
@@ -747,7 +748,9 @@ function App() {
   // Filtering the conversation instead of scrolling it; empty query shows everything again.
   const [chatSearchOpen, setChatSearchOpen] = useState(false);
   const [chatQuery, setChatQuery] = useState("");
-  const chatSearchRef = useRef<HTMLInputElement>(null);
+  const [chatIndex, setChatIndex] = useState(0);
+  // 每次按查找快捷键都换一个请求号，已经打开的查找条也会重新聚焦。
+  const [chatFindTick, setChatFindTick] = useState(0);
   // A turn that finishes in a task you are not looking at leaves a dot there.
   const [unreadTasks, setUnreadTasks] = useState<Record<string, boolean>>({});
   // Streamed text per task, so a turn keeps writing while another task is open.
@@ -843,7 +846,7 @@ function App() {
       if (event.key.toLowerCase() === "f" && event.shiftKey && activeTask) {
         event.preventDefault();
         setChatSearchOpen(true);
-        window.requestAnimationFrame(() => chatSearchRef.current?.focus());
+        setChatFindTick((tick) => tick + 1);
         return;
       }
       if (event.key.toLowerCase() === "f" && !inComposer(event.target)) {
@@ -1985,6 +1988,16 @@ function App() {
     overscan: 8,
   });
   const virtualRows = chatVirtualizer.getVirtualItems();
+  // 查找条的下一条 / 上一条：定位当前命中的那条消息并滚过去。
+  useEffect(() => {
+    if (!chatSearchOpen || !chatNeedle) return;
+    const hit = filteredMessages[chatIndex];
+    if (!hit) return;
+    const row = chatRows.find((item) => item.kind === "message" && item.message === hit);
+    if (!row) return;
+    const index = chatRows.indexOf(row);
+    chatVirtualizer.scrollToIndex(index, { align: "center" });
+  }, [chatIndex, chatNeedle, chatSearchOpen, chatRows.length]);
 
   const paletteItems: PaletteItem[] = [
     { id: "a-new", group: "Actions", label: "New task", hint: "Ctrl N", run: () => void createTask() },
@@ -2002,7 +2015,7 @@ function App() {
       group: "Actions" as const,
       label: "Find in this conversation",
       hint: "Ctrl Shift F",
-      run: () => { setChatSearchOpen(true); window.requestAnimationFrame(() => chatSearchRef.current?.focus()); },
+      run: () => { setChatSearchOpen(true); setChatFindTick((tick) => tick + 1); },
     }] : []),
     ...(activeTask ? [{
       id: "a-duplicate",
@@ -2709,38 +2722,23 @@ function App() {
                     }
                   />
                 )}
-                {chatSearchOpen && (
-                  <div className="chat-search" role="search">
-                    <Search size={13} />
-                    <input
-                      ref={chatSearchRef}
-                      value={chatQuery}
-                      autoFocus
-                      placeholder="Find in this conversation"
-                      aria-label="Find in this conversation"
-                      onChange={(event) => setChatQuery(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Escape") {
-                          event.preventDefault();
-                          setChatSearchOpen(false);
-                          setChatQuery("");
-                          composerRef.current?.focus();
-                        }
-                      }}
-                    />
-                    <span className="chat-search-count">
-                      {chatNeedle ? `${filteredMessages.length} of ${activeMessages.length}` : `${activeMessages.length} messages`}
-                    </span>
-                    <button
-                      className="icon-button"
-                      aria-label="Close search"
-                      title="Close search"
-                      onClick={() => { setChatSearchOpen(false); setChatQuery(""); }}
-                    >
-                      <X size={13} />
-                    </button>
-                  </div>
-                )}
+                <ThreadFindBar
+                  open={chatSearchOpen}
+                  query={chatQuery}
+                  matchCount={filteredMessages.length}
+                  activeIndex={chatIndex}
+                  focusRequestId={chatFindTick}
+                  onQueryChange={(query) => { setChatQuery(query); setChatIndex(0); }}
+                  onNext={() => {
+                    if (!filteredMessages.length) return;
+                    setChatIndex((index) => (index + 1) % filteredMessages.length);
+                  }}
+                  onPrevious={() => {
+                    if (!filteredMessages.length) return;
+                    setChatIndex((index) => (index - 1 + filteredMessages.length) % filteredMessages.length);
+                  }}
+                  onClose={() => { setChatSearchOpen(false); setChatQuery(""); composerRef.current?.focus(); }}
+                />
                 <div
                   className="conversation-messages"
                   ref={messagesRef}

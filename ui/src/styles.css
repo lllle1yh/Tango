@@ -619,8 +619,9 @@ button { color: inherit; font: inherit; }
 .chat-search:focus-within { border-color: var(--line-strong); }
 .chat-search input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; color: var(--fg); font: inherit; font-size: 13px; }
 .chat-search input::placeholder { color: var(--fg-subtle); }
-.chat-search-count { flex: none; color: var(--fg-subtle); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.chat-search-count { flex: none; min-width: 40px; color: var(--fg-subtle); font-size: 11.5px; font-variant-numeric: tabular-nums; text-align: center; }
 .chat-search .icon-button { width: 24px; height: 24px; }
+.chat-search-count-empty { color: var(--t-error, #d64545); }
 
 /* Gaps between turns: an agent handoff or a long pause gets one quiet line. */
 .turn-divider { display: flex; align-items: center; gap: 10px; padding: 6px 0 2px; color: var(--fg-subtle); }
