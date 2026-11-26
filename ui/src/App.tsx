@@ -23,6 +23,7 @@ import { ThreadStatusLine } from "./components/chat/ThreadStatusLine";
 import { ThreadFindBar } from "./components/chat/ThreadFindBar";
 import { TimelineMinimap, type TimelineMinimapItem } from "./components/chat/TimelineMinimap";
 import { TimelineSystemDivider } from "./components/chat/TimelineSystemDivider";
+import { ThreadErrorBanner } from "./components/chat/ThreadErrorBanner";
 import {
   WorkspaceBreadcrumb,
   WorkspaceBreadcrumbItem,
@@ -756,6 +757,8 @@ function App() {
   const [chatSearchOpen, setChatSearchOpen] = useState(false);
   const [chatQuery, setChatQuery] = useState("");
   const [chatIndex, setChatIndex] = useState(0);
+  // 错误条按消息时间戳记一次关闭：同一条失败回合关掉后不再反复弹出。
+  const [dismissedErrorKey, setDismissedErrorKey] = useState<string | null>(null);
   // 每次按查找快捷键都换一个请求号，已经打开的查找条也会重新聚焦。
   const [chatFindTick, setChatFindTick] = useState(0);
   // A turn that finishes in a task you are not looking at leaves a dot there.
@@ -2768,6 +2771,22 @@ function App() {
                   }}
                   onClose={() => { setChatSearchOpen(false); setChatQuery(""); composerRef.current?.focus(); }}
                 />
+                {(() => {
+                  // T3 的 ThreadErrorBanner：最后一条是失败回合时，在时间线上方提醒，
+                  // 可以就地重试或按会话内关闭。
+                  const lastIndex = activeMessages.length - 1;
+                  const lastMessage = activeMessages[lastIndex];
+                  if (!lastMessage || lastMessage.role !== "assistant" || !lastMessage.text.startsWith("The turn could not run:")) return null;
+                  if (dismissedErrorKey === lastMessage.createdAt) return null;
+                  const retryIndex = promptIndexBefore(lastIndex);
+                  return (
+                    <ThreadErrorBanner
+                      error={lastMessage.text.replace("The turn could not run:", "").trim()}
+                      onRetry={retryIndex !== null && !isActiveTaskRunning ? () => resendFrom(retryIndex) : undefined}
+                      onDismiss={() => setDismissedErrorKey(lastMessage.createdAt)}
+                    />
+                  );
+                })()}
                 <TimelineMinimap
                   items={minimapItems}
                   currentIndex={minimapCurrent}
