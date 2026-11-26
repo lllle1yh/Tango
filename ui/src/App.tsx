@@ -26,6 +26,8 @@ import { TimelineSystemDivider } from "./components/chat/TimelineSystemDivider";
 import { ThreadErrorBanner } from "./components/chat/ThreadErrorBanner";
 import { ThreadDetailsPanel, ThreadDetailsRow, ThreadDetailsSection } from "./components/chat/ThreadDetailsPanel";
 import { AgentStatusBanner } from "./components/chat/AgentStatusBanner";
+import { ComposerPromptLengthValidation, promptLengthMessage } from "./components/chat/ComposerPromptLengthValidation";
+import { DraftProjectName } from "./components/chat/DraftProjectName";
 import { ThreadAnnouncer, type ThreadAnnouncementState } from "./components/chat/ThreadAnnouncer";
 import {
   WorkspaceBreadcrumb,
@@ -1059,6 +1061,7 @@ function App() {
   } | null>(null);
   const [permissionText, setPermissionText] = useState("");
   const [atBottom, setAtBottom] = useState(true);
+  const promptLengthWarning = promptLengthMessage(prompt);
   const scrollTaskRef = useRef<string | null>(null);
 
   const refreshAgents = useCallback(async () => {
@@ -1751,6 +1754,8 @@ function App() {
     const text = prompt.trim();
     const task = tasks.find((item) => item.id === activeTask);
     if (!text || !task || !activeAgent) return;
+    // 超过命令行能吃的长度就停在输入框里，提示已经显示在输入框上方。
+    if (promptLengthMessage(text)) return;
     // 正在跑的这一回合不接受新消息，先排到它后面。
     if (runningTurnsRef.current[task.id]) {
       queuePrompt(activeAgent, task, text);
@@ -2883,7 +2888,7 @@ function App() {
                           {/* T3 的空任务大标题：项目名作为一个可换行的整体排在句子里。 */}
                           {project ? (
                             <DraftHeroProjectHeading projectName={projectName ?? ""}>
-                              <span className="conversation-hero-project">{projectName}</span>
+                              <DraftProjectName value={projectName ?? ""} />
                             </DraftHeroProjectHeading>
                           ) : headerAgent ? (
                             `Start with ${agents.find((agent) => agent.id === headerAgent)?.name ?? headerAgent}`
@@ -3098,6 +3103,8 @@ function App() {
                 )}
                 <ComposerSurface.Shell className="px-3 pb-3 pt-1">
                   <ComposerSurface.Host>
+                {/* T3 的输入长度提示：超长时在输入框上方说明，而不是等发送后报错。 */}
+                <ComposerPromptLengthValidation message={promptLengthWarning} />
                 <form className={"composer" + (prompt.trim() ? " has-draft" : "")} onSubmit={(event) => { event.preventDefault(); void submitPrompt(); }}>
                   {slashOpen && (
                     <div className="slash-menu" role="listbox" aria-label="Commands">
@@ -3188,7 +3195,7 @@ function App() {
                           {stopping ? "Stopping" : "Stop"}
                         </ComposerControl>
                       )}
-                      <button type="submit" className="send-button" disabled={!prompt.trim()} title={isActiveTaskRunning ? "Send after this turn" : "Send (Enter)"}>
+                      <button type="submit" className="send-button" disabled={!prompt.trim() || Boolean(promptLengthWarning)} title={isActiveTaskRunning ? "Send after this turn" : "Send (Enter)"}>
                         {isActiveTaskRunning ? "Queue" : "Send"}
                       </button>
                     </div>
