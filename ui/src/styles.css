@@ -543,6 +543,12 @@ button { color: inherit; font: inherit; }
 .tool-row.done .tool-status { color: #16a34a; }
 .tool-row.error .tool-status { color: #dc2626; }
 .tool-row.running .tool-status { color: var(--primary); }
+/* 退出码是命令结果的硬证据，成功与失败用颜色分开。 */
+.tool-exit { flex: none; padding: 0 5px; border-radius: 4px; background: var(--surface-2); color: var(--fg-subtle); font-family: ui-monospace, Consolas, monospace; font-size: 10px; font-variant-numeric: tabular-nums; }
+.tool-exit.ok { color: #15803d; }
+.tool-exit.bad { color: #b91c1c; }
+:root[data-theme="dark"] .tool-exit.ok { color: #4ade80; }
+:root[data-theme="dark"] .tool-exit.bad { color: #f87171; }
 .spin { animation: tool-spin 1s linear infinite; }
 @keyframes tool-spin { to { transform: rotate(360deg); } }
 

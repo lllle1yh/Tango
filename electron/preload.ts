@@ -177,7 +177,7 @@ export interface TaskRecord {
     text: string;
     agent: string;
     createdAt: string;
-    tools?: Array<{ id: string; name: string; status: string; detail?: string }>;
+    tools?: Array<{ id: string; name: string; status: string; detail?: string; exitCode?: number }>;
   }>;
 }
 

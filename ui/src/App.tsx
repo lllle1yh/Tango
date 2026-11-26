@@ -514,7 +514,7 @@ function toolNamesSummary(tools: Array<{ name: string }>) {
 
 // One line for the tools of a turn, folded or open; live and finished turns look the same.
 function ToolActivity({ tools, expanded, onToggle }: {
-  tools: Array<{ id: string; name: string; status: string; detail?: string }>;
+  tools: Array<{ id: string; name: string; status: string; detail?: string; exitCode?: number }>;
   expanded: boolean;
   onToggle(): void;
 }) {
@@ -542,6 +542,9 @@ function ToolActivity({ tools, expanded, onToggle }: {
             <ToolIcon size={12} className="tool-icon" />
             <span className="tool-name">{tool.name}</span>
             {tool.detail && <span className="tool-detail" title={tool.detail}>{tool.detail}</span>}
+            {typeof tool.exitCode === "number" && (
+              <span className={"tool-exit " + (tool.exitCode === 0 ? "ok" : "bad")} title={`Exit code ${tool.exitCode}`}>exit {tool.exitCode}</span>
+            )}
             <span className="tool-status">
               {tool.status === "running" ? <Loader2 size={11} className="spin" />
                 : tool.status === "error" ? <AlertCircle size={11} />
@@ -590,7 +593,7 @@ function App() {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [slashIndex, setSlashIndex] = useState(0);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [toolActivity, setToolActivity] = useState<Record<string, Array<{ id: string; name: string; status: string; detail?: string }>>>({});
+  const [toolActivity, setToolActivity] = useState<Record<string, Array<{ id: string; name: string; status: string; detail?: string; exitCode?: number }>>>({});
   const [magpie, setMagpie] = useState<{ available: boolean; version: string | null } | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [appInfo, setAppInfo] = useState<{ version: string; platform: string; electron: string; node: string; dataFolder: string } | null>(null);
@@ -1228,7 +1231,7 @@ function App() {
 
   // A finished turn folds its tools into the reply, so they stay visible after the task is
   // reopened instead of vanishing with the live list.
-  function finishTools(taskId: string): Array<{ id: string; name: string; status: string; detail?: string }> | undefined {
+  function finishTools(taskId: string): Array<{ id: string; name: string; status: string; detail?: string; exitCode?: number }> | undefined {
     const tools = toolActivityRef.current[taskId] ?? [];
     if (tools.length === 0) return undefined;
     toolActivityRef.current = { ...toolActivityRef.current, [taskId]: [] };
@@ -1272,7 +1275,7 @@ function App() {
 
   // Tools belong to the turn that is running when they arrive. Finished turns keep their
   // own tools in the transcript; this map only holds what the live turn has done so far.
-  function recordTool(taskId: string, tool: { id?: string; name?: string; status?: string; detail?: string }) {
+  function recordTool(taskId: string, tool: { id?: string; name?: string; status?: string; detail?: string; exitCode?: number }) {
     const id = String(tool.id ?? tool.name ?? "tool");
     const name = tool.name ? String(tool.name) : undefined;
     const detail = typeof tool.detail === "string" && tool.detail ? tool.detail.slice(0, 400) : undefined;
@@ -1281,8 +1284,8 @@ function App() {
       const list = current[taskId] ?? [];
       const index = list.findIndex((item) => item.id === id);
       const next = index >= 0
-        ? list.map((item, i) => (i === index ? { ...item, name: name ?? item.name, status, detail: detail ?? item.detail } : item))
-        : [...list, { id, name: name ?? "tool", status, detail }].slice(-40);
+        ? list.map((item, i) => (i === index ? { ...item, name: name ?? item.name, status, detail: detail ?? item.detail, exitCode: tool.exitCode ?? item.exitCode } : item))
+        : [...list, { id, name: name ?? "tool", status, detail, ...(tool.exitCode === undefined ? {} : { exitCode: tool.exitCode }) }].slice(-40);
       const merged = { ...current, [taskId]: next };
       toolActivityRef.current = merged;
       return merged;
@@ -1734,7 +1737,7 @@ function App() {
   const headerAgent: AgentStatus["id"] | undefined = activeAgent ?? historicalAgent
     ?? (activeTaskRecord?.threadId ? "codex" : undefined);
 
-  type ToolItem = { id: string; name: string; status: string; detail?: string };
+  type ToolItem = { id: string; name: string; status: string; detail?: string; exitCode?: number };
   type ChatRow =
     | { kind: "message"; id: string; index: number; message: TaskRecord["messages"][number] }
     | { kind: "stream"; id: string }

@@ -174,24 +174,35 @@ function codexToolDetail(item: any): string | undefined {
   return undefined;
 }
 
+// 命令有没有成功，退出码是最直接的证据；没有退出码就不编一个。
+function toolExitCode(item: any): number | undefined {
+  if (!item) return undefined;
+  const direct = item.exitCode ?? item.exit_code ?? item.result?.exitCode;
+  if (typeof direct === "number") return direct;
+  if (typeof direct === "string" && /^-?\d+$/.test(direct.trim())) return Number(direct.trim());
+  return undefined;
+}
+
 // Tools the running turn has used so far. The renderer sees every tool event live; the
 // main process keeps the same list so the finished reply can carry its tools to disk.
-type TurnTool = { id: string; name: string; status: string; detail?: string };
+type TurnTool = { id: string; name: string; status: string; detail?: string; exitCode?: number };
 const turnTools = new Map<string, TurnTool[]>();
 
-function noteTurnTool(taskId: string, tool: { id?: unknown; name?: unknown; status?: unknown; detail?: unknown }) {
+function noteTurnTool(taskId: string, tool: { id?: unknown; name?: unknown; status?: unknown; detail?: unknown; exitCode?: unknown }) {
   const list = turnTools.get(taskId);
   if (!list) return; // No turn is recording for this task.
   const id = String(tool.id ?? tool.name ?? "tool");
   const name = tool.name !== undefined && tool.name !== null ? String(tool.name) : undefined;
   const detail = typeof tool.detail === "string" && tool.detail ? tool.detail.slice(0, 400) : undefined;
   const status = tool.status === "running" ? "running" : tool.status === "error" ? "error" : "done";
+  // 退出码跟着工具一起存盘，重开任务还能看到命令是成功还是失败。
+  const exitCode = typeof tool.exitCode === "number" ? tool.exitCode : undefined;
   const index = list.findIndex((item) => item.id === id);
   if (index >= 0) {
     const current = list[index];
-    list[index] = { ...current, name: name ?? current.name, status, detail: detail ?? current.detail };
+    list[index] = { ...current, name: name ?? current.name, status, detail: detail ?? current.detail, exitCode: exitCode ?? current.exitCode };
   } else {
-    list.push({ id, name: name ?? "tool", status, detail });
+    list.push({ id, name: name ?? "tool", status, detail, ...(exitCode === undefined ? {} : { exitCode }) });
     if (list.length > 40) list.shift();
   }
 }
@@ -348,6 +359,7 @@ function createCodexClient(taskId: string, projectPath: string) {
               name: Array.isArray(item.command) ? item.command[0] ?? item.type : item.command ?? item.tool ?? item.type,
               status: message.method === "item/started" && item.status === undefined ? "running" : status,
               detail: codexToolDetail(item),
+              exitCode: toolExitCode(item),
             });
           }
           sendCodexEvent(taskId, { type: message.method, item });
