@@ -30,6 +30,9 @@
   --primary: #4a57d9;
   --primary-soft: #4a57d914;
   --primary-fg: #ffffff;
+  /* 旧规则用的是 --accent（未读点、运行中徽标、搜索命中、交接标记），
+     迁移时只定义了 --primary，导致这些着色全部变成无效值、在界面上消失。 */
+  --accent: var(--primary);
 
   --radius: 8px;
   --radius-sm: 6px;
