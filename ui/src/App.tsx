@@ -518,6 +518,7 @@ function ToolActivity({ tools, expanded, onToggle }: {
   expanded: boolean;
   onToggle(): void;
 }) {
+  const [openTools, setOpenTools] = useState<Record<string, boolean>>({});
   return (
     <div className="tool-activity" aria-label="Tool activity" data-expanded={expanded}>
       <button
@@ -538,10 +539,20 @@ function ToolActivity({ tools, expanded, onToggle }: {
           : /(search|grep|web|fetch)/.test(name) ? Globe
           : Wrench;
         return (
-          <div key={tool.id} className={"tool-row " + tool.status}>
+          // 工具行本身是按钮（T3 的 WorkLogRow）：收起时一行看完，点开才铺开内容。
+          <button
+            key={tool.id}
+            type="button"
+            className={"tool-row " + tool.status + (openTools[tool.id] ? " open" : "")}
+            aria-expanded={Boolean(openTools[tool.id])}
+            title={tool.detail || tool.name}
+            onClick={() => setOpenTools((current) => ({ ...current, [tool.id]: !current[tool.id] }))}
+            disabled={!tool.detail}
+          >
+            {openTools[tool.id] ? <ChevronDown size={11} className="tool-caret" /> : <ChevronRight size={11} className="tool-caret" />}
             <ToolIcon size={12} className="tool-icon" />
             <span className="tool-name">{tool.name}</span>
-            {tool.detail && <span className="tool-detail" title={tool.detail}>{tool.detail}</span>}
+            <span className="tool-detail">{tool.detail}</span>
             {typeof tool.exitCode === "number" && (
               <span className={"tool-exit " + (tool.exitCode === 0 ? "ok" : "bad")} title={`Exit code ${tool.exitCode}`}>exit {tool.exitCode}</span>
             )}
@@ -550,7 +561,8 @@ function ToolActivity({ tools, expanded, onToggle }: {
                 : tool.status === "error" ? <AlertCircle size={11} />
                 : <CheckCircle2 size={11} />}
             </span>
-          </div>
+            {openTools[tool.id] && tool.detail && <pre className="tool-output">{tool.detail}</pre>}
+          </button>
         );
       })}
     </div>
@@ -1657,6 +1669,23 @@ function App() {
     ].join("\n\n");
   }
 
+  // 原地开一条新任务，把当前任务的上下文交给另一个 Agent，原对话保持不动。
+  async function handOffToNewTask(target: AgentStatus["id"]) {
+    setHandoffOpen(false);
+    const source = tasks.find((item) => item.id === activeTask);
+    if (!source || running) return;
+    try {
+      const copy = await window.tango.duplicateTask(source.id);
+      setTasks((current) => [copy, ...current]);
+      setActiveTask(copy.id);
+      setView("chat");
+      setActiveAgent(target);
+      await startTurn(target, copy, handoffContext(copy, target));
+    } catch (error) {
+      setAssistantText(errorText(error, "Could not start a handoff task"));
+    }
+  }
+
   async function handoffTo(target: AgentStatus["id"]) {
     setHandoffOpen(false);
     const task = tasks.find((item) => item.id === activeTask);
@@ -2482,11 +2511,28 @@ function App() {
                   {handoffOpen && (
                     <div className="handoff-menu" role="menu">
                       {agents.filter((agent) => agent.available && agent.id !== activeAgent).map((agent) => (
-                        <button key={agent.id} role="menuitem" onClick={() => void handoffTo(agent.id)}>
+                        <button
+                          key={agent.id}
+                          role="menuitem"
+                          title={`Start a new task here with ${agent.name}; this conversation stays as it is`}
+                          onClick={() => void handOffToNewTask(agent.id)}
+                        >
                           <AgentGlyph agentId={agent.id} />
                           <span>{agent.name}</span>
+                          <span className="handoff-new">new task</span>
                         </button>
                       ))}
+                      {activeTask && !running && (
+                        <>
+                          <div className="handoff-divider" role="separator">Continue in this conversation</div>
+                          {agents.filter((agent) => agent.available && agent.id !== activeAgent).map((agent) => (
+                            <button key={"same-" + agent.id} role="menuitem" className="handoff-same" title="Add a handoff turn to this task" onClick={() => void handoffTo(agent.id)}>
+                              <AgentGlyph agentId={agent.id} />
+                              <span>{agent.name}</span>
+                            </button>
+                          ))}
+                        </>
+                      )}
                       {agents.filter((agent) => agent.available && agent.id !== activeAgent).length === 0 && (
                         <p className="settings-hint">No other agent is installed.</p>
                       )}
@@ -2546,7 +2592,9 @@ function App() {
                   <span className="task-status-name">{agents.find((agent) => agent.id === headerAgent)?.name ?? "Agent"}</span>
                   <span className="task-status-dot" aria-hidden="true" />
                   <span className="task-status-state">
-                    {turnLine && turnLine.taskId === activeTask ? turnLine.text : isActiveTaskRunning ? "Working" : "Ready"}
+                    {isActiveTaskRunning
+                      ? "Working " + formatElapsed(activeTaskRecord?.running?.startedAt, nowTick)
+                      : turnLine && turnLine.taskId === activeTask ? turnLine.text : "Ready"}
                   </span>
                   {(activeTaskRecord?.projectPath ?? project) && <span className="task-status-path" title={activeTaskRecord?.projectPath ?? project ?? ""}>{projectLabel(activeTaskRecord?.projectPath ?? project ?? "")}</span>}
                 </div>
