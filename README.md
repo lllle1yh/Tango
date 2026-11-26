@@ -20,6 +20,17 @@ Tango 面向每天和 Agent 一起写代码、查资料、跑测试的人。打�
 
 **项目状态**　可用的本地原型。已接通 Codex（app-server）、Claude Code（stream-json）、DSH（ACP）和 Pi（RPC）的原生会话；支持中断、Codex 与 DSH 审批转发、任务记录与恢复、每回合工具记录与交接分隔、会话内查找、后台回合继续写入、最近项目切换、终端画布（分屏、布局恢复、shell 重命名）、Markdown 输出和明暗主题；界面按首页、任务页、终端页分开，可以边看终端边对话（Ctrl+Shift+J）。工具调用可只显示失败或 Zen 模式，命令带退出码；回合运行中新消息会排队，回合结束后自动接着发。
 
+## 从外部 Agent 进入同一个任务
+
+Tango 自带一个 MCP 桥 `scripts/tango-mcp.mjs`：外部 Agent（例如 Claude Code CLI）可以列出、
+读取 Tango 里的任务对话，并把回答写回同一个任务。
+
+```bash
+claude mcp add tango -- node <Tango 仓库路径>/scripts/tango-mcp.mjs
+```
+
+它只读写 `tasks.json`，不复制 Agent 的会话或凭据。详见 [工作区规格](docs/workspace.md#01-从外部-agent-进入同一个任务)。
+
 ## Tango 如何接入 Agent
 
 | 组成 | 职责 |

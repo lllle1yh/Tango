@@ -60,3 +60,20 @@
 - 面板操作支持键盘访问、可见焦点与屏幕阅读器标签。布局快捷键覆盖聚焦、分屏、关闭与标签切换。
 
 独立窗口的生命周期、跨窗口共舞和多面板性能边界待定。
+
+## 0.1 从外部 Agent 进入同一个任务
+
+Tango 提供一个 MCP 桥（`scripts/tango-mcp.mjs`），外部 Agent 可以读到 Tango 里同一个任务的对话，
+并把回答写回去。它只读写 `tasks.json`，不复制 Agent 的会话或凭据；Tango 窗口回到前台时会重读任务。
+
+```bash
+claude mcp add tango -- node <Tango 仓库路径>/scripts/tango-mcp.mjs
+```
+
+数据目录默认是 Tango 的 userData，可设 `TANGO_DATA_DIR` 指向别处。提供的工具：
+
+| 工具 | 作用 |
+| --- | --- |
+| `tango_list_tasks` | 列出未归档任务的标题、项目、消息数与最后活动时间 |
+| `tango_read_task` | 读取任务对话（含每回合工具、退出码与失败标记），可限制最近 N 条 |
+| `tango_reply` | 把一段 Markdown 回答写回任务，来源标为 Claude Code |
