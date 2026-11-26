@@ -467,10 +467,10 @@ button { color: inherit; font: inherit; }
 .markdown pre { margin: 10px 0; padding: 12px 14px; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 .markdown pre code { padding: 0; background: transparent; font-size: 12.5px; line-height: 1.6; }
 .markdown blockquote { margin: 10px 0; padding: 2px 12px; border-left: 2px solid var(--line-strong); color: var(--fg-muted); }
-/* A wide table scrolls inside the message instead of stretching the chat column. */
-.markdown > table { display: block; width: max-content; max-width: 100%; overflow-x: auto; }
-/* Cells shrink to their first word instead of fitting the column, so wide tables overflow. */
-.markdown > table th, .markdown > table td { min-width: max-content; }
+/* A wide table scrolls inside T3 的表格外壳，不再把消息列撑开。 */
+.chat-markdown-table-container > .overflow-x-auto { max-width: 100%; }
+.chat-markdown-table-container table { width: max-content; }
+.chat-markdown-table-container th, .chat-markdown-table-container td { min-width: max-content; }
 .markdown table { margin: 10px 0; border-collapse: collapse; font-size: 13px; }
 .markdown th, .markdown td { padding: 6px 10px; border: 1px solid var(--line); text-align: left; }
 .markdown th { background: var(--surface); font-weight: 600; }

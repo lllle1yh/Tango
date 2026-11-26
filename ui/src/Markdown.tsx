@@ -8,6 +8,7 @@ import rehypeSanitize from "rehype-sanitize";
 import rehypeHighlight from "rehype-highlight";
 import { toJsxRuntime } from "hast-util-to-jsx-runtime";
 import { MarkdownCodeBlock } from "./components/chat/MarkdownCodeBlock";
+import { MarkdownTable } from "./components/chat/MarkdownTable";
 
 // Same pipeline shape T3 Code uses for chat messages: remark → rehype → React.
 // Sanitising in the middle means we can render agent output without trusting it.
@@ -19,9 +20,12 @@ const processor = unified()
   // Highlight after sanitising: the sanitizer only ever sees plain code text.
   .use(rehypeHighlight, { detect: false });
 
-const components = { pre: ({ children }: ComponentPropsWithoutRef<"pre"> & { children?: ReactNode }) => (
-  <MarkdownCodeBlock>{children}</MarkdownCodeBlock>
-) };
+const components = {
+  pre: ({ children }: ComponentPropsWithoutRef<"pre"> & { children?: ReactNode }) => (
+    <MarkdownCodeBlock>{children}</MarkdownCodeBlock>
+  ),
+  table: MarkdownTable,
+};
 
 type HastNode = { type: string; value?: string; tagName?: string; properties?: Record<string, unknown>; children?: HastNode[] };
 
