@@ -3024,6 +3024,8 @@ function App() {
                         >
                           <span className="slash-name">/{command.name}</span>
                           <span className="slash-label">{command.label}</span>
+                          {command.insert && <Badge variant="outline" size="sm" className="slash-badge">prompt</Badge>}
+                          {command.run && <Badge variant="info" size="sm" className="slash-badge">action</Badge>}
                         </button>
                       ))}
                     </div>

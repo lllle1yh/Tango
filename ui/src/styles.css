@@ -434,10 +434,12 @@ button { color: inherit; font: inherit; }
 .composer { position: relative; }
 .slash-menu { position: absolute; z-index: 20; bottom: calc(100% + 6px); left: 0; display: flex; min-width: 260px; flex-direction: column; gap: 1px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-3); box-shadow: 0 10px 30px #0000001f; }
 .slash-item { display: flex; height: 30px; align-items: center; gap: 10px; padding: 0 9px; border: 0; border-radius: 5px; background: transparent; color: var(--fg); cursor: pointer; text-align: left; }
+.slash-badge { margin-left: auto; }
 .slash-item.active { background: var(--primary); color: var(--primary-fg); }
 .slash-name { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; }
 .slash-label { color: var(--fg-muted); font-size: 12.5px; }
 .slash-item.active .slash-label { color: #ffffffc7; }
+.slash-item.active .slash-badge { background: #ffffff26; border-color: #ffffff33; color: #ffffffd9; }
 
 /* Markdown output */
 .message .markdown { font-size: 14px; line-height: 1.7; }
