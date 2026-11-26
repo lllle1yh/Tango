@@ -20,6 +20,12 @@ import { ComposerSurface } from "./components/chat/ComposerSurface";
 import { QueuedRuns } from "./components/chat/QueuedRuns";
 import { ToolApprovalRow } from "./components/chat/ToolApprovalRow";
 import { ThreadStatusLine } from "./components/chat/ThreadStatusLine";
+import {
+  WorkspaceBreadcrumb,
+  WorkspaceBreadcrumbItem,
+  WorkspaceBreadcrumbSeparator,
+  WorkspaceBreadcrumbText,
+} from "./components/WorkspaceBreadcrumb";
 import { WorkLogBlock, WorkLogButton, WorkLogDetails, WorkLogList, WorkLogRow } from "./WorkLog";
 
 // Windows paths use backslashes, other platforms slashes; the label is only the last part.
@@ -2568,7 +2574,50 @@ function App() {
             {view === "chat" && headerAgent && activeTask && (
               <div className="conversation">
                 <div className="conversation-heading">
-                  <span className="conversation-title" title={tasks.find((task) => task.id === activeTask)?.title}>{tasks.find((task) => task.id === activeTask)?.title}</span>
+                  {/* T3 的 ChatHeader：项目 / 标题的面包屑，标题本身是按钮——
+                      单击开出任务菜单，双击直接改名，悬停才露出下拉箭头。 */}
+                  <WorkspaceBreadcrumb ariaLabel="Task breadcrumb" className="conversation-breadcrumb">
+                    {project && (
+                      <>
+                        <WorkspaceBreadcrumbItem className="shrink">
+                          <button
+                            type="button"
+                            className="inline-flex min-w-0 max-w-full cursor-pointer items-center gap-1.5 rounded-sm text-muted-foreground transition-colors hover:text-foreground"
+                            title={`Back to ${projectName ?? "the project"}`}
+                            onClick={() => setView("home")}
+                          >
+                            <WorkspaceBreadcrumbText>{projectName}</WorkspaceBreadcrumbText>
+                          </button>
+                        </WorkspaceBreadcrumbItem>
+                        <WorkspaceBreadcrumbSeparator>
+                          <WorkspaceBreadcrumbText>/</WorkspaceBreadcrumbText>
+                        </WorkspaceBreadcrumbSeparator>
+                      </>
+                    )}
+                    <WorkspaceBreadcrumbItem current className="min-w-10 flex-1">
+                      <button
+                        type="button"
+                        className="group/task-title inline-flex min-w-0 max-w-full cursor-pointer items-center gap-1 rounded-sm text-left"
+                        aria-haspopup="menu"
+                        aria-label={`Task actions for ${activeTaskRecord?.title ?? "this task"}`}
+                        title={activeTaskRecord?.title}
+                        onClick={(event) => {
+                          const rect = event.currentTarget.getBoundingClientRect();
+                          setTaskMenu({ id: activeTask, x: Math.max(8, rect.left), y: rect.bottom + 4 });
+                        }}
+                        onDoubleClick={() => activeTaskRecord && startRename(activeTaskRecord)}
+                      >
+                        <h2 className="conversation-title conversation-title-button m-0 min-w-0">
+                          <WorkspaceBreadcrumbText>{activeTaskRecord?.title}</WorkspaceBreadcrumbText>
+                        </h2>
+                        <ChevronDown
+                          size={13}
+                          aria-hidden="true"
+                          className="shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/task-title:opacity-100 group-focus-visible/task-title:opacity-100"
+                        />
+                      </button>
+                    </WorkspaceBreadcrumbItem>
+                  </WorkspaceBreadcrumb>
                   {headerAgent && (
                     <span
                       className="conversation-agent"
