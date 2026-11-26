@@ -1594,10 +1594,12 @@ function App() {
         const who = message.role === "user"
           ? "User"
           : agents.find((agent) => agent.id === message.agent)?.name ?? message.agent;
-        // Tools belong to the turn, so the target can see what was already tried.
+        // 工具属于这一回合，下一任 Agent 需要知道已经试过什么；失败的回合本身也要列出，
+        // 否则接手的人会以为那一步从没发生过。
+        const failedTurn = message.role === "assistant" && message.text.startsWith("The turn could not run:");
         const tools = message.role === "assistant" && message.tools?.length
           ? "\n(tools: " + message.tools.map((tool) => tool.name + (tool.status === "error" ? " failed" : "")).join(", ") + ")"
-          : "";
+          : failedTurn ? "\n(interrupted: did not run)" : "";
         // One very long answer would crowd out the rest of the handoff.
         const text = message.text.length > 1500 ? message.text.slice(0, 1500) + "\n… (truncated)" : message.text;
         return `[${who}] ${text}${tools}`;
