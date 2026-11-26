@@ -4,21 +4,37 @@ import { unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
 import remarkRehype from "remark-rehype";
-import rehypeSanitize from "rehype-sanitize";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import rehypeHighlight from "rehype-highlight";
 import { toJsxRuntime } from "hast-util-to-jsx-runtime";
 import { MarkdownCodeBlock } from "./components/chat/MarkdownCodeBlock";
 import { MarkdownTable } from "./components/chat/MarkdownTable";
 import { MarkdownDetails } from "./components/chat/MarkdownDetails";
 import { MarkdownExternalLinkContent } from "./components/chat/MarkdownExternalLink";
+import { isMarkdownAlert, MarkdownAlert } from "./components/chat/MarkdownAlert";
+import { remarkGithubAlerts } from "./components/chat/markdownGithubAlerts";
+
+// T3 给 blockquote 标 dataAlert，再在渲染时换成提示块；默认 schema 会把它洗掉，所以放开这一个。
+const markdownSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    blockquote: [...(defaultSchema.attributes?.blockquote ?? []), "dataAlert"],
+  },
+};
 
 // Same pipeline shape T3 Code uses for chat messages: remark → rehype → React.
 // Sanitising in the middle means we can render agent output without trusting it.
+// allowDangerousHtml + rehype-raw 是 T3 的做法：Markdown 里的 <details><summary> 这类
+// HTML 块要真的变成元素，否则 MarkdownDetails 永远收不到 summary，折叠块就不存在。
 const processor = unified()
   .use(remarkParse)
   .use(remarkGfm)
-  .use(remarkRehype)
-  .use(rehypeSanitize)
+  .use(remarkGithubAlerts)
+  .use(remarkRehype, { allowDangerousHtml: true })
+  .use(rehypeRaw)
+  .use(rehypeSanitize, markdownSchema)
   // Highlight after sanitising: the sanitizer only ever sees plain code text.
   .use(rehypeHighlight, { detect: false });
 
@@ -40,12 +56,28 @@ const components = {
     <MarkdownCodeBlock>{children}</MarkdownCodeBlock>
   ),
   table: MarkdownTable,
-  details: (props: ComponentPropsWithoutRef<"details">) => (
+  blockquote: (props: ComponentPropsWithoutRef<"blockquote">) => {
+    const alertKind = (props as Record<string, unknown>)["data-alert"];
+    const kind = typeof alertKind === "string" ? alertKind : undefined;
+    if (isMarkdownAlert(kind)) {
+      return (
+        <MarkdownAlert kind={kind} dir={props.dir}>
+          {props.children}
+        </MarkdownAlert>
+      );
+    }
+    return <blockquote {...props} />;
+  },
+  details:(props: ComponentPropsWithoutRef<"details">) => (
     <MarkdownDetails open={props.open} dir={props.dir}>
       {props.children}
     </MarkdownDetails>
   ),
   a: (props: ComponentPropsWithoutRef<"a">) => {
+    // `#fragment` 是同一份文档里的锚点，不该新开窗口，也不该带站点图标。
+    if (props.href?.startsWith("#")) {
+      return <a {...props} />;
+    }
     const { external, host } = markdownAnchorProps(props);
     if (!external || !host) {
       return <a {...props} target="_blank" rel="noreferrer noopener" />;

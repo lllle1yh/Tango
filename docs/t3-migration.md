@@ -14,6 +14,8 @@
 - `ChatBannerLane.tsx`（64 行，Tango 适配版：只留错误条）
 - `MarkdownDetails.tsx`（108 行，适配为原生 details）
 - `MarkdownExternalLink.tsx`（118 行，去掉品牌图标只留 favicon）
+- `MarkdownAlert.tsx`（T3 ChatMarkdown 的提示块渲染：Note/Tip/Important/Warning/Caution）
+- `markdownGithubAlerts.ts`（搬自 T3 `packages/shared`：把 `> [!NOTE]` 标成 dataAlert）
 - `ProviderPackageIcon.tsx`（Tango 适配版：Agent 图标位）
 - `ComposerBannerStack.tsx`（228 行）
 - `ComposerControl.tsx`（82 行）
@@ -180,3 +182,10 @@
 - `useProjectCloneBanner.tsx`（138 行）
 - `useSystemComposerBanners.tsx`（299 行）
 - `useThreadLifecycle.tsx`（773 行）
+
+## Markdown 管线的对齐
+
+T3 的 `packages/shared/src/markdownPipeline.ts` 用 `remarkRehype({ allowDangerousHtml: true })` + `rehype-raw` 让 Markdown 里的
+`<details><summary>` 等 HTML 块真正变成元素，再用 sanitize 洗一遍。Tango 的 `ui/src/Markdown.tsx` 现在也走这条管线，
+并给 sanitize schema 补了 `blockquote` 的 `dataAlert` 属性，`remarkGithubAlerts` 才有地方落脚。已验证：
+折叠块点击展开/收起、内容渲染代码块；`> [!NOTE]` / `> [!WARNING]` 各自的色线与图标；`#fragment` 链接不新开窗口。
