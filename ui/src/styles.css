@@ -160,7 +160,9 @@ button { color: inherit; font: inherit; }
 .jump-latest { position: absolute; z-index: 20; right: 22px; bottom: 96px; display: inline-flex; height: 28px; align-items: center; gap: 4px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-3); color: var(--fg-muted); box-shadow: 0 4px 14px #0000001a; cursor: pointer; font-size: 12px; }
 .jump-latest:hover { color: var(--fg); background: var(--surface-2); }
 .conversation-heading { position: relative; display: flex; height: 44px; flex: none; align-items: center; padding: 0 16px; border-bottom: 1px solid var(--line); color: var(--fg); font-size: 13px; font-weight: 500; }
-.conversation-messages { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 20px; overflow: auto; padding: 0; scrollbar-gutter: stable both-edges; }
+/* 消息列与输入框同一条中线：输入框是 min(820px, 100%-48) 的玻璃卡片，
+   内宽 796，消息列按 796 居中，左右两端才对得上；右侧多留一点给悬停出现的复制按钮。 */
+.conversation-messages { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 20px; overflow: auto; padding: 26px max(56px, calc((100% - 796px) / 2)) 0 max(24px, calc((100% - 796px) / 2)); scrollbar-gutter: stable; }
 .conversation-empty { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--fg-subtle); text-align: center; }
 .conversation-empty .agent-mark { width: 44px; height: 44px; margin-bottom: 8px; border-radius: 11px; background: var(--surface-2); opacity: .85; }
 .conversation-empty-title { margin: 0; color: var(--fg-muted); font-size: 14px; font-weight: 600; }
@@ -214,7 +216,7 @@ button { color: inherit; font: inherit; }
   .panel-tab { min-width: 126px; }
   /* The copy button hangs 34px outside the message; at this width it needs a gutter of its own,
      or the transcript grows a horizontal scrollbar. */
-  .conversation-messages { padding: 26px max(26px, calc((100% - 960px) / 2)); padding-right: 56px; }
+  .conversation-messages { padding: 26px 56px 0 24px; }
   .agent-state { font-size: 0; }
   .agent-state i { width: 6px; height: 6px; }
 }
@@ -288,7 +290,7 @@ button { color: inherit; font: inherit; }
 /* Settings selects */
 .settings-select { height: 30px; padding: 0 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-3); color: var(--fg); font: inherit; font-size: 12.5px; cursor: pointer; }
 .settings-select:hover { border-color: var(--line-strong); }
-:root[data-width="wide"] .conversation-messages { padding-left: 16px; padding-right: 16px; }
+:root[data-width="wide"] .conversation-messages { padding-left: 16px; padding-right: 56px; }
 :root[data-width="wide"] .message { max-width: none; }
 :root[data-width="wide"] .composer { width: calc(100% - 32px); }
 
@@ -375,8 +377,6 @@ button { color: inherit; font: inherit; }
 .app-body > .sidebar { height: 100%; min-height: 0; }
 .app-body > .main-area { height: 100%; min-height: 0; }
 /* 终端独占整页时不再留出侧栏那一列。 */
-.app-body.terminal-view { grid-template-columns: minmax(0, 1fr); }
-.app-body.terminal-view .sidebar { display: none; }
 /* 首页：项目、最近项目、任务列表各自成块，点任务进入任务页。 */
 .home-page { min-height: 0; flex: 1; overflow: auto; padding: 26px max(26px, calc((100% - 960px) / 2)) 40px; }
 .home-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
@@ -397,9 +397,10 @@ button { color: inherit; font: inherit; }
 .home-task-meta { flex: none; color: var(--fg-subtle); font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .home-empty { margin: 4px 0 0; color: var(--fg-subtle); font-size: 12.5px; }
 
-/* 任务页也不留侧栏那一列：任务独占整页。 */
-.app-body.chat-view { grid-template-columns: minmax(0, 1fr); }
-.app-body.chat-view .sidebar { display: none; }
+/* 对话页和终端页也保留侧栏：Codex/T3 的侧栏是常驻的，切任务、看运行中、
+   搜索、置顶都在这里；关掉侧栏会把这一整组功能变成不可用。 */
+.app-body.chat-view { grid-template-columns: 268px minmax(0, 1fr); }
+.app-body.terminal-view { grid-template-columns: 268px minmax(0, 1fr); }
 .crumb-tab { padding: 0; border: 0; background: transparent; color: var(--fg-subtle); cursor: pointer; font: inherit; font-size: 12px; }
 .crumb-tab:hover, .crumb-tab.active { color: var(--fg); }
 .app-body .workbench { height: 100%; }
@@ -696,6 +697,16 @@ button { color: inherit; font: inherit; }
 .panel-split.active { color: var(--accent); }
 
 /* 任务页改成"标题 → 一行状态 → 对话 → 输入框"的连续结构，不再散落好几条细横线。 */
+/* 时间线末尾的 ThreadNow 行：比消息列略窄一档，图标 14px，行内动作紧跟文字。 */
+.thread-now-line { display: flex; width: 100%; max-width: var(--chat-content-max-width); align-items: center; gap: 6px; margin: 0 auto; padding: 4px 22px 10px; color: var(--fg-muted); font-size: 11.5px; line-height: 1.45; }
+.thread-now-icon { display: inline-flex; flex: none; align-items: center; color: var(--fg-subtle); }
+.thread-now-icon svg { display: block; }
+.thread-now-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.thread-now-detail { color: var(--fg-subtle); }
+.thread-now-actions { display: inline-flex; flex: none; align-items: center; gap: 8px; margin-left: 6px; }
+.thread-now-button { padding: 0; border: 0; background: transparent; color: var(--primary); cursor: pointer; font: inherit; font-size: 11.5px; font-weight: 500; }
+.thread-now-button:hover { text-decoration: underline; }
+.thread-now-stop-mark { width: 7px; height: 7px; border-radius: 2px; background: var(--fg-subtle); }
 .task-status-line { display: flex; align-items: center; gap: 7px; flex: none; margin: 0 auto; width: min(var(--chat-content-max-width), calc(100% - 48px)); padding: 12px 2px 2px; color: var(--fg-muted); font-size: 11.5px; }
 .task-status-line svg, .task-status-line .agent-mark { flex: none; }
 .task-status-name { color: var(--fg); font-weight: 600; font-size: 12px; }
@@ -802,8 +813,10 @@ button { color: inherit; font: inherit; }
 
 /* T3 的行内走廊：滚动容器占满整列，每一行在 --chat-content-max-width 内居中，
    与状态行、输入框共用同一条中线。 */
-.chat-lane { box-sizing: border-box; width: 100%; min-width: 0; max-width: var(--chat-content-max-width); margin-inline: auto; padding-inline: 20px; }
-.conversation-empty { box-sizing: border-box; width: 100%; max-width: var(--chat-content-max-width); margin-inline: auto; padding-inline: 20px; }
+/* 消息行按输入框内宽 796 居中：conversation-messages 的左右内边距已经给悬停按钮留了口子，
+   这里再按 lane 居中会让消息比输入框缩进 12px，所以 lane 直接铺满这一列。 */
+.chat-lane { box-sizing: border-box; width: 100%; min-width: 0; padding-inline: 0; }
+.conversation-empty { box-sizing: border-box; width: 100%; padding-inline: 0; }
 
 /* T3 的玻璃在纯白页面上几乎看不见；给输入框一层浅灰半透明玻璃，
    深色主题再抬高一档，保证一眼能看出这是一张卡片。 */

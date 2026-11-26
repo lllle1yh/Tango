@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import type { AgentStatus, AppSettings, LayoutNode, TaskRecord } from "../../electron/preload";
@@ -74,6 +74,43 @@ function titleFromPrompt(text: string) {
   const cleaned = firstLine.replace(/^[/#>\-*]+\s*/, "");
   if (!cleaned) return null;
   return cleaned.length > 60 ? cleaned.slice(0, 57).trimEnd() + "…" : cleaned;
+}
+
+// 时间线末尾的一行“现在在干什么”，与 T3 的 ThreadNow 同一族：图标 + 标题 + 说明 + 行内动作。
+function ThreadNowLine({
+  icon,
+  title,
+  description,
+  actions,
+  alert = false,
+}: {
+  icon: ReactNode;
+  title: ReactNode;
+  description?: ReactNode;
+  actions?: ReactNode;
+  alert?: boolean;
+}) {
+  return (
+    <div
+      role={alert ? "alert" : "status"}
+      className="thread-now-line"
+    >
+      <span aria-hidden="true" className="thread-now-icon">{icon}</span>
+      <span className="thread-now-text">
+        {title}
+        {description && <span className="thread-now-detail"> {description}</span>}
+      </span>
+      {actions && <span className="thread-now-actions">{actions}</span>}
+    </div>
+  );
+}
+
+function ThreadNowButton({ children, onClick }: { children: ReactNode; onClick: () => void | Promise<void> }) {
+  return (
+    <button type="button" className="thread-now-button" onClick={() => void onClick()}>
+      {children}
+    </button>
+  );
 }
 
 function AgentGlyph({ agentId }: { agentId: AgentStatus["id"] }) {
@@ -2097,7 +2134,7 @@ function App() {
       </header>
 
       <div className={"app-body" + (view === "terminal" ? " terminal-view" : "") + (view === "chat" ? " chat-view" : "")}>
-      <aside className="sidebar" hidden={view !== "home"}>
+      <aside className="sidebar">
         <div className="sidebar-label">PROJECT</div>
         <button className="project-button" onClick={() => void openProject()}>
           <FolderIcon />
@@ -2582,20 +2619,22 @@ function App() {
                   )}
                 </div>
                 {tasks.find((task) => task.id === activeTask)?.running && !running && (
-                  <div className="run-stale" role="status">
-                    <span>
-                      The last turn ({agents.find((agent) => agent.id === activeTaskRecord?.running?.agent)?.name ?? activeTaskRecord?.running?.agent}) did not finish. It may have been interrupted by a restart.
-                    </span>
-                    <button
-                      className="subtle-button"
-                      onClick={async () => {
-                        const updated = await window.tango.clearTaskRunning(activeTask!);
-                        if (updated) setTasks((current) => current.map((task) => (task.id === updated.id ? { ...task, running: undefined } : task)));
-                      }}
-                    >
-                      Dismiss
-                    </button>
-                  </div>
+                  <ThreadNowLine
+                    alert
+                    icon={<AlertCircle size={14} />}
+                    title={`The last turn (${agents.find((agent) => agent.id === activeTaskRecord?.running?.agent)?.name ?? activeTaskRecord?.running?.agent}) did not finish`}
+                    description="It may have been interrupted by a restart"
+                    actions={
+                      <ThreadNowButton
+                        onClick={async () => {
+                          const updated = await window.tango.clearTaskRunning(activeTask!);
+                          if (updated) setTasks((current) => current.map((task) => (task.id === updated.id ? { ...task, running: undefined } : task)));
+                        }}
+                      >
+                        Dismiss
+                      </ThreadNowButton>
+                    }
+                  />
                 )}
                 {chatSearchOpen && (
                   <div className="chat-search" role="search">
@@ -2629,17 +2668,6 @@ function App() {
                     </button>
                   </div>
                 )}
-                <div className={"task-status-line" + (isActiveTaskRunning ? " live" : "")} role="status">
-                  <AgentGlyph agentId={headerAgent ?? settings?.defaultAgent ?? "codex"} />
-                  <span className="task-status-name">{agents.find((agent) => agent.id === headerAgent)?.name ?? "Agent"}</span>
-                  <span className="task-status-dot" aria-hidden="true" />
-                  <span className="task-status-state">
-                    {isActiveTaskRunning
-                      ? "Working " + formatElapsed(activeTaskRecord?.running?.startedAt, nowTick)
-                      : turnLine && turnLine.taskId === activeTask ? turnLine.text : "Ready"}
-                  </span>
-                  {(activeTaskRecord?.projectPath ?? project) && <span className="task-status-path" title={activeTaskRecord?.projectPath ?? project ?? ""}>{projectLabel(activeTaskRecord?.projectPath ?? project ?? "")}</span>}
-                </div>
                 <div
                   className="conversation-messages"
                   ref={messagesRef}
@@ -2806,6 +2834,15 @@ function App() {
                     </div>
                   );
                 })()}
+                {!isActiveTaskRunning && !permission && turnLine && turnLine.taskId === activeTask && (
+                  <ThreadNowLine
+                    icon={<Square size={10} className="thread-now-stop-mark" />}
+                    title={turnLine.text}
+                  />
+                )}
+                {!isActiveTaskRunning && !permission && turnLine && turnLine.taskId !== activeTask && (
+                  <ThreadNowLine icon={<Check size={14} />} title="Ready" description="Send a message to start the next turn" />
+                )}
                 {(queuedCounts[activeTask ?? ""] ?? 0) > 0 && (
                   <QueuedRuns
                     items={(queuedRef.current[activeTask ?? ""] ?? []).map((item, index) => ({
