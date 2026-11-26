@@ -19,6 +19,7 @@ import { TimelineUserRow } from "./components/chat/TimelineUserRow";
 import { ComposerSurface } from "./components/chat/ComposerSurface";
 import { QueuedRuns } from "./components/chat/QueuedRuns";
 import { ToolApprovalRow } from "./components/chat/ToolApprovalRow";
+import { ThreadStatusLine } from "./components/chat/ThreadStatusLine";
 import { WorkLogBlock, WorkLogButton, WorkLogDetails, WorkLogList, WorkLogRow } from "./WorkLog";
 
 // Windows paths use backslashes, other platforms slashes; the label is only the last part.
@@ -2850,6 +2851,17 @@ function App() {
                     </div>
                   );
                 })()}
+                {/* T3 的 ThreadStatusLine：回合进行中在时间线末尾显示一行「谁在跑 · Stop」，
+                    停止入口不必只在输入框里。 */}
+                {isActiveTaskRunning && !permission && (
+                  <ThreadStatusLine
+                    icon={<Loader2 size={14} className="spin" />}
+                    label={`${agents.find((agent) => agent.id === activeAgent)?.name ?? activeAgent ?? "Agent"} is working`}
+                    actionLabel={stopping ? "Stopping…" : "Stop"}
+                    actionDisabled={stopping}
+                    onAction={() => void stopTurn()}
+                  />
+                )}
                 {!isActiveTaskRunning && !permission && turnLine && turnLine.taskId === activeTask && (
                   <ThreadNowLine
                     icon={<Square size={10} className="thread-now-stop-mark" />}
