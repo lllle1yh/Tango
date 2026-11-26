@@ -53,6 +53,17 @@
   --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 }
 
+:root {
+  /* @theme inline 不会在 :root 里发出变量，下面的组件按 var(--radius-md) 直接读，
+     所以半径档位在 :root 再写一遍。 */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 20px;
+}
+
 @theme inline {
   /* T3 密集界面的字号刻度（2xs=11px … 5xs=7px）；tailwind-merge 已在 lib/utils 注册。 */
   --text-2xs: 0.6875rem;

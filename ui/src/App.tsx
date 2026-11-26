@@ -30,6 +30,7 @@ import {
   WorkspaceBreadcrumbText,
 } from "./components/WorkspaceBreadcrumb";
 import { Badge } from "./components/ui/badge";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "./components/ui/empty";
 import { WorkLogBlock, WorkLogButton, WorkLogDetails, WorkLogList, WorkLogRow } from "./WorkLog";
 
 // Windows paths use backslashes, other platforms slashes; the label is only the last part.
@@ -2775,36 +2776,49 @@ function App() {
                     setAtBottom(distance < 140);
                   }}
                 >
+                  {/* 空状态统一用 T3 的 Empty：图标底盘、标题、说明、内容区。 */}
                   {chatRows.length === 0 && chatSearchOpen && chatNeedle && (
-                    <div className="conversation-empty">
-                      <p className="conversation-empty-title">No messages match “{chatQuery.trim()}”.</p>
-                      <p className="conversation-empty-hint">Try fewer words, or clear the search to see the whole conversation.</p>
-                      <button className="subtle-button" onClick={() => setChatQuery("")}>Clear search</button>
-                    </div>
+                    <Empty size="compact">
+                      <EmptyHeader>
+                        <EmptyTitle>No messages match “{chatQuery.trim()}”.</EmptyTitle>
+                        <EmptyDescription>Try fewer words, or clear the search to see the whole conversation.</EmptyDescription>
+                      </EmptyHeader>
+                      <EmptyContent>
+                        <button type="button" className="subtle-button" onClick={() => setChatQuery("")}>Clear search</button>
+                      </EmptyContent>
+                    </Empty>
                   )}
                   {chatRows.length === 0 && !(chatSearchOpen && chatNeedle) && (
-                    <div className="conversation-empty">
-                      <AgentGlyph agentId={headerAgent ?? settings?.defaultAgent ?? "codex"} />
-                      <p className="conversation-empty-title">
-                        {headerAgent
-                          ? `Start with ${agents.find((agent) => agent.id === headerAgent)?.name ?? headerAgent}`
-                          : "Choose an agent to begin"}
-                      </p>
-                      <p className="conversation-empty-hint">Describe the work below. Type / for commands; Hand off switches agent mid-task.</p>
-                      {[
-                        ["Fix a failing test", "Find why the checkout test fails and fix it."],
-                        ["Explain code", "Walk me through how this project handles authentication."],
-                        ["Review changes", "Review my uncommitted changes for bugs and risky patterns."],
-                      ].map(([label, prompt]) => (
-                        <button key={label} type="button" className="empty-suggestion" onClick={() => {
-                          setPrompt(prompt);
-                          composerRef.current?.focus();
-                        }}>
-                          <span>{label}</span>
-                          <span className="empty-suggestion-text">{prompt}</span>
-                        </button>
-                      ))}
-                    </div>
+                    <Empty size="compact">
+                      <EmptyHeader>
+                        <EmptyMedia variant="default" className="mb-4">
+                          <span className="conversation-empty-glyph">
+                            <AgentGlyph agentId={headerAgent ?? settings?.defaultAgent ?? "codex"} />
+                          </span>
+                        </EmptyMedia>
+                        <EmptyTitle>
+                          {headerAgent
+                            ? `Start with ${agents.find((agent) => agent.id === headerAgent)?.name ?? headerAgent}`
+                            : "Choose an agent to begin"}
+                        </EmptyTitle>
+                        <EmptyDescription>Describe the work below. Type / for commands; Hand off switches agent mid-task.</EmptyDescription>
+                      </EmptyHeader>
+                      <EmptyContent>
+                        {[
+                          ["Fix a failing test", "Find why the checkout test fails and fix it."],
+                          ["Explain code", "Walk me through how this project handles authentication."],
+                          ["Review changes", "Review my uncommitted changes for bugs and risky patterns."],
+                        ].map(([label, prompt]) => (
+                          <button key={label} type="button" className="empty-suggestion" onClick={() => {
+                            setPrompt(prompt);
+                            composerRef.current?.focus();
+                          }}>
+                            <span>{label}</span>
+                            <span className="empty-suggestion-text">{prompt}</span>
+                          </button>
+                        ))}
+                      </EmptyContent>
+                    </Empty>
                   )}
                   {chatVirtualizer.getTotalSize() > 0 && (
                     <div className="chat-virtual" style={{ height: chatVirtualizer.getTotalSize() }}>

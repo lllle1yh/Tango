@@ -166,7 +166,8 @@ button { color: inherit; font: inherit; }
    内宽 796，消息列按 796 居中，左右两端才对得上；右侧多留一点给悬停出现的复制按钮。 */
 .conversation-messages { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 20px; overflow: auto; padding: 26px max(56px, calc((100% - 796px) / 2)) 0 max(24px, calc((100% - 796px) / 2)); scrollbar-gutter: stable; }
 .conversation-empty { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--fg-subtle); text-align: center; }
-.conversation-empty .agent-mark { width: 44px; height: 44px; margin-bottom: 8px; border-radius: 11px; background: var(--surface-2); opacity: .85; }
+.conversation-empty-glyph { display: grid; width: 46px; height: 46px; place-items: center; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.conversation-empty-glyph .agent-mark { width: 26px; height: 26px; border-radius: 7px; background: transparent; }
 .conversation-empty-title { margin: 0; color: var(--fg-muted); font-size: 14px; font-weight: 600; }
 .conversation-empty-hint { margin: 0; max-width: 360px; font-size: 12.5px; line-height: 1.5; }
 /* Starter prompts fill the composer so a first message is one click away. */

@@ -1,42 +1,36 @@
-import { useGT } from "gt-react";
-import { LoaderCircleIcon } from "lucide-react";
-import { cva, type VariantProps } from "class-variance-authority";
-import { observeVisibleAnimation } from "../../lib/visibleAnimation";
+import { LoaderCircle } from "lucide-react";
+import type * as React from "react";
+
 import { cn } from "../../lib/utils";
 
-// No default size: inside a Button the parent's svg rule sizes the glyph.
-const spinnerVariants = cva("motion-safe:visible-animate-spin", {
-  variants: {
-    size: {
-      xs: "size-3",
-      sm: "size-3.5",
-      md: "size-4",
-      lg: "size-5",
-    },
-    tone: {
-      current: "",
-      muted: "text-muted-foreground",
-    },
-  },
-  defaultVariants: { tone: "current" },
-});
+// 搬自 T3 的 Spinner：四档尺寸、两种色调；动画只在可见时运行（visible-animate-spin）。
+const sizes = {
+  xs: "size-3",
+  sm: "size-3.5",
+  md: "size-4",
+  lg: "size-5",
+};
 
-function Spinner({
+export function Spinner({
   className,
   size,
-  tone,
+  tone = "current",
   ...props
-}: React.ComponentPropsWithoutRef<typeof LoaderCircleIcon> & VariantProps<typeof spinnerVariants>) {
-  const gt = useGT();
+}: React.ComponentPropsWithoutRef<typeof LoaderCircle> & {
+  size?: keyof typeof sizes;
+  tone?: "current" | "muted";
+}) {
   return (
-    <LoaderCircleIcon
-      aria-label={gt("Loading")}
-      ref={observeVisibleAnimation}
-      className={cn(spinnerVariants({ size, tone }), className)}
+    <LoaderCircle
+      aria-label="Loading"
       role="status"
+      className={cn(
+        "motion-safe:visible-animate-spin",
+        size && sizes[size],
+        tone === "muted" && "text-muted-foreground",
+        className,
+      )}
       {...props}
     />
   );
 }
-
-export { Spinner };
