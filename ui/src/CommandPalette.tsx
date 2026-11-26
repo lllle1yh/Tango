@@ -1,4 +1,5 @@
 import { Command } from "cmdk";
+import { Kbd } from "./components/ui/kbd";
 
 export type PaletteItem = {
   id: string;
@@ -50,7 +51,8 @@ export function CommandPalette({
                     onSelect={() => { onClose(); item.run(); }}
                   >
                     <span>{item.label}</span>
-                    {item.hint && <span className="palette-hint">{item.hint}</span>}
+                    {/* 快捷键用 T3 的 Kbd 画成键帽：它比一行灰字更容易在扫视时对上。 */}
+                    {item.hint && <Kbd className="palette-hint">{item.hint}</Kbd>}
                   </Command.Item>
                 ))}
               </Command.Group>
