@@ -21,6 +21,7 @@ import { QueuedRuns } from "./components/chat/QueuedRuns";
 import { ToolApprovalRow } from "./components/chat/ToolApprovalRow";
 import { ThreadStatusLine } from "./components/chat/ThreadStatusLine";
 import { ThreadFindBar } from "./components/chat/ThreadFindBar";
+import { TimelineMinimap, type TimelineMinimapItem } from "./components/chat/TimelineMinimap";
 import {
   WorkspaceBreadcrumb,
   WorkspaceBreadcrumbItem,
@@ -1988,6 +1989,26 @@ function App() {
     overscan: 8,
   });
   const virtualRows = chatVirtualizer.getVirtualItems();
+  // 缩略刻度：每条用户消息一根条，附带紧随其后那条回复的首段文字。
+  const minimapItems: TimelineMinimapItem[] = [];
+  chatRows.forEach((row, index) => {
+    if (row.kind !== "message" || row.message.role !== "user") return;
+    const reply = chatRows.slice(index + 1).find((next) => next.kind === "message" && next.message.role === "assistant");
+    minimapItems.push({
+      id: row.id,
+      rowIndex: index,
+      index,
+      userText: row.message.text.replace(/\s+/g, " ").slice(0, 160),
+      assistantText: reply && reply.kind === "message" ? reply.message.text.replace(/\s+/g, " ").slice(0, 240) : null,
+    });
+  });
+  const minimapCurrent = (() => {
+    const element = messagesRef.current;
+    if (!element) return null;
+    const middle = element.scrollTop + element.clientHeight / 2;
+    const hit = minimapItems.filter((item) => (chatVirtualizer.measurementsCache[item.rowIndex]?.start ?? 0) <= middle).at(-1);
+    return hit ? minimapItems.indexOf(hit) : null;
+  })();
   // 查找条的下一条 / 上一条：定位当前命中的那条消息并滚过去。
   useEffect(() => {
     if (!chatSearchOpen || !chatNeedle) return;
@@ -2738,6 +2759,11 @@ function App() {
                     setChatIndex((index) => (index - 1 + filteredMessages.length) % filteredMessages.length);
                   }}
                   onClose={() => { setChatSearchOpen(false); setChatQuery(""); composerRef.current?.focus(); }}
+                />
+                <TimelineMinimap
+                  items={minimapItems}
+                  currentIndex={minimapCurrent}
+                  onSelect={(item) => chatVirtualizer.scrollToIndex(item.rowIndex, { align: "center" })}
                 />
                 <div
                   className="conversation-messages"

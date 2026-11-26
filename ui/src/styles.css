@@ -140,6 +140,25 @@ button { color: inherit; font: inherit; }
 .terminal-error span { color: #a79d98; }
 .agent-placeholder { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; }
 .conversation { position: relative; display: flex; min-height: 0; flex: 1; flex-direction: column; background: var(--bg); }
+/* T3 的 TimelineMinimap：时间线左缘的缩略刻度。平时很淡，悬停才显形，
+   每根条对应一条用户消息，点击跳转。 */
+.chat-minimap { position: absolute; z-index: 12; top: 54px; bottom: 168px; left: 6px; display: flex; width: 18px; flex-direction: column; align-items: center; opacity: .35; transition: opacity .15s ease; }
+.chat-minimap:hover, .chat-minimap:focus-within { opacity: 1; }
+.chat-minimap-rail { position: relative; width: 18px; flex: none; }
+.chat-minimap-strip { position: absolute; left: 0; width: 18px; height: 2px; border: 0; padding: 0; border-radius: 999px; background: color-mix(in srgb, var(--fg-muted) 45%, transparent); cursor: pointer; transform: translateY(-50%) scaleX(.55); transform-origin: left center; transition: transform .15s ease, background-color .15s ease; }
+.chat-minimap-strip.is-near { transform: translateY(-50%) scaleX(.75); }
+.chat-minimap-strip.is-active { transform: translateY(-50%) scaleX(1); background: color-mix(in srgb, var(--fg) 55%, transparent); }
+.chat-minimap-strip.is-current { background: var(--accent); }
+.chat-minimap-preview { position: absolute; left: 26px; display: flex; width: 300px; transform: translateY(-50%); flex-direction: column; gap: 3px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-3); box-shadow: 0 14px 34px #0000002e; pointer-events: none; }
+.chat-minimap-preview-user { overflow: hidden; color: var(--fg); font-size: 12.5px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.chat-minimap-preview-reply { display: -webkit-box; max-height: 60px; overflow: hidden; color: var(--fg-muted); font-size: 12px; line-height: 1.5; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.chat-minimap-nav { display: grid; width: 18px; height: 18px; flex: none; place-items: center; border: 0; padding: 0; border-radius: 5px; background: transparent; color: var(--fg-muted); cursor: pointer; opacity: 0; transition: opacity .15s ease; }
+.chat-minimap:hover .chat-minimap-nav { opacity: 1; }
+.chat-minimap-nav:disabled { opacity: 0; cursor: default; }
+.chat-minimap-nav:hover:not(:disabled) { background: var(--surface-2); color: var(--fg); }
+.chat-minimap-nav-previous { margin-bottom: 6px; }
+.chat-minimap-nav-next { margin-top: 6px; }
+
 .jump-latest { position: absolute; z-index: 20; right: 22px; bottom: 96px; display: inline-flex; height: 28px; align-items: center; gap: 4px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-3); color: var(--fg-muted); box-shadow: 0 4px 14px #0000001a; cursor: pointer; font-size: 12px; }
 .jump-latest:hover { color: var(--fg); background: var(--surface-2); }
 .conversation-heading { position: relative; display: flex; height: 44px; flex: none; align-items: center; padding: 0 16px; border-bottom: 1px solid var(--line); color: var(--fg); font-size: 13px; font-weight: 500; }
