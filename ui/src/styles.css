@@ -144,7 +144,8 @@ button { color: inherit; font: inherit; }
 /* T3 的右侧详情栏：贴住对话列右缘，消息区让出这一栏的宽度。 */
 .conversation-details { box-shadow: -8px 0 24px -18px #0000002e; }
 .conversation:has(.conversation-details) .conversation-messages,
-.conversation:has(.conversation-details) [data-slot="composer-shell"] { margin-right: 300px; }
+.conversation:has(.conversation-details) .composer-banner-dock { margin-right: 300px; }
+.conversation:has(.conversation-details) .composer-banner-dock { width: min(var(--chat-content-max-width), calc(100% - 300px)); }
 /* 输入框上方的提示堆栈（T3 的 ComposerBanner）：和输入框同一列宽，卡片底边塞进玻璃壳下面。 */
 .composer-banner-dock {
   display: flex;
@@ -156,7 +157,30 @@ button { color: inherit; font: inherit; }
   /* 卡片宽度按输入框的抽屉内缩算；Shell 上定义了同一个变量，这里补一份给横幅。 */
   --chat-composer-drawer-inset: 1.375rem;
 }
-.conversation:has(.conversation-details) .composer-banner-dock { margin-right: 300px; }
+
+/* T3 的右侧改动面板（DiffPanel）：比详情栏宽，消息区按它的实际宽度让位。 */
+.conversation:has([data-diff-panel]) .conversation-messages,
+.conversation:has([data-diff-panel]) .composer-banner-dock {
+  margin-right: min(640px, calc(100% - 46px));
+}
+/* 面板比输入框还宽时，输入框只能缩、不能顶到面板底下。 */
+.conversation:has([data-diff-panel]) .composer-banner-dock {
+  width: min(var(--chat-content-max-width), calc(100% - min(640px, calc(100% - 46px))));
+  max-width: 100%;
+}
+.chat-diff-hunk { border-top: 1px solid var(--line-soft, var(--line)); }
+.chat-diff-hunk-header { background: var(--surface-3); }
+.chat-diff-table { border-collapse: collapse; width: 100%; font: 11.5px/1.55 var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); }
+.chat-diff-table td { padding: 0 4px; white-space: pre; vertical-align: top; }
+.chat-diff-no { width: 1%; min-width: 3ch; text-align: right; color: var(--fg-muted); user-select: none; }
+.chat-diff-sign { width: 1%; color: var(--fg-muted); user-select: none; }
+.chat-diff-text { white-space: pre; }
+.chat-diff-add { background: var(--diff-add-bg, #e6ffec); }
+.chat-diff-del { background: var(--diff-del-bg, #ffebe9); }
+.chat-diff-add .chat-diff-sign { color: var(--t-diff-add-fg, #1a7f37); }
+.chat-diff-del .chat-diff-sign { color: var(--t-diff-del-fg, #cf222e); }
+:root[data-theme="dark"] .chat-diff-add { background: #12261a; }
+:root[data-theme="dark"] .chat-diff-del { background: #2a1417; }
 
 /* T3 的 TimelineMinimap：时间线左缘的缩略刻度。平时很淡，悬停才显形，
    每根条对应一条用户消息，点击跳转。 */

@@ -9,7 +9,7 @@ import type {
   LayoutNode,
   TaskRecord,
 } from "../../electron/preload";
-import { Archive, ArrowRightLeft, ChevronDown, ChevronRight, Columns2, MoreHorizontal, Pause, Pencil, Plus, RefreshCw, RotateCcw, Rows2, SlidersHorizontal, Terminal as TerminalIcon, Trash2, X, FolderCode, UserRound, MessagesSquare, Clock, Hash, CircleX, GitBranch, FileDiff } from "lucide-react";
+import { Archive, ArrowRightLeft, ChevronDown, ChevronRight, Columns2, MoreHorizontal, Pause, Pencil, Plus, RefreshCw, RotateCcw, Rows2, SlidersHorizontal, Terminal as TerminalIcon, Trash2, X, FolderCode, UserRound, MessagesSquare, Clock, Hash, CircleX, GitBranch, FileDiff, GitCompare } from "lucide-react";
 import { Markdown } from "./Markdown";
 import { CommandPalette, type PaletteItem } from "./CommandPalette";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
@@ -35,6 +35,7 @@ import { ThreadDetailsPanel, ThreadDetailsRow, ThreadDetailsSection } from "./co
 import { ComposerPromptLengthValidation, promptLengthMessage } from "./components/chat/ComposerPromptLengthValidation";
 import { DraftProjectName } from "./components/chat/DraftProjectName";
 import { DiffStatLabel } from "./components/chat/DiffStatLabel";
+import { DiffPanel } from "./components/chat/DiffPanel";
 import { ComposerBanner } from "./components/chat/ComposerBanner";
 import { ComposerBannerStack, type ComposerBannerStackItem } from "./components/chat/ComposerBannerStack";
 import { ThreadAnnouncer, type ThreadAnnouncementState } from "./components/chat/ThreadAnnouncer";
@@ -782,6 +783,7 @@ function App() {
   // 错误条按消息时间戳记一次关闭：同一条失败回合关掉后不再反复弹出。
   const [dismissedErrorKey, setDismissedErrorKey] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [diffOpen, setDiffOpen] = useState(false);
   const [dismissedAgentBanner, setDismissedAgentBanner] = useState<string | null>(null);
   // 每次按查找快捷键都换一个请求号，已经打开的查找条也会重新聚焦。
   const [chatFindTick, setChatFindTick] = useState(0);
@@ -2812,10 +2814,25 @@ function App() {
                   </button>
                   <button
                     className="icon-button"
+                    aria-label={diffOpen ? "Close changes" : "Show changes"}
+                    title={diffOpen ? "Close changes" : "Show changes"}
+                    aria-pressed={diffOpen}
+                    onClick={() => {
+                      setDiffOpen((open) => !open);
+                      setDetailsOpen(false);
+                    }}
+                  >
+                    <GitCompare size={14} />
+                  </button>
+                  <button
+                    className="icon-button"
                     aria-label={detailsOpen ? "Close task details" : "Task details"}
                     title={detailsOpen ? "Close task details" : "Task details"}
                     aria-pressed={detailsOpen}
-                    onClick={() => setDetailsOpen((open) => !open)}
+                    onClick={() => {
+                      setDetailsOpen((open) => !open);
+                      setDiffOpen(false);
+                    }}
                   >
                     <SlidersHorizontal size={14} />
                   </button>
@@ -3285,6 +3302,7 @@ function App() {
                   </ComposerSurface.Host>
                 </ComposerSurface.Shell>
                 </div>
+                {diffOpen && project && <DiffPanel projectPath={project} onClose={() => setDiffOpen(false)} />}
                 <ThreadDetailsPanel open={detailsOpen} onClose={() => setDetailsOpen(false)}>
                   <ThreadDetailsSection title="Workspace">
                     <ThreadDetailsRow icon={<FolderCode size={16} />} label="Project" value={projectName} title={project ?? undefined} onClick={() => void openProject()} />

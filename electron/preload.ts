@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld("tango", {
   // T3 的 diff 统计与详情卡需要 Git 数据；Tango 用 git 命令补齐这一层。
   gitStatus: (projectPath: string): Promise<GitStatus> => ipcRenderer.invoke("git:status", projectPath),
   gitDiffStat: (projectPath: string, scope: "working" | "staged"): Promise<DiffStat> => ipcRenderer.invoke("git:diff-stat", projectPath, scope),
+  gitDiff: (projectPath: string, scope: "working" | "staged"): Promise<DiffFile[]> => ipcRenderer.invoke("git:diff", projectPath, scope),
   detectMagpie: (): Promise<{ available: boolean; version: string | null }> => ipcRenderer.invoke("tools:magpie"),
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke("settings:get"),
   runAppAction: (action: string): Promise<void> => ipcRenderer.invoke("app:action", action),
@@ -175,6 +176,27 @@ export interface DiffStat {
   error: string | null;
 }
 
+// One changed file as unified diff: the raw patch text plus its parsed hunks,
+// so the renderer can lay out rows without re-parsing in JS.
+export interface DiffHunk {
+  header: string;
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  lines: Array<{ kind: "add" | "del" | "ctx" | "meta"; text: string; oldNo: number | null; newNo: number | null }>;
+}
+
+export interface DiffFile {
+  path: string;
+  oldPath: string | null;
+  status: "added" | "deleted" | "modified" | "renamed";
+  binary: boolean;
+  additions: number;
+  deletions: number;
+  hunks: DiffHunk[];
+}
+
 export interface AgentStatus {
   id: "codex" | "claude" | "dsh" | "pi";
   name: string;
@@ -210,6 +232,7 @@ export interface TangoApi {
   detectAgents(): Promise<AgentStatus[]>;
   gitStatus(projectPath: string): Promise<GitStatus>;
   gitDiffStat(projectPath: string, scope: "working" | "staged"): Promise<DiffStat>;
+  gitDiff(projectPath: string, scope: "working" | "staged"): Promise<DiffFile[]>;
   detectMagpie(): Promise<{ available: boolean; version: string | null }>;
   getSettings(): Promise<AppSettings>;
   runAppAction(action: string): Promise<void>;

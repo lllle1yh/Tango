@@ -1153,6 +1153,79 @@ function registerIpc() {
       error: statusOut === null ? "git status failed" : null,
     };
   });
+// Unified diff → per-file hunks. git 只负责输出 patch，解析放在主进程做一次，
+// 渲染层直接拿行来排，长补丁不会在 UI 线程里反复正扫。
+function parseGitDiff(patch: string) {
+  type DiffLine = { kind: "add" | "del" | "ctx" | "meta"; text: string; oldNo: number | null; newNo: number | null };
+  const files: Array<{
+    path: string; oldPath: string | null; status: "added" | "deleted" | "modified" | "renamed";
+    binary: boolean; additions: number; deletions: number;
+    hunks: Array<{ header: string; oldStart: number; oldLines: number; newStart: number; newLines: number; lines: DiffLine[] }>;
+  }> = [];
+  const lines = patch.split(String.fromCharCode(10));
+  let file: (typeof files)[number] | null = null;
+  let hunk: (typeof files)[number]["hunks"][number] | null = null;
+  let oldNo = 0;
+  let newNo = 0;
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] ?? "";
+    if (line.startsWith("diff --git ")) {
+      // diff --git a/<old> b/<new>：路径里可能有空格，取 " b/" 作为分界。
+      const raw = line.slice("diff --git ".length);
+      const splitAt = raw.indexOf(" b/");
+      const newPath = splitAt >= 0 ? raw.slice(splitAt + 3) : raw;
+      file = { path: newPath, oldPath: null, status: "modified", binary: false, additions: 0, deletions: 0, hunks: [] };
+      hunk = null;
+      files.push(file);
+      continue;
+    }
+    if (!file) continue;
+    if (line.startsWith("new file mode")) { file.status = "added"; continue; }
+    if (line.startsWith("deleted file mode")) { file.status = "deleted"; continue; }
+    if (line.startsWith("rename from ")) { file.oldPath = line.slice("rename from ".length); file.status = "renamed"; continue; }
+    if (line.startsWith("rename to ")) { file.path = line.slice("rename to ".length); file.status = "renamed"; continue; }
+    if (line.startsWith("Binary files ") || line.startsWith("GIT binary patch")) { file.binary = true; hunk = null; continue; }
+    if (line.startsWith("--- ") || line.startsWith("+++ ") || line.startsWith("index ") || line.startsWith("similarity index") || line.startsWith("dissimilarity index") || line.startsWith("old mode") || line.startsWith("new mode")) continue;
+    if (line.startsWith("@@")) {
+      const match = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)$/.exec(line);
+      if (!match) continue;
+      hunk = {
+        header: (match[5] ?? "").trim(),
+        oldStart: Number(match[1]),
+        oldLines: match[2] === undefined ? 1 : Number(match[2]),
+        newStart: Number(match[3]),
+        newLines: match[4] === undefined ? 1 : Number(match[4]),
+        lines: [],
+      };
+      oldNo = hunk.oldStart;
+      newNo = hunk.newStart;
+      file.hunks.push(hunk);
+      continue;
+    }
+    if (!hunk) continue;
+    const mark = line.slice(0, 1);
+    if (mark === "+") {
+      hunk.lines.push({ kind: "add", text: line.slice(1), oldNo: null, newNo });
+      newNo += 1;
+      file.additions += 1;
+    } else if (mark === "-") {
+      hunk.lines.push({ kind: "del", text: line.slice(1), oldNo, newNo: null });
+      oldNo += 1;
+      file.deletions += 1;
+    } else if (mark === " ") {
+      hunk.lines.push({ kind: "ctx", text: line.slice(1), oldNo, newNo });
+      oldNo += 1;
+      newNo += 1;
+    } else if (mark === "\\") {
+      hunk.lines.push({ kind: "meta", text: line.slice(1).trim(), oldNo: null, newNo: null });
+    }
+    // 空字符串可能是一行真正的空上下文行（git 会写成 " "），" " 已经在上面处理，
+    // 这里只剩补丁末尾的换行，跳过即可。
+  }
+  // 没有 numstat 时以补丁为准计数；大文件被截断时调用方会另外提醒。
+  return files;
+}
+
   ipcMain.handle("git:diff-stat", async (event: IpcMainInvokeEvent, projectPath: string, scope: "working" | "staged") => {
     assertTrustedSender(event);
     if (typeof projectPath !== "string" || !projectPath) throw new Error("Invalid project");
@@ -1169,6 +1242,14 @@ function registerIpc() {
       if (Number.isFinite(del)) deletions += del;
     }
     return { additions, deletions, error: null };
+  });
+  ipcMain.handle("git:diff", async (event: IpcMainInvokeEvent, projectPath: string, scope: "working" | "staged") => {
+    assertTrustedSender(event);
+    if (typeof projectPath !== "string" || !projectPath) throw new Error("Invalid project");
+    const args = scope === "staged" ? ["diff", "--cached", "--no-color", "--no-ext-diff"] : ["diff", "--no-color", "--no-ext-diff"];
+    const out = await runGit(projectPath, args);
+    if (out === null) return [];
+    return parseGitDiff(out);
   });
   ipcMain.handle("agents:detect", (event: IpcMainInvokeEvent) => {
     assertTrustedSender(event);

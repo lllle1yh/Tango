@@ -37,6 +37,7 @@ Tango 是 T3 Code 的二开。这份表记录 T3 的界面工作搬到哪一步�
 - `ToolApprovalRow` — 审批卡片
 - `MarkdownCodeBlock` — 代码块顶栏（语言、换行、复制）
 - `DiffStatLabel` — 改动行数标签（+N / -N，大数压成 1.2k）
+- `DiffPanel`（Tango 适配版）— 右侧改动面板：工作区/暂存切换、逐文件折叠、行号与增删配色、复制路径；数据来自 `git:diff`
 - `ComposerPromptLengthValidation` — 输入框超长提示
 - `DraftProjectName` — 空任务标题里的项目名排版
 - `ComposerBanner` / `ComposerBannerStack` — 输入框上方贴边的提示堆栈（回合进行中、等待审批、Agent 不可用）
@@ -57,9 +58,9 @@ Tango 是 T3 Code 的二开。这份表记录 T3 的界面工作搬到哪一步�
 | Provider 会话 / 模型 / 用量 | ProviderModelPicker, ProviderStatusBanner, ComposerModelEffort, ComposerUsageLimits, ThreadDetailsUsage |
 | Git / PR / Issue | DiffPanel, ThreadDetailsPrRow(s), ThreadRepositorySections, BranchToolbar |
 
-Git 分支已开始补：`git:status` / `git:diff-stat` 两个 IPC 已接到 `ThreadDetailsPanel` 的
-「Repository」一节（分支、领先/落后、改动文件数、工作区 +/-）。PR / Issue 仍无数据源，
-`DiffPanel` 的逐行 diff 也还没接。
+Git 分支已补：`git:status` / `git:diff-stat` 接到 `ThreadDetailsPanel` 的「Repository」一节
+（分支、领先/落后、改动文件数、工作区 +/-）；`git:diff` 的结构化 patch 驱动 `DiffPanel`。
+PR / Issue 仍无数据源。
 | 预览会话 / 设备 / 分享 | ChatRightPanel 的 preview/device 面、GuestShareControls, HtmlRenderDialog, McpAppFrame |
 | 子代理 / 后台任务 / 计划 | BackgroundWorkDetails, ThreadActivityBanners, ProposedPlanCard, SubagentTooltipContent |
 | 附件 / 图像 / 语音 | ComposerImageThumbnail, ExpandedImageDialog, VoiceInputPill, AttachmentImage |
