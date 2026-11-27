@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { cn } from "../../lib/utils";
 import { DiffStatLabel } from "./DiffStatLabel";
+import { PierreEntryIcon } from "./PierreEntryIcon";
 
 type DiffFile = {
   path: string;
@@ -147,6 +148,7 @@ export function DiffPanel({ projectPath }: { projectPath: string }) {
                         {file.oldPath ? `${file.oldPath} → ${file.path}` : file.path}
                       </span>
                     </button>
+                    <PierreEntryIcon pathValue={file.path} kind="file" className="size-3.5" />
                     <span className="shrink-0 rounded border border-border px-1 text-[10px] text-muted-foreground" title={STATUS_LABEL[file.status]}>
                       {STATUS_LABEL[file.status].slice(0, 1)}
                     </span>

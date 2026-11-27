@@ -31,6 +31,7 @@
 - `ImageLightbox.tsx`（T3 ExpandedImageDialog 的最小版：点开消息里的图片看大图，Esc 关闭）
 - `ComposerPermissionsSection.tsx`（照 T3 同名组件改写：输入框底栏选 Claude 权限模式，即时保存）
 - `MarkdownFileLink.tsx`（搬自 T3：消息里指向项目文件的内联代码可点，交系统默认程序打开）
+- `PierreEntryIcon.tsx` + `pierreIcons.ts`（搬自 T3：按文件类型显示图标，用于改动列表与附件芯片）
 - `markdownGithubAlerts.ts`（搬自 T3 `packages/shared`：把 `> [!NOTE]` 标成 dataAlert）
 - `ProviderPackageIcon.tsx`（Tango 适配版：Agent 图标位）
 - `ComposerBannerStack.tsx`（228 行）
@@ -289,3 +290,11 @@ T3 的 ComposerUsageLimits 读服务端的额度；Tango 没有服务端，改�
 Claude 的字段来自 CLI result；Codex 从 `turn/completed` 的 `usage`（input_tokens / cached_input_tokens /
 output_tokens）映射到同一结构，费用记为 0（Codex 不给金额）。Codex 的实时采集在本机无法验证——
 `~/.codex` 的权限问题导致 app server 起不来；用量面板本身已用 Codex 形状的记录验证过。
+
+## 文件类型图标
+
+T3 的 `PierreEntryIcon` 用 `@pierre/trees` 的内置 sprite 加自己补的语言/文档图标。Tango 原样搬了 sprite
+与解析器，去掉了 `@t3tools/shared` 的视频/MIME 两个依赖（Tango 没有用到），并把它用在改动列表与
+附件芯片上。图标颜色按 `light-dark()` 取浅色那一档，深色主题下仍走 sprite 自带的两档色。
+
+实测：sprite 注入 86 个 symbol；改动列表的 `.json/.npm/.tsx` 显示对应图标；附件 `diagram.png` 显示图片图标。
