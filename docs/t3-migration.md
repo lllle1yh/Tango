@@ -281,3 +281,9 @@ Tango 没有文件预览面板，改用系统默认程序打开，并加了两�
 
 实测：`package.json`、`electron/main.ts` 变成链接；`src/missing-file.ts` 不存在保持代码；
 `../` 与绝对路径被拒绝。
+
+## 用量
+
+T3 的 ComposerUsageLimits 读服务端的额度；Tango 没有服务端，改为从 Claude CLI 的 `result.modelUsage`
+取每轮真实数字，随回复保存并在任务详情「Usage」里汇总：模型、累计输入/输出 token、缓存读、累计费用。
+目前只有 Claude 提供这些字段（Codex 走 app server 的 token 事件，尚未接入）。
