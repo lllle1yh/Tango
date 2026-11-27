@@ -6,7 +6,7 @@
 - 纯展示、可搬但尚未搬：**12**
 - 依赖 T3 服务端契约（provider / PR / diff / 预览会话 / 后台任务 / 附件），Tango 没有对应数据源：**130**
 
-> 计数说明：29 是与 T3 `components/chat` 同名、且在 Tango 里真的挂到界面上的文件；另外
+> 计数说明：29 是与 T3 `components/chat` 同名、且在 Tango 里真的挂到界面上的文件（`ComposerPermissionsSection` 等其余文件归在「Tango 自写」）；另外
 > `MarkdownAlert`、`ChatRightPanel`、`RightPanelTabs`、`ScrollToEndButton`、`WorkspaceFileDropOverlay`、
 > `MarkdownMath`、`ImageLightbox` 分别搬自 T3 的 `ChatMarkdown`、根目录组件、`TimelineOverlays`
 > 或 `ExpandedImageDialog`，T3 没有同名文件。
