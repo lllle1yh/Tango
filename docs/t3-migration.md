@@ -33,6 +33,7 @@
 - `MarkdownFileLink.tsx`（搬自 T3：消息里指向项目文件的内联代码可点，交系统默认程序打开）
 - `PierreEntryIcon.tsx` + `pierreIcons.ts`（搬自 T3：按文件类型显示图标，用于改动列表与附件芯片）
 - `ComposerImageThumbnail.tsx`（搬自 T3：粘贴的图片先显示原图，缩略图解码好再替换）
+- `ThreadDetailsUsage.tsx`（照 T3 同名组件：上下文窗口/模型/token/缓存/费用的细线行）
 - `markdownGithubAlerts.ts`（搬自 T3 `packages/shared`：把 `> [!NOTE]` 标成 dataAlert）
 - `ProviderPackageIcon.tsx`（Tango 适配版：Agent 图标位）
 - `ComposerBannerStack.tsx`（228 行）

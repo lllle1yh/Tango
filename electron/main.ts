@@ -46,7 +46,7 @@ type TaskRecord = {
     // 原生会话已经不在了，这条回复来自新开的会话；界面据此插一行分隔。
     sessionReset?: boolean;
     // 这一轮的 token 与费用（Claude CLI result 事件里带的）；用于任务详情的用量汇总。
-    usage?: { model: string; inputTokens: number; outputTokens: number; cacheReadTokens: number; costUsd: number };
+    usage?: { model: string; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheCreationTokens?: number; maxContextTokens?: number; costUsd: number };
   }>;
 };
 
@@ -626,6 +626,8 @@ function createClaudeClient(taskId: string, projectPath: string, resumeId: strin
             inputTokens: Number(stats.inputTokens ?? 0),
             outputTokens: Number(stats.outputTokens ?? 0),
             cacheReadTokens: Number(stats.cacheReadInputTokens ?? 0),
+            cacheCreationTokens: Number(stats.cacheCreationInputTokens ?? 0),
+            maxContextTokens: Number(stats.contextWindow ?? 0) || undefined,
             costUsd: Number(stats.costUSD ?? event.total_cost_usd ?? 0),
           };
         }

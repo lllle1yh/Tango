@@ -9,7 +9,7 @@ import type {
   LayoutNode,
   TaskRecord,
 } from "../../electron/preload";
-import { Archive, ArrowRightLeft, CircleDollarSign, Eraser, ChevronDown, ChevronRight, Columns2, MoreHorizontal, Pause, Pencil, Plus, RefreshCw, RotateCcw, Rows2, SlidersHorizontal, Terminal as TerminalIcon, Trash2, X, FolderCode, UserRound, MessagesSquare, Clock, Hash, CircleX, GitBranch, FileDiff, GitCompare } from "lucide-react";
+import { Archive, ArrowRightLeft, Eraser, ChevronDown, ChevronRight, Columns2, MoreHorizontal, Pause, Pencil, Plus, RefreshCw, RotateCcw, Rows2, SlidersHorizontal, Terminal as TerminalIcon, Trash2, X, FolderCode, UserRound, MessagesSquare, Clock, Hash, CircleX, GitBranch, FileDiff, GitCompare } from "lucide-react";
 import { Markdown } from "./Markdown";
 import { CommandPalette, type PaletteItem } from "./CommandPalette";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
@@ -44,6 +44,7 @@ import { WorkspaceFileDropOverlay } from "./components/chat/WorkspaceFileDropOve
 import { freshSessionBannerItem } from "./components/chat/ComposerFreshSession";
 import { ComposerPermissionsSection } from "./components/chat/ComposerPermissionsSection";
 import { MarkdownProjectContext } from "./components/chat/markdownProjectContext";
+import { summarizeThreadUsage, ThreadDetailsUsage } from "./components/chat/ThreadDetailsUsage";
 import { ProviderPackageIcon } from "./components/chat/ProviderPackageIcon";
 import { DeferredComposerCommandMenuLayer } from "./components/chat/ComposerCommandMenuLayer";
 import {
@@ -2059,6 +2060,8 @@ function App() {
   // The chip reflects what this task actually used last; a fresh task falls back to the
   // selected agent so the header still says who will answer.
   const activeTaskRecord = tasks.find((task) => task.id === activeTask);
+  // 任务详情的用量汇总：每轮记录里的 token 与费用（T3 的 ThreadDetailsUsage）。
+  const activeTaskUsage = summarizeThreadUsage(activeTaskRecord?.messages ?? []);
 
   // 标题先写状态（Working / Needs approval）再写任务名，任务栏和窗口切换器一眼可见。
   const activeTitle = activeTaskRecord?.title;
@@ -3540,25 +3543,7 @@ function App() {
                         <ThreadDetailsRow icon={<Wrench size={16} />} label="Tools in this task" value={`${activeTaskRecord?.messages.reduce((sum, message) => sum + (message.tools?.length ?? 0), 0) ?? 0}`} />
                         <ThreadDetailsRow icon={<CircleX size={16} />} label="Failed turns" value={`${activeTaskRecord?.messages.filter((message) => message.role === "assistant" && message.text.startsWith("The turn could not run:")).length ?? 0}`} />
                       </ThreadDetailsSection>
-                      {(() => {
-                        const usage = (activeTaskRecord?.messages ?? []).filter((message) => message.usage);
-                        if (usage.length === 0) return null;
-                        const totals = usage.reduce((sum, message) => ({
-                          inputTokens: sum.inputTokens + (message.usage?.inputTokens ?? 0),
-                          outputTokens: sum.outputTokens + (message.usage?.outputTokens ?? 0),
-                          cacheReadTokens: sum.cacheReadTokens + (message.usage?.cacheReadTokens ?? 0),
-                          costUsd: sum.costUsd + (message.usage?.costUsd ?? 0),
-                        }), { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, costUsd: 0 });
-                        const last = usage.at(-1)?.usage;
-                        return (
-                          <ThreadDetailsSection title="Usage">
-                            <ThreadDetailsRow icon={<CircleDollarSign size={16} />} label="Model" value={last?.model ?? "—"} title={last?.model} />
-                            <ThreadDetailsRow icon={<Hash size={16} />} label="Tokens in / out" value={`${totals.inputTokens.toLocaleString()} / ${totals.outputTokens.toLocaleString()}`} />
-                            <ThreadDetailsRow icon={<Hash size={16} />} label="Cache read" value={totals.cacheReadTokens.toLocaleString()} />
-                            <ThreadDetailsRow icon={<CircleDollarSign size={16} />} label="Cost" value={`$${totals.costUsd.toFixed(4)}`} />
-                          </ThreadDetailsSection>
-                        );
-                      })()}
+                      {activeTaskUsage && <ThreadDetailsUsage totals={activeTaskUsage} />}
                       <ThreadDetailsSection title="Actions">
                         <ThreadDetailsRow icon={<Pencil size={16} />} label="Rename task" onClick={() => activeTaskRecord && startRename(activeTaskRecord)} />
                         <ThreadDetailsRow icon={<Copy size={16} />} label="Duplicate task" onClick={() => activeTask && void duplicateTask(activeTask)} />
