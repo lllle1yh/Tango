@@ -221,5 +221,7 @@ T3 的附件由服务端上传、按资产 ID 引用；Tango 没有这层服务�
 - 发送：`threadId` / `claudeSessionId` / `dshSessionId` / `piSessionFile` 指向的原生会话会被 resume，
   窗口里看到的历史就是那个原生会话的历史。
 - `/new-session`：清掉这些引用并丢弃内存客户端，下一条消息开新会话。
+- 存的会话文件不在了（`No conversation found with session ID`）：主进程丢弃旧会话、立刻用新会话重跑这一轮，
+  回复带 `sessionReset` 标记，时间线上插一行「Started a fresh session」说明旧上下文没带过去。
 - Claude 子进程会清掉继承的 `CLAUDE_CODE_*` / `CLAUDECODE` 环境变量，避免 CLI 去别的入口目录找会话；
   resume 失败时把 CLI `errors[]` 的原文显示出来。

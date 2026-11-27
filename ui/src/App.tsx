@@ -9,7 +9,7 @@ import type {
   LayoutNode,
   TaskRecord,
 } from "../../electron/preload";
-import { Archive, ArrowRightLeft, ChevronDown, ChevronRight, Columns2, MoreHorizontal, Pause, Pencil, Plus, RefreshCw, RotateCcw, Rows2, SlidersHorizontal, Terminal as TerminalIcon, Trash2, X, FolderCode, UserRound, MessagesSquare, Clock, Hash, CircleX, GitBranch, FileDiff, GitCompare } from "lucide-react";
+import { Archive, ArrowRightLeft, Eraser, ChevronDown, ChevronRight, Columns2, MoreHorizontal, Pause, Pencil, Plus, RefreshCw, RotateCcw, Rows2, SlidersHorizontal, Terminal as TerminalIcon, Trash2, X, FolderCode, UserRound, MessagesSquare, Clock, Hash, CircleX, GitBranch, FileDiff, GitCompare } from "lucide-react";
 import { Markdown } from "./Markdown";
 import { CommandPalette, type PaletteItem } from "./CommandPalette";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
@@ -1754,6 +1754,8 @@ function App() {
     if (taskTitle) void window.tango.renameTask(task.id, taskTitle);
     // The prompt is already in the transcript. DSH writes its answer as it streams, so the
     // reported answer is only appended when the transcript does not already end with it.
+    // 主进程在原生会话丢失时换新会话重跑，会带上这个标记；界面据此说明旧上下文没带过去。
+    let restarted = false;
     const appendTurn = (answer: string, patch: Partial<TaskRecord>) => {
       const tools = finishTools(task.id);
       const spoken = answer.trim() ? answer : noAnswerText(agent, tools);
@@ -1763,7 +1765,7 @@ function App() {
         const last = messages[messages.length - 1];
         const alreadyShown = Boolean(answer) && last?.role === "assistant" && last.text.trim() === answer.trim();
         if (spoken && !alreadyShown) {
-          messages.push({ role: "assistant", agent, text: spoken, createdAt: new Date().toISOString(), ...(tools ? { tools } : {}) });
+          messages.push({ role: "assistant", agent, text: spoken, createdAt: new Date().toISOString(), ...(tools ? { tools } : {}), ...(restarted ? { sessionReset: true } : {}) });
         } else if (alreadyShown && tools) {
           messages[messages.length - 1] = { ...last, tools };
         }
@@ -1786,6 +1788,7 @@ function App() {
         appendTurn(result.answer, { dshSessionId: result.sessionId });
       } else if (agent === "claude") {
         const result = await window.tango.runClaude(task.id, task.projectPath, text);
+        restarted = result.sessionReset === true;
         appendTurn(result.answer, { claudeSessionId: result.sessionId });
       } else if (task.threadId) {
         await window.tango.codexSend(task.id, text);
@@ -2117,6 +2120,15 @@ function App() {
             ? `The last turn ended ${createdAt}; this one starts after a longer break.`
             : `Quiet for a while: the previous turn was at ${createdAt}.`;
         chatRows.push({ kind: "divider", id: "d-" + message.createdAt + "-" + index, title, detail });
+      }
+      // 原生会话丢了、这一轮在新会话里跑的：明说一句，别让用户以为旧上下文还在。
+      if (message.role === "assistant" && message.sessionReset) {
+        chatRows.push({
+          kind: "divider",
+          id: "r-" + message.createdAt + "-" + index,
+          title: "Started a fresh session",
+          detail: `The saved ${agentName(message.agent)} session was no longer on disk, so this reply came from a new one; earlier messages are still shown but the agent did not see them.`,
+        });
       }
     }
     chatRows.push({ kind: "message", id: "m-" + message.createdAt + "-" + index, index, message });
@@ -3125,7 +3137,7 @@ function App() {
                                 <TimelineSystemDivider
                                   label={row.title}
                                   detail={row.detail}
-                                  icon={row.title.startsWith("Handed off") ? ArrowRightLeft : row.title.includes("Pause") ? Pause : RotateCcw}
+                                  icon={row.title.startsWith("Handed off") ? ArrowRightLeft : row.title.includes("Pause") ? Pause : row.title.startsWith("Started a fresh session") ? Eraser : RotateCcw}
                                 />
                               </div>
                             )}

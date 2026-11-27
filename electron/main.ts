@@ -43,6 +43,8 @@ type TaskRecord = {
     createdAt: string;
     // Which tools this turn ran, kept with its reply so reopening the task still shows them.
     tools?: Array<{ id: string; name: string; status: string; detail?: string }>;
+    // 原生会话已经不在了，这条回复来自新开的会话；界面据此插一行分隔。
+    sessionReset?: boolean;
   }>;
 };
 
@@ -1597,8 +1599,22 @@ function parseGitDiff(patch: string) {
     task.messages.push({ role: "user", text: prompt, agent: "claude", createdAt: new Date().toISOString() });
     await saveTasks(tasks);
     let answer: string;
+    let restarted = false;
     try {
-      answer = await client.run(prompt);
+      try {
+        answer = await client.run(prompt);
+      } catch (error) {
+        // 存的会话文件被清掉了（换机器、清理缓存、旧的假 ID）：不把这一轮变成失败，
+        // 丢掉旧会话、马上用新会话重跑一次；窗口里已有历史，但新会话看不到它。
+        const message = error instanceof Error ? error.message : "";
+        if (!previousSession || !/No conversation found|session not found/i.test(message)) throw error;
+        client.dispose();
+        claudeProcesses.delete(task.id);
+        client = createClaudeClient(taskId, task.projectPath, undefined, (await readSettings()).claudePermissionMode);
+        claudeProcesses.set(task.id, client);
+        answer = await client.run(prompt);
+        restarted = true;
+      }
     } catch (error) {
       // A failed run leaves nothing to resume from it; the next turn starts clean.
       if (!client.sessionId) {
@@ -1610,17 +1626,18 @@ function parseGitDiff(patch: string) {
     } finally {
       void clearRunning(task.id);
     }
-    // 新会话的 id 以这一轮的结果为准；resume 失败时不覆盖，留给下次再试。
-    if (!previousSession || previousSession === client.sessionId) task.claudeSessionId = client.sessionId;
+    // 新会话的 id 以这一轮的结果为准；重开过就直接换成新 id。
+    if (restarted || !previousSession || previousSession === client.sessionId) task.claudeSessionId = client.sessionId;
     if (answer) {
       const tools = takeTurnTools(task.id);
       task.messages.push({
         role: "assistant", text: answer, agent: "claude", createdAt: new Date().toISOString(),
         ...(tools ? { tools } : {}),
+        ...(restarted ? { sessionReset: true } : {}),
       });
       await saveTasks(tasks);
     }
-    return { sessionId: client.sessionId, answer };
+    return { sessionId: client.sessionId, answer, sessionReset: restarted };
   });
   ipcMain.handle("claude:interrupt", async (event: IpcMainInvokeEvent, taskId: string) => {
     assertTrustedSender(event);
