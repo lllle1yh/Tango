@@ -1399,6 +1399,45 @@ function parseGitDiff(patch: string) {
     return { path: file, bytes: bytes.byteLength, name: safeName };
   });
 
+  // 判断一条路径是否真的是项目里的文件；Markdown 用它决定要不要把内联代码变成链接。
+  ipcMain.handle("files:exists", async (event: IpcMainInvokeEvent, projectPath: string, relativePath: string) => {
+    assertTrustedSender(event);
+    if (typeof projectPath !== "string" || typeof relativePath !== "string") return { exists: false };
+    try {
+      const root = await realpath(projectPath);
+      const cleaned = relativePath.trim().split(String.fromCharCode(92)).join("/");
+      if (!cleaned || cleaned.startsWith("/") || /^[a-zA-Z]:/.test(cleaned) || cleaned.split("/").includes("..")) {
+        return { exists: false };
+      }
+      const target = await realpath(path.join(root, cleaned));
+      if (!(target === root || target.startsWith(root + path.sep))) return { exists: false };
+      const stats = await stat(target);
+      return { exists: stats.isFile() };
+    } catch {
+      return { exists: false };
+    }
+  });
+
+  // 消息里引用到的项目内文件：只接受项目目录里的相对路径，防止点一条路径就打开任意文件。
+  ipcMain.handle("files:open", async (event: IpcMainInvokeEvent, projectPath: string, relativePath: string) => {
+    assertTrustedSender(event);
+    if (typeof projectPath !== "string" || typeof relativePath !== "string") throw new Error("Invalid file reference");
+    const root = await realpath(projectPath);
+    const cleaned = relativePath.trim().replace(/^["'`]|["'`]$/g, "").split(String.fromCharCode(92)).join("/");
+    if (!cleaned || cleaned.startsWith("/") || /^[a-zA-Z]:/.test(cleaned) || cleaned.split("/").includes("..")) {
+      throw new Error("Only files inside the project can be opened");
+    }
+    const target = await realpath(path.join(root, cleaned)).catch(() => null);
+    if (!target || !(target === root || target.startsWith(root + path.sep))) {
+      throw new Error("File is not part of this project");
+    }
+    const stats = await stat(target).catch(() => null);
+    if (!stats?.isFile()) throw new Error("Not a file");
+    const error = await shell.openPath(target);
+    if (error) throw new Error(error);
+    return { opened: target };
+  });
+
   ipcMain.handle("settings:reveal", async (event: IpcMainInvokeEvent) => {
     assertTrustedSender(event);
     const error = await shell.openPath(app.getPath("userData"));

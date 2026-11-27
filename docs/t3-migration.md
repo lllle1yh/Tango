@@ -30,6 +30,7 @@
 - `MermaidDiagram.tsx` + `MarkdownMermaidCodeBlock.tsx`（搬自 T3：pele 画图，可切源码、点开大图；$$ 数学标签暂不支持）
 - `ImageLightbox.tsx`（T3 ExpandedImageDialog 的最小版：点开消息里的图片看大图，Esc 关闭）
 - `ComposerPermissionsSection.tsx`（照 T3 同名组件改写：输入框底栏选 Claude 权限模式，即时保存）
+- `MarkdownFileLink.tsx`（搬自 T3：消息里指向项目文件的内联代码可点，交系统默认程序打开）
 - `markdownGithubAlerts.ts`（搬自 T3 `packages/shared`：把 `> [!NOTE]` 标成 dataAlert）
 - `ProviderPackageIcon.tsx`（Tango 适配版：Agent 图标位）
 - `ComposerBannerStack.tsx`（228 行）
@@ -267,3 +268,15 @@ T3 用客户端的控制协议在会话里弹审批；Tango 目前走 Claude CLI
 
 实测：`default` 下 Write 被拒（文件未生成），`bypassPermissions` 下同一句成功写入。
 会话内逐个审批（T3 的 control request）仍未实现。
+
+## 消息里的文件路径
+
+T3 的 `MarkdownFileLink` 把内联代码里指向项目文件的路径变成链接，并在自己的预览面板打开。
+Tango 没有文件预览面板，改用系统默认程序打开，并加了两道约束：
+
+- `files:exists` / `files:open` 只接受项目目录内的相对路径（realpath 后仍在项目根下、是文件）
+- Markdown 只把「像路径、且确实存在」的内联代码变成链接，命令（`npm run dev`）、变量（`$x`）、
+  绝对路径（`C:\…`）和 `../` 都保持原样
+
+实测：`package.json`、`electron/main.ts` 变成链接；`src/missing-file.ts` 不存在保持代码；
+`../` 与绝对路径被拒绝。

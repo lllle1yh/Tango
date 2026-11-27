@@ -876,3 +876,7 @@ button { color: inherit; font: inherit; }
 .composer-permissions:hover { color: var(--fg); }
 .composer-permissions-select { height: 22px; max-width: 96px; border: 0; padding-right: 2px; background: transparent; color: inherit; font: inherit; outline: none; cursor: pointer; }
 .composer-permissions-select:disabled { cursor: default; opacity: .6; }
+
+/* T3 的 MarkdownFileLink：指向项目内文件的内联代码可点，用系统默认程序打开。 */
+.markdown code.markdown-file-link, .markdown .markdown-file-link { padding: 1.5px 5px; border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent); border-radius: 4px; background: color-mix(in srgb, var(--primary) 6%, var(--surface-2)); color: var(--primary); font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; cursor: pointer; }
+.markdown .markdown-file-link:hover { background: color-mix(in srgb, var(--primary) 12%, var(--surface-2)); }

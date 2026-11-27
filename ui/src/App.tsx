@@ -43,6 +43,7 @@ import { ComposerAttachmentStrip, type ComposerAttachment } from "./components/c
 import { WorkspaceFileDropOverlay } from "./components/chat/WorkspaceFileDropOverlay";
 import { freshSessionBannerItem } from "./components/chat/ComposerFreshSession";
 import { ComposerPermissionsSection } from "./components/chat/ComposerPermissionsSection";
+import { MarkdownProjectContext } from "./components/chat/markdownProjectContext";
 import { ProviderPackageIcon } from "./components/chat/ProviderPackageIcon";
 import { DeferredComposerCommandMenuLayer } from "./components/chat/ComposerCommandMenuLayer";
 import {
@@ -3023,6 +3024,8 @@ function App() {
                   currentIndex={minimapCurrent}
                   onSelect={(item) => chatVirtualizer.scrollToIndex(item.rowIndex, { align: "center" })}
                 />
+                {/* 消息里的文件路径需要知道属于哪个项目才能打开（T3 的 ChatMarkdown cwd）。 */}
+                <MarkdownProjectContext.Provider value={activeTaskRecord?.projectPath ?? project ?? null}>
                 <div
                   className="conversation-messages"
                   ref={messagesRef}
@@ -3167,6 +3170,7 @@ function App() {
                     </div>
                   )}
                 </div>
+                </MarkdownProjectContext.Provider>
                 {!atBottom && (
                   <ScrollToEndButton
                     bottom={96}

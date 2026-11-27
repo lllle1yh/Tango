@@ -15,6 +15,7 @@ import { MarkdownCodeBlock } from "./components/chat/MarkdownCodeBlock";
 import { MarkdownMermaidCodeBlock } from "./components/chat/MarkdownMermaidCodeBlock";
 import { ImageLightbox } from "./components/chat/ImageLightbox";
 import { MarkdownMath } from "./components/chat/MarkdownMath";
+import { MarkdownFileLink } from "./components/chat/MarkdownFileLink";
 import { MarkdownTable } from "./components/chat/MarkdownTable";
 import { MarkdownDetails } from "./components/chat/MarkdownDetails";
 import { MarkdownExternalLinkContent } from "./components/chat/MarkdownExternalLink";
@@ -114,6 +115,12 @@ const components = {
     if (className.includes("language-math")) {
       const tex = typeof props.children === "string" ? props.children : String(props.children ?? "");
       return <MarkdownMath tex={tex} display={display} />;
+    }
+    // 没有语言类的才是内联代码；项目里真实存在的路径变成可点链接（T3 的 MarkdownFileLink）。
+    if (!className && typeof props.children === "string") {
+      return (
+        <MarkdownFileLink text={props.children} fallback={<code {...props} />} />
+      );
     }
     return <code {...props} />;
   },

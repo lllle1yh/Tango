@@ -69,6 +69,10 @@ contextBridge.exposeInMainWorld("tango", {
   saveClip: (text: string): Promise<{ path: string; bytes: number }> => ipcRenderer.invoke("clip:save", text),
   // 拖进来的文件留在原处：只拿路径，不做复制。
   getPathForFile: (file: File): string => webUtils.getPathForFile(file),
+  projectFileExists: (projectPath: string, relativePath: string): Promise<{ exists: boolean }> =>
+    ipcRenderer.invoke("files:exists", projectPath, relativePath),
+  openProjectFile: (projectPath: string, relativePath: string): Promise<{ opened: string }> =>
+    ipcRenderer.invoke("files:open", projectPath, relativePath),
   saveAttachment: (name: string, bytes: Uint8Array): Promise<{ path: string; bytes: number; name: string }> =>
     ipcRenderer.invoke("attachments:save", name, bytes),
   listTasks: (): Promise<TaskRecord[]> => ipcRenderer.invoke("tasks:list"),
@@ -249,6 +253,8 @@ export interface TangoApi {
   saveClip(text: string): Promise<{ path: string; bytes: number }>;
   getPathForFile(file: File): string;
   saveAttachment(name: string, bytes: Uint8Array): Promise<{ path: string; bytes: number; name: string }>;
+  openProjectFile(projectPath: string, relativePath: string): Promise<{ opened: string }>;
+  projectFileExists(projectPath: string, relativePath: string): Promise<{ exists: boolean }>;
   listTasks(): Promise<TaskRecord[]>;
   createTask(title: string, projectPath: string): Promise<TaskRecord>;
   duplicateTask(taskId: string): Promise<TaskRecord>;
