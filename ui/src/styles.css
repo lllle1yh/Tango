@@ -870,3 +870,9 @@ button { color: inherit; font: inherit; }
 
 /* T3 的 ScrollToEndButton：时间线不在底部时，居中浮在输入框上方。 */
 .chat-scroll-to-bottom { inset-inline: 0; }
+
+/* T3 的 ComposerPermissionsSection：输入框底栏的权限模式选择。 */
+.composer-permissions { display: inline-flex; height: 24px; align-items: center; gap: 4px; padding: 0 2px 0 6px; border: 1px solid var(--line); border-radius: 999px; color: var(--fg-muted); font-size: 11px; }
+.composer-permissions:hover { color: var(--fg); }
+.composer-permissions-select { height: 22px; max-width: 96px; border: 0; padding-right: 2px; background: transparent; color: inherit; font: inherit; outline: none; cursor: pointer; }
+.composer-permissions-select:disabled { cursor: default; opacity: .6; }

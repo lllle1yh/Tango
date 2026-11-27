@@ -29,6 +29,7 @@
 - `ComposerFreshSession.tsx`（搬自 T3 同名文件：下一条消息开新会话的横幅）
 - `MermaidDiagram.tsx` + `MarkdownMermaidCodeBlock.tsx`（搬自 T3：pele 画图，可切源码、点开大图；$$ 数学标签暂不支持）
 - `ImageLightbox.tsx`（T3 ExpandedImageDialog 的最小版：点开消息里的图片看大图，Esc 关闭）
+- `ComposerPermissionsSection.tsx`（照 T3 同名组件改写：输入框底栏选 Claude 权限模式，即时保存）
 - `markdownGithubAlerts.ts`（搬自 T3 `packages/shared`：把 `> [!NOTE]` 标成 dataAlert）
 - `ProviderPackageIcon.tsx`（Tango 适配版：Agent 图标位）
 - `ComposerBannerStack.tsx`（228 行）
@@ -254,3 +255,15 @@ T3 的公式排版在上游（服务端把 TeX 转成 SVG 后随消息下发）�
 
 已知限制：同一段里出现两个以上 `$`（例如「一个坏公式 $rac{1}{$ 和一个价格 $95」）时，remark-math 会把它们
 配成一对公式，结果价格也会被渲染成公式。T3 的客户端同样只做解析层面的处理，这条限制来自 remark-math 本身。
+
+## Claude 的权限
+
+T3 用客户端的控制协议在会话里弹审批；Tango 目前走 Claude CLI 的 `--permission-mode`：
+
+- 输入框底栏（只在该任务用 Claude 时出现）可以选 Ask first / Accept edits / Auto / Plan only / Manual /
+  Don't ask / Bypass；改完从下一条消息生效
+- **必须显式传 `--permission-mode`**：实测不传时 print 模式会直接放行 Write，不等于 "default"
+- 被拒的工具会以「Claude requested permissions to …」出现在工具结果里，Agent 据此改路线
+
+实测：`default` 下 Write 被拒（文件未生成），`bypassPermissions` 下同一句成功写入。
+会话内逐个审批（T3 的 control request）仍未实现。

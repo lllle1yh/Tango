@@ -42,6 +42,7 @@ import { recallableComposerPrompt } from "./components/chat/composerPromptHistor
 import { ComposerAttachmentStrip, type ComposerAttachment } from "./components/chat/ComposerAttachmentStrip";
 import { WorkspaceFileDropOverlay } from "./components/chat/WorkspaceFileDropOverlay";
 import { freshSessionBannerItem } from "./components/chat/ComposerFreshSession";
+import { ComposerPermissionsSection } from "./components/chat/ComposerPermissionsSection";
 import { ProviderPackageIcon } from "./components/chat/ProviderPackageIcon";
 import { DeferredComposerCommandMenuLayer } from "./components/chat/ComposerCommandMenuLayer";
 import {
@@ -3397,6 +3398,15 @@ function App() {
                       <span className="composer-context-hint">Enter send · Shift Enter new line</span>
                     </span>
                     <div className="composer-actions">
+                      {/* T3 的 ComposerPermissionsSection：Claude 的权限模式跟着对话走。
+                          每轮都是新 CLI 进程，所以改完下一条消息就生效。 */}
+                      {(activeAgent ?? headerAgent) === "claude" && (
+                        <ComposerPermissionsSection
+                          value={settings?.claudePermissionMode ?? "default"}
+                          disabled={isActiveTaskRunning}
+                          onChange={(next) => updateSettings({ claudePermissionMode: next })}
+                        />
+                      )}
                       {isActiveTaskRunning && (
                         <ComposerControl
                           size="xs"

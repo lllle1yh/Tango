@@ -529,7 +529,8 @@ function sendCodexEvent(taskId: string, payload: Record<string, unknown>) {
 function createClaudeClient(taskId: string, projectPath: string, resumeId: string | undefined, permissionMode: string) {
   const args = ["-p", "--verbose", "--input-format", "stream-json", "--output-format", "stream-json", "--include-partial-messages"];
   if (resumeId) args.push("--resume", resumeId);
-  if (permissionMode && permissionMode !== "default") args.push("--permission-mode", permissionMode);
+  // 一定要显式传：不传时 print 模式的行为不等于 "default"（实测会直接放行 Write）。
+  if (permissionMode) args.push("--permission-mode", permissionMode);
   // Tango 常由终端里的 Claude Code 或别人启动的会话间接拉起；从 CLI 继承进来的
   // CLAUDECODE / CLAUDE_CODE_* 会让 Tango 启的 CLI 以为自己在一个别的会话里
   // （入口换成 SDK，会话不落盘，第二次 resume 就找不到）。只传给 CLI 它不需要的这些之外的东西，
