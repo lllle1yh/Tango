@@ -286,4 +286,6 @@ Tango 没有文件预览面板，改用系统默认程序打开，并加了两�
 
 T3 的 ComposerUsageLimits 读服务端的额度；Tango 没有服务端，改为从 Claude CLI 的 `result.modelUsage`
 取每轮真实数字，随回复保存并在任务详情「Usage」里汇总：模型、累计输入/输出 token、缓存读、累计费用。
-目前只有 Claude 提供这些字段（Codex 走 app server 的 token 事件，尚未接入）。
+Claude 的字段来自 CLI result；Codex 从 `turn/completed` 的 `usage`（input_tokens / cached_input_tokens /
+output_tokens）映射到同一结构，费用记为 0（Codex 不给金额）。Codex 的实时采集在本机无法验证——
+`~/.codex` 的权限问题导致 app server 起不来；用量面板本身已用 Codex 形状的记录验证过。

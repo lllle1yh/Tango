@@ -409,6 +409,21 @@ function createCodexClient(taskId: string, projectPath: string) {
           sendCodexEvent(taskId, { type: message.method, item });
         } else if (message.method === "turn/completed") {
           const turn = message.params?.turn;
+          // Codex 在 turn.completed 里带 usage：{ input_tokens, cached_input_tokens, output_tokens }。
+          // Tango 的用量面板与 Claude 共用同一结构；Codex 不给费用，这里记 0。
+          const rawUsage = message.params?.usage ?? turn?.usage;
+          const turnUsage = rawUsage && typeof rawUsage === "object"
+            ? {
+                model: String(message.params?.model ?? turn?.model ?? "codex"),
+                inputTokens: Number((rawUsage as Record<string, unknown>).input_tokens ?? 0),
+                outputTokens: Number((rawUsage as Record<string, unknown>).output_tokens ?? 0),
+                cacheReadTokens: Number(
+                  (rawUsage as Record<string, unknown>).cached_input_tokens ??
+                  (rawUsage as Record<string, unknown>).cache_read_input_tokens ?? 0,
+                ),
+                costUsd: 0,
+              }
+            : null;
           const answer = Array.isArray(turn?.items)
             ? turn.items.filter((item: any) => item.type === "agentMessage").map((item: any) => item.text ?? "").join("")
             : "";
@@ -420,6 +435,7 @@ function createCodexClient(taskId: string, projectPath: string) {
               task.messages.push({
                 role: "assistant", text: answer, agent: "codex", createdAt: new Date().toISOString(),
                 ...(tools ? { tools } : {}),
+                ...(turnUsage ? { usage: turnUsage } : {}),
               });
               await saveTasks(tasks);
             });
