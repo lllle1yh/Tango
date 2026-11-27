@@ -205,3 +205,16 @@ T3 的附件由服务端上传、按资产 ID 引用；Tango 没有这层服务�
 - 发送时在消息末尾追加 `Attached files (read them from disk if you need them):` 列表，Agent 自己读
 - 回填历史（上方向键）会剥掉这段列表，只留用户原话
 - 输入框上方显示芯片（文件名、大小、移除），拖动经过时浮出 `Drop files to attach`
+
+## 任务与原生会话的绑定
+
+一个会话窗口对应一个原生 Agent 会话，判定顺序如下（`ui/src/App.tsx`、`electron/main.ts`）：
+
+- 打开任务：选**最近一次真正跑成的回复**所属的 Agent；失败回合（`The turn could not run:`）不计，
+  否则一次失败就会把窗口改绑到失败的 Agent。
+- 新建任务：用设置里的默认 Agent。
+- 发送：`threadId` / `claudeSessionId` / `dshSessionId` / `piSessionFile` 指向的原生会话会被 resume，
+  窗口里看到的历史就是那个原生会话的历史。
+- `/new-session`：清掉这些引用并丢弃内存客户端，下一条消息开新会话。
+- Claude 子进程会清掉继承的 `CLAUDE_CODE_*` / `CLAUDECODE` 环境变量，避免 CLI 去别的入口目录找会话；
+  resume 失败时把 CLI `errors[]` 的原文显示出来。

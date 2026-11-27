@@ -507,10 +507,16 @@ function createClaudeClient(taskId: string, projectPath: string, resumeId: strin
   const args = ["-p", "--verbose", "--input-format", "stream-json", "--output-format", "stream-json", "--include-partial-messages"];
   if (resumeId) args.push("--resume", resumeId);
   if (permissionMode && permissionMode !== "default") args.push("--permission-mode", permissionMode);
+  // Electron 把自己当成 CLAUDE_CODE_ENTRYPOINT、也可能带着别的 Claude 会话变量；
+  // 这里清掉它们，让 Tango 启的 CLI 按它自己的默认入口跑，会话落盘位置才稳定可 resume。
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  for (const key of Object.keys(env)) {
+    if (/^CLAUDE_CODE_/.test(key) || key === "CLAUDECODE" || key === "CLAUDE_CONFIG_DIR") delete env[key];
+  }
   const child = require("node:child_process").spawn(
     process.platform === "win32" ? "cmd.exe" : "claude",
     process.platform === "win32" ? ["/d", "/s", "/c", "claude " + args.join(" ")] : args,
-    { cwd: projectPath, stdio: ["pipe", "pipe", "pipe"], windowsHide: true },
+    { cwd: projectPath, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true },
   ) as import("node:child_process").ChildProcessWithoutNullStreams;
   let buffer = "";
   const resultWaiters: Array<{ resolve(text: string): void; reject(error: Error): void }> = [];
@@ -541,7 +547,11 @@ function createClaudeClient(taskId: string, projectPath: string, resumeId: strin
       }
       if (event.type === "result") {
         const text = cancelled ? "" : String(event.result ?? "");
-        if (!cancelled && event.is_error) resultWaiters.shift()?.reject(new Error(event.result ?? "Claude Code turn failed"));
+        if (!cancelled && event.is_error) {
+          // CLI 把真正的原因放在 errors[] 里；只说 "turn failed" 会让人无从下手。
+          const detail = Array.isArray(event.errors) && event.errors.length ? String(event.errors[0]) : "";
+          resultWaiters.shift()?.reject(new Error(detail || event.result || "Claude Code turn failed"));
+        }
         else resultWaiters.shift()?.resolve(text);
         cancelled = false;
         sendClaudeEvent(taskId, { type: "turn/completed", sessionId, text });
@@ -1577,6 +1587,7 @@ function parseGitDiff(patch: string) {
     const tasks = await readTasks();
     const task = tasks.find((item) => item.id === taskId);
     if (!task || !samePath(task.projectPath, await realpath(projectPath))) throw new Error("Task does not belong to this project");
+    const previousSession = task.claudeSessionId;
     let client = claudeProcesses.get(taskId);
     if (!client) {
       client = createClaudeClient(taskId, task.projectPath, task.claudeSessionId, (await readSettings()).claudePermissionMode);
@@ -1599,7 +1610,8 @@ function parseGitDiff(patch: string) {
     } finally {
       void clearRunning(task.id);
     }
-    task.claudeSessionId = client.sessionId;
+    // 新会话的 id 以这一轮的结果为准；resume 失败时不覆盖，留给下次再试。
+    if (!previousSession || previousSession === client.sessionId) task.claudeSessionId = client.sessionId;
     if (answer) {
       const tools = takeTurnTools(task.id);
       task.messages.push({

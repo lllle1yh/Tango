@@ -714,6 +714,13 @@ function errorText(error: unknown, fallback: string) {
   return text.trim() || fallback;
 }
 
+// 失败回合也会留下一条 assistant 消息，但它不代表任务属于那个 Agent：
+// 用最近一次真正跑成的回复来判定任务的 Agent，否则一次失败就会把窗口改绑到别的 Agent。
+function lastSuccessfulTurnAgent(messages: ReadonlyArray<TaskRecord["messages"][number]>): string | undefined {
+  return [...messages].reverse().find((message) =>
+    message.role === "assistant" && !message.text.startsWith("The turn could not run:"))?.agent;
+}
+
 function App() {
   const [project, setProject] = useState<string | null>(null);
   const [agents, setAgents] = useState<AgentStatus[]>([]);
@@ -1554,8 +1561,8 @@ function App() {
   function openTask(taskId: string) {
     const task = tasks.find((item) => item.id === taskId);
     // Reopening a task selects the agent that answered it last, so its native session keeps going.
-    const lastAgent = [...(task?.messages ?? [])].reverse()
-      .find((message) => message.role === "assistant")?.agent;
+    // A failed turn does not count: it never started that agent's session in this task.
+    const lastAgent = lastSuccessfulTurnAgent(task?.messages ?? []);
     const remembered = (["codex", "claude", "dsh", "pi"] as const).find((id) => id === lastAgent);
     setActiveTask(taskId);
     setView("chat");
@@ -1689,7 +1696,7 @@ function App() {
       setUnreadTasks((current) => (current[copy.id] ? { ...current, [copy.id]: false } : current));
       setView("chat");
     setActiveAgent((["codex", "claude", "dsh", "pi"] as const).find((id) =>
-        id === [...source.messages].reverse().find((message) => message.role === "assistant")?.agent)
+        id === lastSuccessfulTurnAgent(source.messages))
         ?? settings?.defaultAgent ?? "codex");
     } catch (error) {
       setAssistantText(errorText(error, "Could not duplicate this task"));
@@ -2051,8 +2058,7 @@ function App() {
     document.title = titleStatus ? `${titleStatus} · ${name}` : name;
   }, [activeTitle, titleStatus]);
   const agentIds: Array<AgentStatus["id"]> = ["codex", "claude", "dsh", "pi"];
-  const lastAgent = [...activeTaskRecord?.messages ?? []].reverse()
-    .find((message) => message.role === "assistant")?.agent;
+  const lastAgent = lastSuccessfulTurnAgent(activeTaskRecord?.messages ?? []);
   const historicalAgent = agentIds.find((id) => id === lastAgent);
   // 打开一个从没跑过的任务（新建、复制）时，历史里没有 Agent，但界面上必须有一个可用的：
   // 侧栏选中的、任务指定的、历史最后的，最后才落到默认 Agent。否则对话区整块不渲染，
