@@ -41,3 +41,11 @@ export function extractCodeBlock(
   if (onlyChild.type !== "code" && onlyChild.props.node?.tagName !== "code") return null;
   return { className: onlyChild.props.className, code: nodeToPlainText(onlyChild.props.children) };
 }
+
+/** 把代码块写成 Markdown 围栏（复制整段消息时用），内容里有 ``` 就加长围栏。 */
+export function serializeCodeBlockToMarkdown(source: string, language: string | null): string {
+  const code = source.replace(/\n$/, "");
+  const longestRun = Math.max(0, ...Array.from(code.matchAll(/`+/g), (match) => match[0].length));
+  const fence = "`".repeat(Math.max(3, longestRun + 1));
+  return `${fence}${language ?? ""}\n${code}\n${fence}\n\n`;
+}

@@ -56,7 +56,6 @@ export function MarkdownCodeBlock({ children }: { children?: ReactNode }) {
 
   const language = extracted ? extractFenceLanguage(extracted.className) : "text";
   const fenceTitle = extracted?.className ? extractFenceTitle(extracted.className.replace(/language-\S+/, "")) : null;
-
   return (
     <MarkdownCodeBlockFrame
       language={language}

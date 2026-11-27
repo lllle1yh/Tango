@@ -8,7 +8,9 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import rehypeHighlight from "rehype-highlight";
 import { toJsxRuntime } from "hast-util-to-jsx-runtime";
+import { extractCodeBlock, extractFenceLanguage, extractFenceTitle } from "./lib/markdownCodeBlock";
 import { MarkdownCodeBlock } from "./components/chat/MarkdownCodeBlock";
+import { MarkdownMermaidCodeBlock } from "./components/chat/MarkdownMermaidCodeBlock";
 import { MarkdownTable } from "./components/chat/MarkdownTable";
 import { MarkdownDetails } from "./components/chat/MarkdownDetails";
 import { MarkdownExternalLinkContent } from "./components/chat/MarkdownExternalLink";
@@ -52,9 +54,19 @@ function safeHost(href: string) {
 }
 
 const components = {
-  pre: ({ children }: ComponentPropsWithoutRef<"pre"> & { children?: ReactNode }) => (
-    <MarkdownCodeBlock>{children}</MarkdownCodeBlock>
-  ),
+  pre: ({ children }: ComponentPropsWithoutRef<"pre"> & { children?: ReactNode }) => {
+    // ```mermaid 画成图（T3 的 MarkdownMermaidCodeBlock）；其它语言照旧。
+    const extracted = extractCodeBlock(children);
+    if (extracted && extractFenceLanguage(extracted.className) === "mermaid") {
+      return (
+        <MarkdownMermaidCodeBlock
+          code={extracted.code}
+          fenceTitle={extractFenceTitle(extracted.className?.replace(/language-\S+/, ""))}
+        />
+      );
+    }
+    return <MarkdownCodeBlock>{children}</MarkdownCodeBlock>;
+  },
   table: MarkdownTable,
   blockquote: (props: ComponentPropsWithoutRef<"blockquote">) => {
     const alertKind = (props as Record<string, unknown>)["data-alert"];
