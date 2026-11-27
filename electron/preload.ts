@@ -108,7 +108,7 @@ contextBridge.exposeInMainWorld("tango", {
     ipcRenderer.on("codex:event", handle);
     return () => ipcRenderer.removeListener("codex:event", handle);
   },
-  runClaude: (taskId: string, projectPath: string, prompt: string): Promise<{ sessionId: string; answer: string; sessionReset?: boolean }> =>
+  runClaude: (taskId: string, projectPath: string, prompt: string): Promise<{ sessionId: string; answer: string; sessionReset?: boolean; usage?: { model: string; inputTokens: number; outputTokens: number; cacheReadTokens: number; costUsd: number } | null }> =>
     ipcRenderer.invoke("claude:run", taskId, projectPath, prompt),
   claudeInterrupt: (taskId: string): Promise<void> =>
     ipcRenderer.invoke("claude:interrupt", taskId),
@@ -232,6 +232,7 @@ export interface TaskRecord {
     createdAt: string;
     tools?: Array<{ id: string; name: string; status: string; detail?: string; exitCode?: number }>;
     sessionReset?: boolean;
+    usage?: { model: string; inputTokens: number; outputTokens: number; cacheReadTokens: number; costUsd: number };
   }>;
 }
 
@@ -270,7 +271,7 @@ export interface TangoApi {
   codexInterrupt(taskId: string): Promise<void>;
   codexRespondPermission(taskId: string, requestId: number, optionId: string | null): Promise<void>;
   onCodexEvent(listener: (taskId: string, event: Record<string, unknown>) => void): () => void;
-  runClaude(taskId: string, projectPath: string, prompt: string): Promise<{ sessionId: string; answer: string; sessionReset?: boolean }>;
+  runClaude(taskId: string, projectPath: string, prompt: string): Promise<{ sessionId: string; answer: string; sessionReset?: boolean; usage?: { model: string; inputTokens: number; outputTokens: number; cacheReadTokens: number; costUsd: number } | null }>;
   claudeInterrupt(taskId: string): Promise<void>;
   onClaudeEvent(listener: (taskId: string, event: Record<string, unknown>) => void): () => void;
   runDsh(taskId: string, projectPath: string, prompt: string): Promise<{ sessionId: string; answer: string; stopReason: string }>;

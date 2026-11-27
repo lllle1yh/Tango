@@ -45,6 +45,8 @@ type TaskRecord = {
     tools?: Array<{ id: string; name: string; status: string; detail?: string }>;
     // 原生会话已经不在了，这条回复来自新开的会话；界面据此插一行分隔。
     sessionReset?: boolean;
+    // 这一轮的 token 与费用（Claude CLI result 事件里带的）；用于任务详情的用量汇总。
+    usage?: { model: string; inputTokens: number; outputTokens: number; cacheReadTokens: number; costUsd: number };
   }>;
 };
 
@@ -567,6 +569,7 @@ function createClaudeClient(taskId: string, projectPath: string, resumeId: strin
   let lastClaudeTool: { id: string; name: string; detail?: string } | null = null;
   // 被权限拦下的工具：CLI 后面还会发 content_block_stop，不能把它改回 done。
   const deniedTools = new Set<string>();
+  let turnUsage: TaskRecord["messages"][number]["usage"] | null = null;
   child.stdout.on("data", (chunk: Buffer) => {
     buffer += chunk.toString();
     const lines = buffer.split(/\r?\n/);
@@ -598,6 +601,18 @@ function createClaudeClient(taskId: string, projectPath: string, resumeId: strin
         }
       }
       if (event.type === "result") {
+        // 用 modelUsage 里当前模型那一项；CLI 也会给 total_cost_usd 与基础 usage。
+        const models = event.modelUsage && typeof event.modelUsage === "object" ? Object.entries(event.modelUsage) : [];
+        const [model, stats] = (models.at(-1) ?? []) as [string, Record<string, unknown> | undefined];
+        if (model && stats) {
+          turnUsage = {
+            model,
+            inputTokens: Number(stats.inputTokens ?? 0),
+            outputTokens: Number(stats.outputTokens ?? 0),
+            cacheReadTokens: Number(stats.cacheReadInputTokens ?? 0),
+            costUsd: Number(stats.costUSD ?? event.total_cost_usd ?? 0),
+          };
+        }
         const text = cancelled ? "" : String(event.result ?? "");
         if (!cancelled && event.is_error) {
           // CLI 把真正的原因放在 errors[] 里；只说 "turn failed" 会让人无从下手。
@@ -669,6 +684,7 @@ function createClaudeClient(taskId: string, projectPath: string, resumeId: strin
     interrupt,
     finishTurn,
     get sessionId() { return sessionId; },
+    get usage() { return turnUsage; },
     dispose() { void terminateChild(child); },
   };
 }
@@ -1750,13 +1766,14 @@ function parseGitDiff(patch: string) {
         role: "assistant", text: answer, agent: "claude", createdAt: new Date().toISOString(),
         ...(tools ? { tools } : {}),
         ...(restarted ? { sessionReset: true } : {}),
+        ...(client.usage ? { usage: client.usage } : {}),
       });
       await saveTasks(tasks);
     }
     // 让 CLI 正常退出把会话写盘，再丢掉进程；下一轮 --resume 这个 id。
     await client.finishTurn();
     claudeProcesses.delete(task.id);
-    return { sessionId: client.sessionId, answer, sessionReset: restarted };
+    return { sessionId: client.sessionId, answer, sessionReset: restarted, usage: client.usage };
   });
   ipcMain.handle("claude:interrupt", async (event: IpcMainInvokeEvent, taskId: string) => {
     assertTrustedSender(event);

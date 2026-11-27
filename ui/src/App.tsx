@@ -9,7 +9,7 @@ import type {
   LayoutNode,
   TaskRecord,
 } from "../../electron/preload";
-import { Archive, ArrowRightLeft, Eraser, ChevronDown, ChevronRight, Columns2, MoreHorizontal, Pause, Pencil, Plus, RefreshCw, RotateCcw, Rows2, SlidersHorizontal, Terminal as TerminalIcon, Trash2, X, FolderCode, UserRound, MessagesSquare, Clock, Hash, CircleX, GitBranch, FileDiff, GitCompare } from "lucide-react";
+import { Archive, ArrowRightLeft, CircleDollarSign, Eraser, ChevronDown, ChevronRight, Columns2, MoreHorizontal, Pause, Pencil, Plus, RefreshCw, RotateCcw, Rows2, SlidersHorizontal, Terminal as TerminalIcon, Trash2, X, FolderCode, UserRound, MessagesSquare, Clock, Hash, CircleX, GitBranch, FileDiff, GitCompare } from "lucide-react";
 import { Markdown } from "./Markdown";
 import { CommandPalette, type PaletteItem } from "./CommandPalette";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
@@ -1758,6 +1758,9 @@ function App() {
     // reported answer is only appended when the transcript does not already end with it.
     // 主进程在原生会话丢失时换新会话重跑，会带上这个标记；界面据此说明旧上下文没带过去。
     let restarted = false;
+    let turnUsage: {
+      model: string; inputTokens: number; outputTokens: number; cacheReadTokens: number; costUsd: number;
+    } | null = null;
     const appendTurn = (answer: string, patch: Partial<TaskRecord>) => {
       const tools = finishTools(task.id);
       const spoken = answer.trim() ? answer : noAnswerText(agent, tools);
@@ -1767,7 +1770,7 @@ function App() {
         const last = messages[messages.length - 1];
         const alreadyShown = Boolean(answer) && last?.role === "assistant" && last.text.trim() === answer.trim();
         if (spoken && !alreadyShown) {
-          messages.push({ role: "assistant", agent, text: spoken, createdAt: new Date().toISOString(), ...(tools ? { tools } : {}), ...(restarted ? { sessionReset: true } : {}) });
+          messages.push({ role: "assistant", agent, text: spoken, createdAt: new Date().toISOString(), ...(tools ? { tools } : {}), ...(restarted ? { sessionReset: true } : {}), ...(turnUsage ? { usage: turnUsage } : {}) });
         } else if (alreadyShown && tools) {
           messages[messages.length - 1] = { ...last, tools };
         }
@@ -1791,6 +1794,7 @@ function App() {
       } else if (agent === "claude") {
         const result = await window.tango.runClaude(task.id, task.projectPath, text);
         restarted = result.sessionReset === true;
+        turnUsage = result.usage ?? null;
         appendTurn(result.answer, { claudeSessionId: result.sessionId });
       } else if (task.threadId) {
         await window.tango.codexSend(task.id, text);
@@ -3531,6 +3535,25 @@ function App() {
                         <ThreadDetailsRow icon={<Wrench size={16} />} label="Tools in this task" value={`${activeTaskRecord?.messages.reduce((sum, message) => sum + (message.tools?.length ?? 0), 0) ?? 0}`} />
                         <ThreadDetailsRow icon={<CircleX size={16} />} label="Failed turns" value={`${activeTaskRecord?.messages.filter((message) => message.role === "assistant" && message.text.startsWith("The turn could not run:")).length ?? 0}`} />
                       </ThreadDetailsSection>
+                      {(() => {
+                        const usage = (activeTaskRecord?.messages ?? []).filter((message) => message.usage);
+                        if (usage.length === 0) return null;
+                        const totals = usage.reduce((sum, message) => ({
+                          inputTokens: sum.inputTokens + (message.usage?.inputTokens ?? 0),
+                          outputTokens: sum.outputTokens + (message.usage?.outputTokens ?? 0),
+                          cacheReadTokens: sum.cacheReadTokens + (message.usage?.cacheReadTokens ?? 0),
+                          costUsd: sum.costUsd + (message.usage?.costUsd ?? 0),
+                        }), { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, costUsd: 0 });
+                        const last = usage.at(-1)?.usage;
+                        return (
+                          <ThreadDetailsSection title="Usage">
+                            <ThreadDetailsRow icon={<CircleDollarSign size={16} />} label="Model" value={last?.model ?? "—"} title={last?.model} />
+                            <ThreadDetailsRow icon={<Hash size={16} />} label="Tokens in / out" value={`${totals.inputTokens.toLocaleString()} / ${totals.outputTokens.toLocaleString()}`} />
+                            <ThreadDetailsRow icon={<Hash size={16} />} label="Cache read" value={totals.cacheReadTokens.toLocaleString()} />
+                            <ThreadDetailsRow icon={<CircleDollarSign size={16} />} label="Cost" value={`$${totals.costUsd.toFixed(4)}`} />
+                          </ThreadDetailsSection>
+                        );
+                      })()}
                       <ThreadDetailsSection title="Actions">
                         <ThreadDetailsRow icon={<Pencil size={16} />} label="Rename task" onClick={() => activeTaskRecord && startRename(activeTaskRecord)} />
                         <ThreadDetailsRow icon={<Copy size={16} />} label="Duplicate task" onClick={() => activeTask && void duplicateTask(activeTask)} />
