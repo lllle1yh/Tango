@@ -2,9 +2,14 @@
 
 生成自 `t3code/apps/web/src/components/chat`（160 个组件文件，不含测试）。
 
-- 已搬入并接线：**18**
+- 已搬入并接线：**23**（另有 10 个 Tango 自写、T3 没有对应文件的组件；清单下方逐条列出）
 - 纯展示、可搬但尚未搬：**12**
 - 依赖 T3 服务端契约（provider / PR / diff / 预览会话 / 后台任务 / 附件），Tango 没有对应数据源：**130**
+
+> 计数说明：23 = T3 `components/chat` 里 160 个文件中已有同名文件、且已接线的部分，加上从
+> `packages/shared` 与 T3 根目录 `components` 搬来的（`markdownGithubAlerts`、`ChatRightPanel`、
+> `RightPanelTabs`、`ScrollToEndButton`）。130 这一类不是「没搬」，而是 Tango 目前没有对应数据源，
+> 硬搬只能做成占位实现，不符合仓库约定。
 
 ## 已搬入
 
