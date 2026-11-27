@@ -509,11 +509,13 @@ function createClaudeClient(taskId: string, projectPath: string, resumeId: strin
   const args = ["-p", "--verbose", "--input-format", "stream-json", "--output-format", "stream-json", "--include-partial-messages"];
   if (resumeId) args.push("--resume", resumeId);
   if (permissionMode && permissionMode !== "default") args.push("--permission-mode", permissionMode);
-  // Electron 把自己当成 CLAUDE_CODE_ENTRYPOINT、也可能带着别的 Claude 会话变量；
-  // 这里清掉它们，让 Tango 启的 CLI 按它自己的默认入口跑，会话落盘位置才稳定可 resume。
+  // Tango 常由终端里的 Claude Code 或别人启动的会话间接拉起；从 CLI 继承进来的
+  // CLAUDECODE / CLAUDE_CODE_* 会让 Tango 启的 CLI 以为自己在一个别的会话里
+  // （入口换成 SDK，会话不落盘，第二次 resume 就找不到）。只传给 CLI 它不需要的这些之外的东西，
+  // 认证相关的 ANTHROPIC_* 保留。
   const env: NodeJS.ProcessEnv = { ...process.env };
   for (const key of Object.keys(env)) {
-    if (/^CLAUDE_CODE_/.test(key) || key === "CLAUDECODE" || key === "CLAUDE_CONFIG_DIR") delete env[key];
+    if (/^CLAUDE_CODE_/.test(key) || key === "CLAUDECODE" || key === "CLAUDECODE_ENTRY_POINT" || key === "CLAUDE_CONFIG_DIR") delete env[key];
   }
   const child = require("node:child_process").spawn(
     process.platform === "win32" ? "cmd.exe" : "claude",
@@ -1617,7 +1619,8 @@ function parseGitDiff(patch: string) {
       }
     } catch (error) {
       // A failed run leaves nothing to resume from it; the next turn starts clean.
-      if (!client.sessionId) {
+      // 刚因会话丢失重建过的话，留着它会用已经失败的 resume 参数继续跑下一轮。
+      if (!client.sessionId || restarted) {
         client.dispose();
         claudeProcesses.delete(task.id);
       }

@@ -225,3 +225,11 @@ T3 的附件由服务端上传、按资产 ID 引用；Tango 没有这层服务�
   回复带 `sessionReset` 标记，时间线上插一行「Started a fresh session」说明旧上下文没带过去。
 - Claude 子进程会清掉继承的 `CLAUDE_CODE_*` / `CLAUDECODE` 环境变量，避免 CLI 去别的入口目录找会话；
   resume 失败时把 CLI `errors[]` 的原文显示出来。
+
+### 已知边界：从 Claude Code 终端里启动的 Tango
+
+如果 Tango 本身是从一个 Claude Code 会话（例如 `claude` 里跑 `npm run dev`，或某个 Claude Code
+包装器）里启动的，它的环境会带着 `CLAUDE_CODE_SESSION_ID` 这类变量。即使 Adapter 已经把
+`CLAUDE_CODE_*` / `CLAUDECODE` 从子进程环境里去掉，实测时 Claude CLI **在这种父进程下仍然不会把会话写盘**，
+于是每次 resume 都会触发「新开会话」兜底。从普通终端（PowerShell / Explorer）启动 Tango 时，
+会话能正常写盘并在重启后 resume。这是 CLI 自身的判定，不是 Tango 能绕开的，按普通方式启动即可。
