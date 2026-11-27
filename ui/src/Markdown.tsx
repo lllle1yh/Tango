@@ -3,15 +3,18 @@ import { jsx, jsxs } from "react/jsx-runtime";
 import { unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 import remarkRehype from "remark-rehype";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import type { Schema } from "hast-util-sanitize";
 import rehypeHighlight from "rehype-highlight";
 import { toJsxRuntime } from "hast-util-to-jsx-runtime";
 import { extractCodeBlock, extractFenceLanguage, extractFenceTitle } from "./lib/markdownCodeBlock";
 import { MarkdownCodeBlock } from "./components/chat/MarkdownCodeBlock";
 import { MarkdownMermaidCodeBlock } from "./components/chat/MarkdownMermaidCodeBlock";
 import { ImageLightbox } from "./components/chat/ImageLightbox";
+import { MarkdownMath } from "./components/chat/MarkdownMath";
 import { MarkdownTable } from "./components/chat/MarkdownTable";
 import { MarkdownDetails } from "./components/chat/MarkdownDetails";
 import { MarkdownExternalLinkContent } from "./components/chat/MarkdownExternalLink";
@@ -19,11 +22,13 @@ import { isMarkdownAlert, MarkdownAlert } from "./components/chat/MarkdownAlert"
 import { remarkGithubAlerts } from "./components/chat/markdownGithubAlerts";
 
 // T3 给 blockquote 标 dataAlert，再在渲染时换成提示块；默认 schema 会把它洗掉，所以放开这一个。
-const markdownSchema = {
+const markdownSchema: Schema = {
   ...defaultSchema,
   attributes: {
     ...defaultSchema.attributes,
     blockquote: [...(defaultSchema.attributes?.blockquote ?? []), "dataAlert"],
+    // remark-math 用 math-inline / math-display 标记公式；默认 schema 只放行 language-* 类名。
+    code: [...(defaultSchema.attributes?.code ?? []), ["className", "math-inline", "math-display"]],
   },
 };
 
@@ -41,6 +46,17 @@ const processor = unified()
   // Highlight after sanitising: the sanitizer only ever sees plain code text.
   .use(rehypeHighlight, { detect: false });
 
+// 同一套管线，只是多了公式解析；只在文本里真的有 $...$ 时才走它，避免把价格里的 $ 当成公式。
+const mathProcessor = unified()
+  .use(remarkParse)
+  .use(remarkGfm)
+  .use(remarkMath, { singleDollarTextMath: true })
+  .use(remarkGithubAlerts)
+  .use(remarkRehype, { allowDangerousHtml: true })
+  .use(rehypeRaw)
+  .use(rehypeSanitize, markdownSchema)
+  .use(rehypeHighlight, { detect: false });
+
 function markdownAnchorProps(props: ComponentPropsWithoutRef<"a">) {
   const href = typeof props.href === "string" ? props.href : "";
   return { external: /^https?:\/\//i.test(href), host: href ? safeHost(href) : null };
@@ -56,7 +72,11 @@ function safeHost(href: string) {
 
 const components = {
   pre: ({ children }: ComponentPropsWithoutRef<"pre"> & { children?: ReactNode }) => {
-    // ```mermaid 画成图（T3 的 MarkdownMermaidCodeBlock）；其它语言照旧。
+    // 块级公式在 hast 里是 <pre><code class="language-math math-display">：不要套代码框。
+    const mathBlock = mathBlockTex(children);
+    if (mathBlock !== null) {
+      return <MarkdownMath tex={mathBlock} display />;
+    }
     const extracted = extractCodeBlock(children);
     if (extracted && extractFenceLanguage(extracted.className) === "mermaid") {
       return (
@@ -86,6 +106,17 @@ const components = {
       {props.children}
     </MarkdownDetails>
   ),
+  code: (props: ComponentPropsWithoutRef<"code"> & { children?: ReactNode }) => {
+    // remark-math 把公式产出成 <code class="language-math math-inline|math-display">；
+    // 块级公式外面还包着一个 <pre>，所以 pre 组件也要认出这种情况并直接透传。
+    const className = typeof props.className === "string" ? props.className : "";
+    const display = className.includes("math-display");
+    if (className.includes("language-math")) {
+      const tex = typeof props.children === "string" ? props.children : String(props.children ?? "");
+      return <MarkdownMath tex={tex} display={display} />;
+    }
+    return <code {...props} />;
+  },
   img: (props: ComponentPropsWithoutRef<"img">) => {
     const src = typeof props.src === "string" ? props.src : "";
     const alt = props.alt ?? "";
@@ -180,9 +211,34 @@ function MarkdownImage({ src, alt }: { src: string; alt: string }) {
   );
 }
 
+// 块级公式：<pre><code class="language-math math-display">TeX</code></pre>，取里面的 TeX。
+function mathBlockTex(children: ReactNode): string | null {
+  const extracted = extractCodeBlock(children);
+  if (!extracted || !extractFenceLanguage(extracted.className).includes("math")) return null;
+  return extracted.code;
+}
+
+// A `$` formula needs a closing `$` on the same line, not right after a space — so prices
+// like "$95 or $100" and chips like `$skill` are not torn out of the text. Copied from T3's
+// mayContainDollarMath, used to decide whether remark-math runs at all.
+function mayContainDollarMath(text: string): boolean {
+  let opened = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (char === "\n" || char === "\r") {
+      opened = false;
+    } else if (char === "$") {
+      if (opened && text[index - 1] !== " ") return true;
+      opened = true;
+    }
+  }
+  return false;
+}
+
 export function Markdown({ text, highlight }: { text: string; highlight?: string }) {
   const tree = useMemo(() => {
-    const parsed = processor.runSync(processor.parse(text));
+    const active = mayContainDollarMath(text) || text.includes("$$") ? mathProcessor : processor;
+    const parsed = active.runSync(active.parse(text));
     if (highlight) markMatches(parsed as unknown as HastNode, highlight.toLowerCase());
     return parsed;
   }, [text, highlight]);

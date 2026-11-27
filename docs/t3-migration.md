@@ -243,9 +243,13 @@ Claude CLI 只在**进程退出时**写会话文件。所以每轮结束后 Adap
 于是每次 resume 都会触发「新开会话」兜底。从普通终端（PowerShell / Explorer）启动 Tango 时，
 会话能正常写盘并在重启后 resume。这是 CLI 自身的判定，不是 Tango 能绕开的，按普通方式启动即可。
 
-## 数学公式：Tango 目前不渲染（与 T3 的差别）
+## 数学公式
 
-T3 的设置里有「Render math」，客户端（`markdown/wordsHast.ts`）会把输入里已经是 SVG 的公式包成
-`data-markdown-math` 并保留；**排版发生在上游**（T3 服务端把 TeX 转成 SVG 后随消息下发）。
-Tango 没有这一层服务，`$...$` / `$$...$$` 会原样显示。要在 Tango 落地需要本地引入 katex 并在
-Markdown 管线里加 remark-math + 一个 KaTeX 渲染器；目前未做，`$$` 出现在 Mermaid 图里时显示源码并说明原因。
+T3 的公式排版在上游（服务端把 TeX 转成 SVG 后随消息下发），客户端只负责保留。Tango 没有这一层服务，改为本地排版：
+
+- `remark-math` 只在文本里真的出现 `$...$` 时才启用（价格 `$95 or $100` 不会被当成公式）
+- `MarkdownMath` 懒加载 katex，`trust:false`，只输出 HTML；排版失败显示源码，不让消息报错
+- 块级公式（`$$` 独占几行）显示在正文里，不套代码框
+
+已知限制：同一段里出现两个以上 `$`（例如「一个坏公式 $rac{1}{$ 和一个价格 $95」）时，remark-math 会把它们
+配成一对公式，结果价格也会被渲染成公式。T3 的客户端同样只做解析层面的处理，这条限制来自 remark-math 本身。
