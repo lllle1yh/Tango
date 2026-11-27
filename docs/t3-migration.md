@@ -2,7 +2,7 @@
 
 生成自 `t3code/apps/web/src/components/chat`（160 个组件文件，不含测试）。
 
-- 已搬入并接线：**33**（与 T3 `components/chat` 同名且可运行；另有 10 个 Tango 自写组件，见「Tango 自写」）
+- 已搬入并接线：**34**（与 T3 `components/chat` 同名且可运行；另有 10 个 Tango 自写组件，见「Tango 自写」）
 - 纯展示、可搬但尚未搬：**12**
 - 依赖 T3 服务端契约（provider / PR / diff / 预览会话 / 后台任务 / 附件），Tango 没有对应数据源：**130**
 
