@@ -4,11 +4,14 @@
 import { X } from "lucide-react";
 
 import { PierreEntryIcon } from "./PierreEntryIcon";
+import { ComposerImageThumbnail } from "./ComposerImageThumbnail";
 
 export type ComposerAttachment = {
   path: string;
   name: string;
   bytes: number;
+  /** 粘贴进来的图片保留原始 File，用来画缩略图；拖进来的只有路径，没有这个。 */
+  file?: File;
 };
 
 
@@ -52,7 +55,16 @@ function AttachmentChip({
       className="flex min-w-0 max-w-full items-center gap-1.5 rounded-lg border border-border/70 bg-background/70 py-1 ps-2 pe-1 text-xs"
       title={attachment.path}
     >
-      <PierreEntryIcon pathValue={attachment.name} kind="file" className="size-3.5" />
+      {attachment.file ? (
+        <ComposerImageThumbnail
+          file={attachment.file}
+          alt={attachment.name}
+          className="size-5 rounded object-cover"
+          fallback={<PierreEntryIcon pathValue={attachment.name} kind="file" className="size-3.5" />}
+        />
+      ) : (
+        <PierreEntryIcon pathValue={attachment.name} kind="file" className="size-3.5" />
+      )}
       <span className="min-w-0 max-w-48 truncate font-medium text-foreground">{attachment.name}</span>
       <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums">
         {formatBytes(attachment.bytes)}

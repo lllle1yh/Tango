@@ -723,6 +723,11 @@ function lastSuccessfulTurnAgent(messages: ReadonlyArray<TaskRecord["messages"][
     message.role === "assistant" && !message.text.startsWith("The turn could not run:"))?.agent;
 }
 
+// 只有浏览器画得了的图片才留 File 去生成缩略图；HEIC 等格式没有解码器，仍用文件类型图标。
+function isImageFile(file: File): boolean {
+  return /^image\/(png|jpeg|gif|webp|bmp|svg\+xml)$/.test(file.type);
+}
+
 function App() {
   const [project, setProject] = useState<string | null>(null);
   const [agents, setAgents] = useState<AgentStatus[]>([]);
@@ -1868,7 +1873,7 @@ function App() {
           accepted.push({ path: filePath, name: file.name, bytes: file.size });
         } else {
           const bytes = new Uint8Array(await file.arrayBuffer());
-          accepted.push(await window.tango.saveAttachment(file.name, bytes));
+          accepted.push({ ...(await window.tango.saveAttachment(file.name, bytes)), file: isImageFile(file) ? file : undefined });
         }
       } catch {
         rejected.push(file.name);
