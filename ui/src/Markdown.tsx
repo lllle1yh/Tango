@@ -237,10 +237,11 @@ function mayContainDollarMath(text: string): boolean {
 
 export function Markdown({ text, highlight }: { text: string; highlight?: string }) {
   const tree = useMemo(() => {
-    const active = mayContainDollarMath(text) || text.includes("$$") ? mathProcessor : processor;
+    // 只有当文本里有真正成对的 $…$（或单独的 $$）时才启用公式解析，否则 `$95 or $100` 会被当公式。
+    const active = mayContainDollarMath(text) ? mathProcessor : processor;
     const parsed = active.runSync(active.parse(text));
     if (highlight) markMatches(parsed as unknown as HastNode, highlight.toLowerCase());
     return parsed;
   }, [text, highlight]);
-  return <div className="markdown">{toJsxRuntime(tree, { Fragment, jsx, jsxs, components: components as never })}</div>;
+  return <div className="markdown">{toJsxRuntime(tree, { Fragment, jsx, jsxs, passNode: true, components: components as never })}</div>;
 }
