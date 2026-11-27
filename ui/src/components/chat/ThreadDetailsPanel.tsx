@@ -1,33 +1,13 @@
 import type { ReactNode } from "react";
 
 import { cn } from "../../lib/utils";
+import { ThreadDetailsSection } from "./ThreadDetailsSection";
+
+export { ThreadDetailsSection };
 
 // 搬自 T3 的 ThreadDetailsPanel / ThreadDetailsSection 的排版：
 // 右侧一栏「工作区 / 会话 / 活动」，每组一个小标题 + 若干 h-8 的整行，
 // 行是可点的按钮，右侧放当前值。Tango 没有 Git / PR，所以只保留它有三样数据的分组。
-
-export function ThreadDetailsSection({
-  title,
-  actions,
-  children,
-}: {
-  title: string;
-  actions?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section
-      aria-label={title}
-      className="border-border/65 px-2 pt-2 pb-2.5 [&:not(:first-child)]:border-t [&>div:last-child:empty]:hidden"
-    >
-      <div className="mb-1 flex min-h-8 min-w-0 items-center justify-between gap-2 px-2.5">
-        <h3 className="min-w-0 truncate text-2xs font-medium text-muted-foreground select-none">{title}</h3>
-        {actions}
-      </div>
-      {children}
-    </section>
-  );
-}
 
 export function ThreadDetailsRow({
   icon,
