@@ -2127,7 +2127,7 @@ function App() {
           kind: "divider",
           id: "r-" + message.createdAt + "-" + index,
           title: "Started a fresh session",
-          detail: `The saved ${agentName(message.agent)} session was no longer on disk, so this reply came from a new one; earlier messages are still shown but the agent did not see them.`,
+          detail: `The saved ${agentName(message.agent)} session was no longer on disk, so this reply came from a new one with the recent turns replayed as context.`,
         });
       }
     }

@@ -211,6 +211,27 @@ function noteTurnTool(taskId: string, tool: { id?: unknown; name?: unknown; stat
 
 // A turn that failed still gets one line in the transcript, so the prompt is not left
 // without an answer when the app is reopened or the task is viewed later.
+// 原生会话找不回来时，用 Tango 自己的记录给新会话补一段上下文：窗口里看到的历史
+// 和新会话知道的事情保持一致，用户不必重新交代一遍。
+function replayContext(task: TaskRecord, limit = 12): string {
+  const recent = task.messages
+    .filter((message) => !message.text.startsWith("The turn could not run:"))
+    .slice(-limit);
+  if (recent.length === 0) return "";
+  const lines = recent.map((message) => {
+    const who = message.role === "user" ? "User" : message.agent;
+    const text = message.text.length > 1200 ? message.text.slice(0, 1200) + "…" : message.text;
+    return `[${who}] ${text}`;
+  });
+  return [
+    "Earlier turns in this task, replayed because the saved native session was not available:",
+    "",
+    lines.join(String.fromCharCode(10, 10)),
+    "",
+    "Continue from that context. The user's next message follows.",
+  ].join(String.fromCharCode(10));
+}
+
 async function recordFailedTurn(taskId: string, agent: string, prompt: string, error: unknown) {
   const message = error instanceof Error && error.message ? error.message : String(error ?? "Unknown error");
   const tools = takeTurnTools(taskId);
@@ -517,11 +538,26 @@ function createClaudeClient(taskId: string, projectPath: string, resumeId: strin
   for (const key of Object.keys(env)) {
     if (/^CLAUDE_CODE_/.test(key) || key === "CLAUDECODE" || key === "CLAUDECODE_ENTRY_POINT" || key === "CLAUDE_CONFIG_DIR") delete env[key];
   }
+  // 启动 Tango 的那个终端可能是用别的模型跑的 Claude Code；不把它继承给被托管的 CLI，
+  // 否则 CLI 会在启动时按那个模型名报 unrecognized_model。
+  delete env.ANTHROPIC_MODEL;
+  delete env.ANTHROPIC_SMALL_FAST_MODEL;
+  delete env.ANTHROPIC_DEFAULT_OPUS_MODEL;
+  delete env.ANTHROPIC_DEFAULT_SONNET_MODEL;
+  delete env.ANTHROPIC_DEFAULT_HAIKU_MODEL;
   const child = require("node:child_process").spawn(
     process.platform === "win32" ? "cmd.exe" : "claude",
     process.platform === "win32" ? ["/d", "/s", "/c", "claude " + args.join(" ")] : args,
     { cwd: projectPath, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true },
   ) as import("node:child_process").ChildProcessWithoutNullStreams;
+  let stderrTmp = "";
+  child.stderr.on("data", (chunk: Buffer) => {
+    stderrTmp += chunk.toString();
+    if (stderrTmp.length > 8000) stderrTmp = stderrTmp.slice(-8000);
+  });
+  child.on("exit", () => {
+    if (stderrTmp.trim()) console.log("[claude-debug] stderr:", stderrTmp.slice(-1500));
+  });
   let buffer = "";
   const resultWaiters: Array<{ resolve(text: string): void; reject(error: Error): void }> = [];
   let sessionId = resumeId ?? "";
@@ -553,7 +589,7 @@ function createClaudeClient(taskId: string, projectPath: string, resumeId: strin
         const text = cancelled ? "" : String(event.result ?? "");
         if (!cancelled && event.is_error) {
           // CLI 把真正的原因放在 errors[] 里；只说 "turn failed" 会让人无从下手。
-          const detail = Array.isArray(event.errors) && event.errors.length ? String(event.errors[0]) : "";
+          const detail = Array.isArray(event.errors) && event.errors.length ? String(event.errors[0]).replace(/^Error:\s*/, "") : "";
           resultWaiters.shift()?.reject(new Error(detail || event.result || "Claude Code turn failed"));
         }
         else resultWaiters.shift()?.resolve(text);
@@ -594,9 +630,20 @@ function createClaudeClient(taskId: string, projectPath: string, resumeId: strin
     cancelled = true;
     await terminateChild(child);
   }
+  // 会话文件是在 CLI 退出时写的，不是每轮立刻落盘。回合结束后收掉 stdin 让它正常退出；
+  // 下一次对话会带着刚拿到的 sessionId 重新 --resume，这样重启应用也找得到。
+  async function finishTurn() {
+    if (child.exitCode !== null) return;
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, 3000);
+      child.once("exit", (code, signal) => { console.log("[claude-debug] exit", code, signal); clearTimeout(timer); resolve(); });
+      try { child.stdin.end(); } catch { clearTimeout(timer); resolve(); }
+    });
+  }
   return {
     run,
     interrupt,
+    finishTurn,
     get sessionId() { return sessionId; },
     dispose() { void terminateChild(child); },
   };
@@ -1598,6 +1645,7 @@ function parseGitDiff(patch: string) {
       claudeProcesses.set(taskId, client);
     }
     await markRunning(task.id, "claude");
+    const priorMessages = [...task.messages];
     task.messages.push({ role: "user", text: prompt, agent: "claude", createdAt: new Date().toISOString() });
     await saveTasks(tasks);
     let answer: string;
@@ -1609,12 +1657,14 @@ function parseGitDiff(patch: string) {
         // 存的会话文件被清掉了（换机器、清理缓存、旧的假 ID）：不把这一轮变成失败，
         // 丢掉旧会话、马上用新会话重跑一次；窗口里已有历史，但新会话看不到它。
         const message = error instanceof Error ? error.message : "";
-        if (!previousSession || !/No conversation found|session not found/i.test(message)) throw error;
+        const sessionGone = /No conversation found|session not found|requires a valid session ID/i.test(message);
+        if (!previousSession || !sessionGone) throw error;
         client.dispose();
         claudeProcesses.delete(task.id);
         client = createClaudeClient(taskId, task.projectPath, undefined, (await readSettings()).claudePermissionMode);
         claudeProcesses.set(task.id, client);
-        answer = await client.run(prompt);
+        const replay = replayContext({ ...task, messages: priorMessages });
+        answer = await client.run(replay ? replay + String.fromCharCode(10, 10) + prompt : prompt);
         restarted = true;
       }
     } catch (error) {
@@ -1640,6 +1690,11 @@ function parseGitDiff(patch: string) {
       });
       await saveTasks(tasks);
     }
+    // 让 CLI 正常退出把会话写盘，再丢掉进程；下一轮 --resume 这个 id。
+    console.log("[claude-debug] finishing turn", client.sessionId);
+    await client.finishTurn();
+    console.log("[claude-debug] finished");
+    claudeProcesses.delete(task.id);
     return { sessionId: client.sessionId, answer, sessionReset: restarted };
   });
   ipcMain.handle("claude:interrupt", async (event: IpcMainInvokeEvent, taskId: string) => {

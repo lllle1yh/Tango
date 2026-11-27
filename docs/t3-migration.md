@@ -221,10 +221,17 @@ T3 的附件由服务端上传、按资产 ID 引用；Tango 没有这层服务�
 - 发送：`threadId` / `claudeSessionId` / `dshSessionId` / `piSessionFile` 指向的原生会话会被 resume，
   窗口里看到的历史就是那个原生会话的历史。
 - `/new-session`：清掉这些引用并丢弃内存客户端，下一条消息开新会话。
-- 存的会话文件不在了（`No conversation found with session ID`）：主进程丢弃旧会话、立刻用新会话重跑这一轮，
-  回复带 `sessionReset` 标记，时间线上插一行「Started a fresh session」说明旧上下文没带过去。
+- 存的会话文件不在了（`No conversation found with session ID`，或 resume 参数不是有效 UUID）：主进程丢弃旧会话，
+  用新会话重跑这一轮，并把最近 12 条记录作为上下文开头一起发过去；回复带 `sessionReset` 标记，
+  时间线上插一行「Started a fresh session」。实测：会话丢失的任务问「我之前让你记什么」，回答 `APPLE`。
 - Claude 子进程会清掉继承的 `CLAUDE_CODE_*` / `CLAUDECODE` 环境变量，避免 CLI 去别的入口目录找会话；
   resume 失败时把 CLI `errors[]` 的原文显示出来。
+
+### 会话落盘时机
+
+Claude CLI 只在**进程退出时**写会话文件。所以每轮结束后 Adapter 会收掉 CLI 的 stdin 让它正常退出
+（最多等 3 秒），下一次对话带着刚拿到的 `sessionId` 重新 `--resume`。这样第二次对话、以及重启应用后，
+都能找到这条原生会话。旧的「一直挂着同一个 CLI 进程」的做法在重启后就找不到会话。
 
 ### 已知边界：从 Claude Code 终端里启动的 Tango
 
