@@ -550,13 +550,14 @@ function createClaudeClient(taskId: string, projectPath: string, resumeId: strin
     process.platform === "win32" ? ["/d", "/s", "/c", "claude " + args.join(" ")] : args,
     { cwd: projectPath, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true },
   ) as import("node:child_process").ChildProcessWithoutNullStreams;
-  let stderrTmp = "";
+  // 诊断用：TANGO_AGENT_DEBUG=1 时把 CLI 的 stderr 尾巴打进主进程日志。
+  let stderrTail = "";
   child.stderr.on("data", (chunk: Buffer) => {
-    stderrTmp += chunk.toString();
-    if (stderrTmp.length > 8000) stderrTmp = stderrTmp.slice(-8000);
+    stderrTail += chunk.toString();
+    if (stderrTail.length > 8000) stderrTail = stderrTail.slice(-8000);
   });
   child.on("exit", () => {
-    if (stderrTmp.trim()) console.log("[claude-debug] stderr:", stderrTmp.slice(-1500));
+    if (process.env.TANGO_AGENT_DEBUG && stderrTail.trim()) console.log("[claude] stderr:", stderrTail.slice(-1500));
   });
   let buffer = "";
   const resultWaiters: Array<{ resolve(text: string): void; reject(error: Error): void }> = [];
@@ -636,7 +637,7 @@ function createClaudeClient(taskId: string, projectPath: string, resumeId: strin
     if (child.exitCode !== null) return;
     await new Promise<void>((resolve) => {
       const timer = setTimeout(resolve, 3000);
-      child.once("exit", (code, signal) => { console.log("[claude-debug] exit", code, signal); clearTimeout(timer); resolve(); });
+      child.once("exit", () => { clearTimeout(timer); resolve(); });
       try { child.stdin.end(); } catch { clearTimeout(timer); resolve(); }
     });
   }
@@ -1691,9 +1692,7 @@ function parseGitDiff(patch: string) {
       await saveTasks(tasks);
     }
     // 让 CLI 正常退出把会话写盘，再丢掉进程；下一轮 --resume 这个 id。
-    console.log("[claude-debug] finishing turn", client.sessionId);
     await client.finishTurn();
-    console.log("[claude-debug] finished");
     claudeProcesses.delete(task.id);
     return { sessionId: client.sessionId, answer, sessionReset: restarted };
   });
