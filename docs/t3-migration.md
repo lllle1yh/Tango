@@ -264,7 +264,8 @@ T3 用客户端的控制协议在会话里弹审批；Tango 目前走 Claude CLI
 - 输入框底栏（只在该任务用 Claude 时出现）可以选 Ask first / Accept edits / Auto / Plan only / Manual /
   Don't ask / Bypass；改完从下一条消息生效
 - **必须显式传 `--permission-mode`**：实测不传时 print 模式会直接放行 Write，不等于 "default"
-- 被拒的工具会以「Claude requested permissions to …」出现在工具结果里，Agent 据此改路线
+- CLI 的 `system/permission_denied` 会把对应工具行标成失败并写明「Permission denied — this tool needs
+  approval in Claude's permission mode」，不再显示成“跑完了”；Agent 也收到拒绝原因并改路线
 
 实测：`default` 下 Write 被拒（文件未生成），`bypassPermissions` 下同一句成功写入。
 会话内逐个审批（T3 的 control request）仍未实现。

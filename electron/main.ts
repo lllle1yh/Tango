@@ -565,6 +565,8 @@ function createClaudeClient(taskId: string, projectPath: string, resumeId: strin
   let sessionId = resumeId ?? "";
   let cancelled = false;
   let lastClaudeTool: { id: string; name: string; detail?: string } | null = null;
+  // 被权限拦下的工具：CLI 后面还会发 content_block_stop，不能把它改回 done。
+  const deniedTools = new Set<string>();
   child.stdout.on("data", (chunk: Buffer) => {
     buffer += chunk.toString();
     const lines = buffer.split(/\r?\n/);
@@ -583,7 +585,15 @@ function createClaudeClient(taskId: string, projectPath: string, resumeId: strin
           sendClaudeEvent(taskId, { type: "tool", id: block.id, name: block.name, status: "running", detail: lastClaudeTool.detail });
         }
         if (event.event?.type === "content_block_stop" && lastClaudeTool) {
-          sendClaudeEvent(taskId, { type: "tool", id: lastClaudeTool.id, name: lastClaudeTool.name, status: "done", detail: lastClaudeTool.detail });
+          const wasDenied = deniedTools.has(lastClaudeTool.id);
+          deniedTools.delete(lastClaudeTool.id);
+          sendClaudeEvent(taskId, {
+            type: "tool",
+            id: lastClaudeTool.id,
+            name: lastClaudeTool.name,
+            status: wasDenied ? "error" : "done",
+            detail: wasDenied ? "Permission denied — this tool needs approval in Claude's permission mode." : lastClaudeTool.detail,
+          });
           lastClaudeTool = null;
         }
       }
@@ -597,6 +607,18 @@ function createClaudeClient(taskId: string, projectPath: string, resumeId: strin
         else resultWaiters.shift()?.resolve(text);
         cancelled = false;
         sendClaudeEvent(taskId, { type: "turn/completed", sessionId, text });
+      }
+      // 权限被拒时 CLI 发 system/permission_denied；把那条工具从 running 改成失败，
+      // 不然界面上会显示成“跑完了”。
+      if (event.type === "system" && event.subtype === "permission_denied" && typeof event.tool_use_id === "string") {
+        deniedTools.add(event.tool_use_id);
+        sendClaudeEvent(taskId, {
+          type: "tool",
+          id: event.tool_use_id,
+          name: event.tool_name ?? lastClaudeTool?.name ?? "tool",
+          status: "error",
+          detail: "Permission denied — this tool needs approval in Claude's permission mode.",
+        });
       }
       if (event.type === "system" && event.subtype === "init") {
         sessionId = event.session_id ?? sessionId;
