@@ -243,8 +243,9 @@ Claude CLI 只在**进程退出时**写会话文件。所以每轮结束后 Adap
 于是每次 resume 都会触发「新开会话」兜底。从普通终端（PowerShell / Explorer）启动 Tango 时，
 会话能正常写盘并在重启后 resume。这是 CLI 自身的判定，不是 Tango 能绕开的，按普通方式启动即可。
 
-## 数学公式：T3 也没有渲染
+## 数学公式：Tango 目前不渲染（与 T3 的差别）
 
-T3 设置里有一项「Render math」，但它的渲染管线（`components/chat/markdownRenderer.ts` → `markdown/wordsHast.ts`）
-只加 `remark-math` 解析，没有 katex 输出；katex 只在 Mermaid 的 `$$` 标签里用到。所以 Tango 不做公式渲染不是缺项，
-而是与 T3 行为一致。`$$` 出现在 Mermaid 图里时，Tango 显示源码并说明原因。
+T3 的设置里有「Render math」，客户端（`markdown/wordsHast.ts`）会把输入里已经是 SVG 的公式包成
+`data-markdown-math` 并保留；**排版发生在上游**（T3 服务端把 TeX 转成 SVG 后随消息下发）。
+Tango 没有这一层服务，`$...$` / `$$...$$` 会原样显示。要在 Tango 落地需要本地引入 katex 并在
+Markdown 管线里加 remark-math + 一个 KaTeX 渲染器；目前未做，`$$` 出现在 Mermaid 图里时显示源码并说明原因。
