@@ -27,6 +27,7 @@
 - `WorkspaceFileDropOverlay.tsx`（搬自 T3 `TimelineOverlays` 的拖拽提示）
 - `ComposerFreshSession.tsx`（搬自 T3 同名文件：下一条消息开新会话的横幅）
 - `MermaidDiagram.tsx` + `MarkdownMermaidCodeBlock.tsx`（搬自 T3：pele 画图，可切源码、点开大图；$$ 数学标签暂不支持）
+- `ImageLightbox.tsx`（T3 ExpandedImageDialog 的最小版：点开消息里的图片看大图，Esc 关闭）
 - `markdownGithubAlerts.ts`（搬自 T3 `packages/shared`：把 `> [!NOTE]` 标成 dataAlert）
 - `ProviderPackageIcon.tsx`（Tango 适配版：Agent 图标位）
 - `ComposerBannerStack.tsx`（228 行）
@@ -241,3 +242,9 @@ Claude CLI 只在**进程退出时**写会话文件。所以每轮结束后 Adap
 `CLAUDE_CODE_*` / `CLAUDECODE` 从子进程环境里去掉，实测时 Claude CLI **在这种父进程下仍然不会把会话写盘**，
 于是每次 resume 都会触发「新开会话」兜底。从普通终端（PowerShell / Explorer）启动 Tango 时，
 会话能正常写盘并在重启后 resume。这是 CLI 自身的判定，不是 Tango 能绕开的，按普通方式启动即可。
+
+## 数学公式：T3 也没有渲染
+
+T3 设置里有一项「Render math」，但它的渲染管线（`components/chat/markdownRenderer.ts` → `markdown/wordsHast.ts`）
+只加 `remark-math` 解析，没有 katex 输出；katex 只在 Mermaid 的 `$$` 标签里用到。所以 Tango 不做公式渲染不是缺项，
+而是与 T3 行为一致。`$$` 出现在 Mermaid 图里时，Tango 显示源码并说明原因。

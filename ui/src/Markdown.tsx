@@ -1,4 +1,4 @@
-import { Fragment, useMemo, type ComponentPropsWithoutRef, type ReactNode } from "react";
+import { Fragment, useMemo, useState, type ComponentPropsWithoutRef, type ReactNode } from "react";
 import { jsx, jsxs } from "react/jsx-runtime";
 import { unified } from "unified";
 import remarkParse from "remark-parse";
@@ -11,6 +11,7 @@ import { toJsxRuntime } from "hast-util-to-jsx-runtime";
 import { extractCodeBlock, extractFenceLanguage, extractFenceTitle } from "./lib/markdownCodeBlock";
 import { MarkdownCodeBlock } from "./components/chat/MarkdownCodeBlock";
 import { MarkdownMermaidCodeBlock } from "./components/chat/MarkdownMermaidCodeBlock";
+import { ImageLightbox } from "./components/chat/ImageLightbox";
 import { MarkdownTable } from "./components/chat/MarkdownTable";
 import { MarkdownDetails } from "./components/chat/MarkdownDetails";
 import { MarkdownExternalLinkContent } from "./components/chat/MarkdownExternalLink";
@@ -85,6 +86,11 @@ const components = {
       {props.children}
     </MarkdownDetails>
   ),
+  img: (props: ComponentPropsWithoutRef<"img">) => {
+    const src = typeof props.src === "string" ? props.src : "";
+    const alt = props.alt ?? "";
+    return <MarkdownImage src={src} alt={alt} />;
+  },
   a: (props: ComponentPropsWithoutRef<"a">) => {
     // `#fragment` 是同一份文档里的锚点，不该新开窗口，也不该带站点图标。
     if (props.href?.startsWith("#")) {
@@ -141,6 +147,37 @@ function markMatches(node: HastNode, needle: string) {
     next.push(child);
   }
   node.children = next;
+}
+
+// Markdown 里的图片：加载失败时给一行可读的替代文字，点开看大图。
+// T3 的 ChatMarkdownMedia 还会处理 video、资产引用和 host 鉴权；Tango 目前只有 URL 图片。
+function MarkdownImage({ src, alt }: { src: string; alt: string }) {
+  const [failed, setFailed] = useState(false);
+  const [open, setOpen] = useState(false);
+  if (failed) {
+    return (
+      <span
+        className="my-2 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border/70 bg-secondary px-2 py-1 text-xs text-muted-foreground"
+        data-markdown-image-failed="true"
+        title={src}
+      >
+        Image unavailable{alt ? ": " + alt : ""}
+      </span>
+    );
+  }
+  return (
+    <>
+      <button
+        type="button"
+        className="my-2 block max-w-full cursor-zoom-in rounded-md text-start focus-visible:outline-2 focus-visible:outline-ring"
+        aria-label={alt ? `Open image ${alt}` : "Open image"}
+        onClick={() => setOpen(true)}
+      >
+        <img {...{ src, alt }} loading="lazy" className="max-w-full rounded-md" onError={() => setFailed(true)} />
+      </button>
+      {open && <ImageLightbox src={src} alt={alt} onClose={() => setOpen(false)} />}
+    </>
+  );
 }
 
 export function Markdown({ text, highlight }: { text: string; highlight?: string }) {
